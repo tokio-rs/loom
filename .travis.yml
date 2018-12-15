@@ -1,0 +1,25 @@
+---
+language: rust
+rust:
+  - stable
+  - nightly
+
+script:
+  # Run tests with thread based runtime
+  - cargo test
+
+  # Run tests with generator based runtime
+  - cargo test --tests --features generator
+
+  # Run tests with fringe based runtime
+  - |
+    if [ "${TRAVIS_RUST_VERSION}" = "nightly" ];
+      then cargo test --tests --features fringe;
+    fi
+
+  # Check with serde based checkpoint feature
+  - cargo check --features checkpoint
+
+notifications:
+  email:
+    on_success: never

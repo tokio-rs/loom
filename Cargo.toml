@@ -1,0 +1,45 @@
+[package]
+name = "loom"
+# When releasing to crates.io:
+# - Update version number
+#   - lib.rs: html_root_url.
+#   - README.md
+# - Update CHANGELOG.md
+# - Update doc URL.
+#   - Cargo.toml
+#   - README.md
+# - Create git tag
+version = "0.1.0"
+license = "MIT"
+authors = ["Carl Lerche <me@carllerche.com>"]
+description = "Model checker for concurrent code"
+documentation = "https://docs.rs/loom/0.1.0/loom"
+homepage = "https://github.com/carllerche/loom"
+repository = "https://github.com/carllerche/loom"
+readme = "README.md"
+keywords = ["atomic", "lock-free"]
+categories = ["concurrency", "data-structures"]
+
+[features]
+default = []
+checkpoint = ["serde", "serde_derive", "serde_json"]
+
+[dependencies]
+cfg-if = "0.1.6"
+libc = "0.2.44"
+scoped-tls = "0.1.2"
+scoped-mut-tls = { version = "0.1.0", git = "http://github.com/carllerche/scoped-mut-tls" }
+
+# Provides a generator based runtime
+generator = { version = "0.6.10", optional = true }
+
+# Provides a runtime based on libfringe. Requires nightly.
+fringe = { git = "https://github.com/carllerche/libfringe", branch = "track-nightly", optional = true }
+
+# Optional futures support
+futures = { version = "", optional = true }
+
+# Requires for "checkpoint" feature
+serde = { version = "1.0.80", optional = true }
+serde_derive = { version = "1.0.80", optional = true }
+serde_json = { version = "1.0.33", optional = true }
