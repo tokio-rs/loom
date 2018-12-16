@@ -42,22 +42,40 @@ pub enum Runtime {
 
 impl Builder {
     pub fn new() -> Builder {
+        use std::env;
+
+        let checkpoint_interval = env::var("LOOM_CHECKPOINT_INTERVAL")
+            .map(|v| v.parse().ok().expect("invalid value for `LOOM_CHECKPOINT_INTERVAL`"))
+            .unwrap_or(100_000);
+
+        let log = env::var("LOOM_LOG").is_ok();
+
+        let mut runtime = Runtime::default();
+
+        if let Ok(rt) = env::var("LOOM_RUNTIME") {
+            runtime = match &rt[..] {
+                "thread" => Runtime::Thread,
+
+                #[cfg(feature = "generator")]
+                "generator" => Runtime::Generator,
+                #[cfg(not(feature = "generator"))]
+                "generator" => panic!("not compiled with `generator` feature"),
+
+                #[cfg(feature = "fringe")]
+                "fringe" => Runtime::Fringe,
+                #[cfg(not(feature = "fringe"))]
+                "fringe" => panic!("not compiled with `fringe` feature"),
+                v => panic!("invalid runtime `{}`", v),
+            };
+        }
+
         Builder {
             max_threads: DEFAULT_MAX_THREADS,
             max_memory: DEFAULT_MAX_MEMORY,
             checkpoint_file: None,
-            checkpoint_interval: 100_000,
-
-            #[cfg(feature = "fringe")]
-            runtime: Runtime::Fringe,
-
-            #[cfg(all(feature = "generator", not(feature = "fringe")))]
-            runtime: Runtime::Generator,
-
-            #[cfg(all(not(feature = "generator"), not(feature = "fringe")))]
-            runtime: Runtime::Thread,
-
-            log: false,
+            checkpoint_interval,
+            runtime,
+            log,
         }
     }
 
@@ -97,7 +115,7 @@ impl Builder {
             i += 1;
 
             if i % self.checkpoint_interval == 0 {
-                println!(" ===== iteration {} =====", i);
+                println!(" ================== Iteration {} ==================", i);
 
                 if let Some(ref path) = self.checkpoint_file {
                     checkpoint::store_execution_path(&execution.path, path);
@@ -146,6 +164,23 @@ if_futures! {
         R: Future<Item = (), Error = ()>,
     {
         Builder::new().fuzz_future(f);
+    }
+}
+
+impl Default for Runtime {
+    #[cfg(feature = "fringe")]
+    fn default() -> Runtime {
+        Runtime::Fringe
+    }
+
+    #[cfg(all(feature = "generator", not(feature = "fringe")))]
+    fn default() -> Runtime {
+        Runtime::Generator
+    }
+
+    #[cfg(all(not(feature = "generator"), not(feature = "fringe")))]
+    fn default() -> Runtime {
+        Runtime::Thread
     }
 }
 

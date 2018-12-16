@@ -1,6 +1,7 @@
 use rt::object::Operation;
 use rt::vv::VersionVec;
 
+use std::fmt;
 use std::marker::PhantomData;
 use std::ops;
 
@@ -247,9 +248,29 @@ impl Id {
 
     #[cfg(feature = "futures")]
     pub fn future_notify(self) {
-        super::execution(|execution| {
-            execution.threads.active_mut().notified = true;
-            execution.unpark_thread(self);
+        let yield_now = super::execution(|execution| {
+            execution.threads[self].notified = true;
+
+            if self == execution.threads.active_id() {
+                let num_runnable = execution.threads.iter()
+                    .filter(|(_, th)| th.is_runnable())
+                    .count();
+
+                num_runnable > 1
+            } else {
+                execution.unpark_thread(self);
+                false
+            }
         });
+
+        if yield_now {
+            super::yield_now();
+        }
     }
+}
+
+impl fmt::Display for Id {
+     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+         self.id.fmt(fmt)
+     }
 }

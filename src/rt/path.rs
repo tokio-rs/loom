@@ -57,6 +57,8 @@ pub enum Thread {
     Visited,
 }
 
+const MAX_BRANCHES: usize = 2_000;
+
 impl Path {
     /// New Path
     pub fn new() -> Path {
@@ -86,6 +88,8 @@ impl Path {
     {
         use self::Branch::Write;
 
+        assert!(self.branches.len() < MAX_BRANCHES);
+
         if self.pos == self.branches.len() {
             let i = self.writes.len();
 
@@ -109,6 +113,8 @@ impl Path {
     where
         I: Iterator<Item = Thread>
     {
+        assert!(self.branches.len() < MAX_BRANCHES);
+
         if self.pos == self.branches.len() {
             let i = self.schedules.len();
 

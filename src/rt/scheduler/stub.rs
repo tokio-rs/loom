@@ -9,21 +9,21 @@ impl Scheduler {
     where
         F: FnOnce(&mut Execution) -> R,
     {
-        unimplemented!();
+        panic!("called from outside a loom check execution");
     }
 
     pub fn switch() {
-        unimplemented!();
+        panic!("called from outside a loom check execution");
     }
 
     pub fn spawn(_: Box<FnBox>) {
-        unimplemented!();
+        panic!("called from outside a loom check execution");
     }
 
     pub fn run<F>(&mut self, _: &mut Execution, _: F)
     where
         F: FnOnce() + Send + 'static,
     {
-        unimplemented!();
+        panic!("called from outside a loom check execution");
     }
 }

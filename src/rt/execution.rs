@@ -204,8 +204,15 @@ impl Execution {
             });
         }
 
+        // Reactivate yielded threads
+        for (_, th) in self.threads.iter_mut() {
+            if th.is_yield() {
+                th.set_runnable();
+            }
+        }
+
         if self.log {
-            println!("~~~~~~~~ THREAD {:?} ~~~~~~~~", self.threads.active_id());
+            println!("~~~~~~~~ THREAD {} ~~~~~~~~", self.threads.active_id());
         }
 
         curr_thread != self.threads.active_id()
