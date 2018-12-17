@@ -1,12 +1,12 @@
 #![cfg(feature = "futures")]
 
 extern crate futures;
-extern crate syncbox_fuzz;
+extern crate loom;
 
-use syncbox_fuzz::fuzz_future;
-use syncbox_fuzz::sync::atomic::AtomicUsize;
-use syncbox_fuzz::thread;
-use syncbox_fuzz::futures::task;
+use loom::fuzz_future;
+use loom::sync::atomic::AtomicUsize;
+use loom::thread;
+use loom::futures::task;
 
 use futures::{
     future::{
@@ -26,15 +26,11 @@ fn fuzz_valid() {
             let num = Arc::new(AtomicUsize::new(0));
             let task = task::current();
 
-            println!("Spawn thread");
-
             thread::spawn({
-                println!("run thread");
                 let num = num.clone();
 
                 move || {
                     num.store(1, Relaxed);
-                    println!("NOTIFY");
                     task.notify();
                 }
             });

@@ -1,8 +1,8 @@
-extern crate syncbox_fuzz;
+extern crate loom;
 
-use syncbox_fuzz::sync::CausalCell;
-use syncbox_fuzz::sync::atomic::AtomicUsize;
-use syncbox_fuzz::thread;
+use loom::sync::CausalCell;
+use loom::sync::atomic::AtomicUsize;
+use loom::thread;
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering::{Acquire, Release};
@@ -36,7 +36,7 @@ fn thread_join_causality() {
         }
     }
 
-    syncbox_fuzz::fuzz(|| {
+    loom::fuzz(|| {
         let data = Data::new();
 
         let th = {
@@ -65,8 +65,6 @@ fn atomic_causality_success() {
                 });
             }
 
-            println!("BEFORE SET");
-
             self.guard.store(1, Release);
         }
 
@@ -83,12 +81,7 @@ fn atomic_causality_success() {
         }
     }
 
-    let mut fuzz = syncbox_fuzz::fuzz::Builder::new();
-    fuzz.log = true;
-    fuzz.checkpoint_interval = 1;
-
-    fuzz.fuzz(|| {
-        println!("MAIN TH");
+    loom::fuzz(|| {
         let chan = Arc::new(Chan {
             data: CausalCell::new(0),
             guard: AtomicUsize::new(0),
@@ -97,7 +90,6 @@ fn atomic_causality_success() {
         let th = {
             let chan = chan.clone();
             thread::spawn(move || {
-                println!("SIDE TH 1");
                 chan.set();
             })
         };
@@ -140,7 +132,7 @@ fn atomic_causality_fail() {
         }
     }
 
-    syncbox_fuzz::fuzz(|| {
+    loom::fuzz(|| {
         let chan = Arc::new(Chan {
             data: CausalCell::new(0),
             guard: AtomicUsize::new(0),
