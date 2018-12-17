@@ -1,8 +1,8 @@
-extern crate syncbox_fuzz;
+extern crate loom;
 
-use syncbox_fuzz::sync::{Condvar, Mutex};
-use syncbox_fuzz::sync::atomic::AtomicUsize;
-use syncbox_fuzz::thread;
+use loom::sync::{Condvar, Mutex};
+use loom::sync::atomic::AtomicUsize;
+use loom::thread;
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering::SeqCst;
@@ -31,7 +31,7 @@ fn fuzz_condvar() {
         }
     }
 
-    syncbox_fuzz::fuzz(|| {
+    loom::fuzz(|| {
         let inc = Arc::new(Inc::new());
 
         for _ in 0..1 {

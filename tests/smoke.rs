@@ -1,7 +1,7 @@
-extern crate syncbox_fuzz;
+extern crate loom;
 
-use syncbox_fuzz::sync::atomic::AtomicUsize;
-use syncbox_fuzz::thread;
+use loom::sync::atomic::AtomicUsize;
+use loom::thread;
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering::{Acquire, Release, Relaxed};
@@ -35,11 +35,7 @@ fn fuzz_valid() {
         }
     }
 
-    let mut fuzz = syncbox_fuzz::fuzz::Builder::new();
-    fuzz.log = true;
-    fuzz.checkpoint_interval = 1;
-
-    fuzz.fuzz(|| {
+    loom::fuzz(|| {
         let inc = Arc::new(Inc::new());
 
         let ths: Vec<_> = (0..2).map(|_| {
@@ -77,7 +73,7 @@ fn checks_fail() {
         }
     }
 
-    syncbox_fuzz::fuzz(|| {
+    loom::fuzz(|| {
         let buggy_inc = Arc::new(BuggyInc::new());
 
         let ths: Vec<_> = (0..2).map(|_| {
@@ -96,11 +92,7 @@ fn checks_fail() {
 #[test]
 #[should_panic]
 fn check_ordering() {
-    let mut fuzz = syncbox_fuzz::fuzz::Builder::new();
-    fuzz.log = true;
-    fuzz.checkpoint_interval = 1;
-
-    fuzz.fuzz(|| {
+    loom::fuzz(|| {
         let n1 = Arc::new((AtomicUsize::new(0), AtomicUsize::new(0)));
         let n2 = n1.clone();
 

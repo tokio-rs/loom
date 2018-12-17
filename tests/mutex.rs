@@ -1,19 +1,15 @@
-extern crate syncbox_fuzz;
+extern crate loom;
 
-use syncbox_fuzz::sync::{CausalCell, Mutex};
-use syncbox_fuzz::sync::atomic::AtomicUsize;
-use syncbox_fuzz::thread;
+use loom::sync::{CausalCell, Mutex};
+use loom::sync::atomic::AtomicUsize;
+use loom::thread;
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering::SeqCst;
 
 #[test]
 fn mutex_enforces_mutal_exclusion() {
-    let mut fuzz = syncbox_fuzz::fuzz::Builder::new();
-    fuzz.log = true;
-    fuzz.checkpoint_interval = 1;
-
-    fuzz.fuzz(|| {
+    loom::fuzz(|| {
         let data = Arc::new((Mutex::new(0), AtomicUsize::new(0)));
 
         let ths: Vec<_> = (0..2).map(|_| {
@@ -40,11 +36,7 @@ fn mutex_enforces_mutal_exclusion() {
 
 #[test]
 fn mutex_establishes_seq_cst() {
-    let mut fuzz = syncbox_fuzz::fuzz::Builder::new();
-    fuzz.log = true;
-    fuzz.checkpoint_interval = 1;
-
-    fuzz.fuzz(|| {
+    loom::fuzz(|| {
         struct Data {
             cell: CausalCell<usize>,
             flag: Mutex<bool>,
