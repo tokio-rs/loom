@@ -7,6 +7,8 @@ const DEFAULT_MAX_THREADS: usize = 4;
 
 const DEFAULT_MAX_MEMORY: usize = 4096 << 14;
 
+const DEFAULT_MAX_BRANCHES: usize = 1_000;
+
 #[derive(Debug)]
 pub struct Builder {
     /// Max number of threads to check as part of the execution. This should be set as low as possible.
@@ -14,6 +16,9 @@ pub struct Builder {
 
     /// Maximum amount of memory that can be consumed by the associated metadata.
     pub max_memory: usize,
+
+    /// Maximum number of thread switches per permutation.
+    pub max_branches: usize,
 
     /// When doing an exhaustive fuzz, uses the file to store and load the fuzz
     /// progress
@@ -48,6 +53,10 @@ impl Builder {
             .map(|v| v.parse().ok().expect("invalid value for `LOOM_CHECKPOINT_INTERVAL`"))
             .unwrap_or(100_000);
 
+        let max_branches = env::var("LOOM_MAX_BRANCHES")
+            .map(|v| v.parse().ok().expect("invalid value for `LOOM_MAX_BRANCHES`"))
+            .unwrap_or(DEFAULT_MAX_BRANCHES);
+
         let log = env::var("LOOM_LOG").is_ok();
 
         let mut runtime = Runtime::default();
@@ -72,6 +81,7 @@ impl Builder {
         Builder {
             max_threads: DEFAULT_MAX_THREADS,
             max_memory: DEFAULT_MAX_MEMORY,
+            max_branches,
             checkpoint_file: None,
             checkpoint_interval,
             runtime,
@@ -88,7 +98,7 @@ impl Builder {
     where
         F: Fn() + Sync + Send + 'static,
     {
-        let mut execution = Execution::new(self.max_threads, self.max_memory);
+        let mut execution = Execution::new(self.max_threads, self.max_memory, self.max_branches);
         let mut scheduler = match self.runtime {
             Runtime::Thread => Scheduler::new_thread(self.max_threads),
 
@@ -115,7 +125,9 @@ impl Builder {
             i += 1;
 
             if i % self.checkpoint_interval == 0 {
+                println!("");
                 println!(" ================== Iteration {} ==================", i);
+                println!("");
 
                 if let Some(ref path) = self.checkpoint_file {
                     checkpoint::store_execution_path(&execution.path, path);

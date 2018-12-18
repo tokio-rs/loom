@@ -149,8 +149,10 @@ fn pick_write<'a, T>(
     order: Ordering,
 ) -> &'a mut Write<T>
 {
-    let mut in_causality = false;
+    let mut first = true;
     let threads = &mut execution.threads;
+
+    // TODO: This should factor in yielding...
 
     let next = execution.path.branch_write({
         writes.iter()
@@ -159,12 +161,14 @@ fn pick_write<'a, T>(
             // Explore all writes that are not within the actor's causality as
             // well as the latest one.
             .take_while(|&(_, ref write)| {
-                let ret = in_causality;
+                let mut in_causality = false;
 
                 in_causality |= is_seq_cst(order) && write.seq_cst;
                 in_causality |= write.first_seen.is_seen_by(&threads);
 
-                !ret
+                let ret = !in_causality || first;
+                first = false;
+                ret
             })
             .map(|(i, _)| i)
     });

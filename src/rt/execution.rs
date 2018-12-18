@@ -38,7 +38,7 @@ impl Execution {
     ///
     /// This is only called at the start of a fuzz run. The same instance is
     /// reused across permutations.
-    pub fn new(max_threads: usize, max_memory: usize) -> Execution {
+    pub fn new(max_threads: usize, max_memory: usize, max_branches: usize) -> Execution {
         let mut threads = thread::Set::new(max_threads);
 
         // Create the root thread
@@ -46,7 +46,7 @@ impl Execution {
 
         Execution {
             // id: Id::new(),
-            path: Path::new(),
+            path: Path::new(max_branches),
             threads,
             objects: object::Set::new(),
             seq_cst_causality: VersionVec::new(max_threads),
@@ -167,6 +167,8 @@ impl Execution {
 
                 if initial == Some(i) {
                     Thread::Active
+                } else if th.is_yield() {
+                    Thread::Yield
                 } else if !th.is_runnable() {
                     Thread::Disabled
                 } else {
@@ -183,7 +185,7 @@ impl Execution {
             let terminal = self.threads.iter()
                 .all(|(_, th)| th.is_terminated());
 
-            assert!(terminal, "deadlock");
+            assert!(terminal, "deadlock; threads = {:?}", self.threads);
             return true;
         }
 
@@ -204,9 +206,10 @@ impl Execution {
             });
         }
 
-        // Reactivate yielded threads
-        for (_, th) in self.threads.iter_mut() {
-            if th.is_yield() {
+        // Reactivate yielded threads, but only if the current active thread is
+        // not yielded.
+        for (id, th) in self.threads.iter_mut() {
+            if th.is_yield() && Some(id) != next {
                 th.set_runnable();
             }
         }

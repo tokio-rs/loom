@@ -8,7 +8,7 @@ use std::ops;
 #[derive(Debug)]
 pub struct Thread {
     /// If the thread is runnable, blocked, or terminated.
-    state: State,
+    pub state: State,
 
     /// True if the thread is in a critical section
     pub critical: bool,
@@ -36,13 +36,13 @@ pub struct Set {
     active: Option<usize>,
 }
 
-#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone)]
 pub struct Id {
     id: usize,
     _p: PhantomData<::std::rc::Rc<()>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum State {
     Runnable,
     Blocked,
@@ -149,7 +149,7 @@ impl Set {
     }
 
     pub fn set_active(&mut self, id: Option<Id>) {
-        self.active = id.map(Id::as_usize)
+        self.active = id.map(Id::as_usize);
     }
 
     pub fn active_mut(&mut self) -> &mut Thread {
@@ -273,4 +273,10 @@ impl fmt::Display for Id {
      fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
          self.id.fmt(fmt)
      }
+}
+
+impl fmt::Debug for Id {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Id({})", self.id)
+    }
 }

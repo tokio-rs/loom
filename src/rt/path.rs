@@ -23,6 +23,9 @@ pub struct Path {
 
     /// Atomic writes
     writes: Vec<VecDeque<usize>>,
+
+    /// Maximum number of branches to explore
+    max_branches: usize,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -38,7 +41,7 @@ pub struct Schedule {
     pub threads: Vec<Thread>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub enum Thread {
     /// The thread is currently disabled
@@ -46,6 +49,9 @@ pub enum Thread {
 
     /// The thread should not be explored
     Skip,
+
+    /// The thread is in a yield state.
+    Yield,
 
     /// The thread is waiting to be explored
     Pending,
@@ -57,16 +63,15 @@ pub enum Thread {
     Visited,
 }
 
-const MAX_BRANCHES: usize = 2_000;
-
 impl Path {
     /// New Path
-    pub fn new() -> Path {
+    pub fn new(max_branches: usize) -> Path {
         Path {
             branches: vec![],
             pos: 0,
             schedules: vec![],
             writes: vec![],
+            max_branches,
         }
     }
 
@@ -88,7 +93,7 @@ impl Path {
     {
         use self::Branch::Write;
 
-        assert!(self.branches.len() < MAX_BRANCHES);
+        assert!(self.branches.len() < self.max_branches);
 
         if self.pos == self.branches.len() {
             let i = self.writes.len();
@@ -113,13 +118,26 @@ impl Path {
     where
         I: Iterator<Item = Thread>
     {
-        assert!(self.branches.len() < MAX_BRANCHES);
+        assert!(self.branches.len() < self.max_branches);
 
         if self.pos == self.branches.len() {
             let i = self.schedules.len();
 
+            let mut threads: Vec<_> = seed.collect();
+
+            let active = threads.iter().any(|th| *th == Thread::Active);
+
+            if !active {
+                threads.iter_mut()
+                    .find(|th| **th == Thread::Yield)
+                    .map(|th| *th = Thread::Active);
+            }
+
+            // Ensure at least one thread is active, otherwise toggle a yielded
+            // thread.
+
             self.schedules.push(Schedule {
-                threads: seed.collect(),
+                threads,
             });
 
             self.branches.push(Branch::Schedule(i));
