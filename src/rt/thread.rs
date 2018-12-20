@@ -34,6 +34,10 @@ pub struct Set {
     ///
     /// `None` signifies that no thread is runnable.
     active: Option<usize>,
+
+    /// Sequential consistency causality. All sequentially consistent operations
+    /// synchronize with this causality.
+    pub seq_cst_causality: VersionVec,
 }
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone)]
@@ -115,12 +119,13 @@ impl Set {
         Set {
             threads: Vec::with_capacity(max_threads),
             active: None,
+            seq_cst_causality: VersionVec::new(max_threads),
         }
     }
 
     /// Create a new thread
     pub fn new_thread(&mut self) -> Id {
-        assert!(self.threads.len() < self.threads.capacity());
+        assert!(self.threads.len() < self.max());
 
         // Get the identifier for the thread about to be created
         let id = self.threads.len();
@@ -134,6 +139,10 @@ impl Set {
         }
 
         Id::from_usize(id)
+    }
+
+    pub fn max(&self) -> usize {
+        self.threads.capacity()
     }
 
     pub fn is_active(&self) -> bool {
@@ -184,9 +193,16 @@ impl Set {
         self.active().causality[id]
     }
 
+    /// Insert a point of sequential consistency
+    pub fn seq_cst(&mut self) {
+        self.threads[self.active.unwrap()].causality.join(&self.seq_cst_causality);
+        self.seq_cst_causality.join(&self.threads[self.active.unwrap()].causality);
+    }
+
     pub fn clear(&mut self) {
         self.threads.clear();
         self.active = None;
+        self.seq_cst_causality = VersionVec::new(self.max());
     }
 
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = (Id, &'a Thread)> + 'a {

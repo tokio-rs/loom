@@ -2,7 +2,6 @@ use rt::Path;
 use rt::arena::Arena;
 use rt::object;
 use rt::thread;
-use rt::vv::VersionVec;
 
 use std::fmt;
 
@@ -13,10 +12,6 @@ pub struct Execution {
     pub threads: thread::Set,
 
     pub objects: object::Set,
-
-    /// Sequential consistency causality. All sequentially consistent operations
-    /// synchronize with this causality.
-    pub seq_cst_causality: VersionVec,
 
     /// Arena allocator
     pub arena: Arena,
@@ -49,7 +44,6 @@ impl Execution {
             path: Path::new(max_branches),
             threads,
             objects: object::Set::new(),
-            seq_cst_causality: VersionVec::new(max_threads),
             arena: Arena::with_capacity(max_memory),
             max_threads,
             max_history: 7,
@@ -100,9 +94,6 @@ impl Execution {
 
         objects.clear();
 
-        // Force dropping the rest of the fields here
-        drop(self.seq_cst_causality);
-
         arena.clear();
 
         if !path.step() {
@@ -112,13 +103,10 @@ impl Execution {
         threads.clear();
         threads.new_thread();
 
-        let seq_cst_causality = VersionVec::new(max_threads);
-
         Some(Execution {
             path,
             threads,
             objects,
-            seq_cst_causality,
             arena,
             max_threads,
             max_history,
@@ -228,12 +216,6 @@ impl Execution {
     pub fn unset_critical(&mut self) {
         self.threads.active_mut().critical = false;
     }
-
-    /// Insert a point of sequential consistency
-    pub fn seq_cst(&mut self) {
-        self.threads.active_mut().causality.join(&self.seq_cst_causality);
-        self.seq_cst_causality.join(&self.threads.active().causality);
-    }
 }
 
 impl fmt::Debug for Execution {
@@ -241,7 +223,6 @@ impl fmt::Debug for Execution {
         fmt.debug_struct("Execution")
             .field("path", &self.path)
             .field("threads", &self.threads)
-            .field("seq_cst_causality", &self.seq_cst_causality)
             .finish()
     }
 }

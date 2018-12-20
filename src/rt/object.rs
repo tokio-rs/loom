@@ -1,6 +1,10 @@
+use rt::atomic;
+use rt::Execution;
 use rt::vv::VersionVec;
 
 use std::marker::PhantomData;
+use std::ops;
+use std::sync::atomic::Ordering;
 
 #[derive(Debug)]
 pub struct Object {
@@ -51,6 +55,7 @@ enum Action {
 struct Atomic {
     last_load: Option<Access>,
     last_store: Option<Access>,
+    history: atomic::History,
 }
 
 #[derive(Debug, Clone)]
@@ -62,6 +67,13 @@ pub struct Access {
 impl Object {
     pub fn atomic() -> Object {
         Object { kind: Kind::Atomic(Atomic::default()) }
+    }
+
+    fn atomic_mut(&mut self) -> &mut Atomic {
+        match self.kind {
+            Kind::Atomic(ref mut v) => v,
+            _ => panic!(),
+        }
     }
 
     pub fn mutex() -> Object {
@@ -138,6 +150,20 @@ impl Set {
     }
 }
 
+impl ops::Index<Id> for Set {
+    type Output = Object;
+
+    fn index(&self, index: Id) -> &Self::Output {
+        self.objects.index(index.id)
+    }
+}
+
+impl ops::IndexMut<Id> for Set {
+    fn index_mut(&mut self, index: Id) -> &mut Self::Output {
+        self.objects.index_mut(index.id)
+    }
+}
+
 impl Id {
     pub fn from_usize(id: usize) -> Id {
         Id {
@@ -150,82 +176,102 @@ impl Id {
         self.id
     }
 
-    pub fn branch_load(self) {
+    pub fn atomic_init(self, execution: &mut Execution) {
+        execution.objects[self].atomic_mut()
+            .history.init(&mut execution.threads);
+    }
+
+    pub fn atomic_load(self, order: Ordering) -> usize {
         super::branch(|execution| {
-            execution.threads.active_mut().operation = Some(Operation {
-                object_id: self,
-                action: Action::Load,
-            });
+            self.set_action(execution, Action::Load);
+        });
+
+        super::synchronize(|execution| {
+            execution.objects[self]
+                .atomic_mut()
+                .history
+                .load(&mut execution.path,
+                      &mut execution.threads,
+                      order)
         })
     }
 
-    pub fn branch_store(self) {
+    pub fn atomic_store(self, order: Ordering) {
         super::branch(|execution| {
-            execution.threads.active_mut().operation = Some(Operation {
-                object_id: self,
-                action: Action::Store,
-            });
+            self.set_action(execution, Action::Store);
+        });
+
+        super::synchronize(|execution| {
+            execution.objects[self]
+                .atomic_mut()
+                .history
+                .store(&mut execution.threads, order)
         })
     }
 
-    pub fn branch_rmw(self) {
+    pub fn atomic_rmw<F, E>(self, f: F, success: Ordering, failure: Ordering)
+        -> Result<usize, E>
+    where
+        F: FnOnce(usize) -> Result<(), E>,
+    {
         super::branch(|execution| {
-            execution.threads.active_mut().operation = Some(Operation {
-                object_id: self,
-                action: Action::Rmw,
-            });
+            self.set_action(execution, Action::Rmw);
+        });
+
+        super::synchronize(|execution| {
+            execution.objects[self]
+                .atomic_mut()
+                .history
+                .rmw(
+                    f,
+                    &mut execution.threads,
+                    success,
+                    failure)
         })
     }
 
     pub fn branch_acquire(self, is_locked: bool) {
         super::branch(|execution| {
-            let thread = execution.threads.active_mut();
+            self.set_action(execution, Action::Opaque);
 
             if is_locked {
                 // The mutex is currently blocked, cannot make progress
-                thread.set_blocked();
+                execution.threads.active_mut().set_blocked();
             }
-
-            thread.operation = Some(Operation {
-                object_id: self,
-                action: Action::Opaque,
-            });
         })
     }
 
     pub fn branch(self) {
         super::branch(|execution| {
-            execution.threads.active_mut().operation = Some(Operation {
-                object_id: self,
-                action: Action::Opaque,
-            });
+            self.set_action(execution, Action::Opaque);
         })
     }
 
     pub fn branch_park(self, seq_cst: bool) {
         super::branch(|execution| {
-            execution.threads.active_mut().operation = Some(Operation {
-                object_id: self,
-                action: Action::Opaque,
-            });
+            self.set_action(execution, Action::Opaque);
 
             if seq_cst {
-                execution.seq_cst();
+                execution.threads.seq_cst();
             }
         })
     }
 
     pub fn branch_unpark(self, seq_cst: bool) {
         super::branch(|execution| {
-            execution.threads.active_mut().operation = Some(Operation {
-                object_id: self,
-                action: Action::Opaque,
-            });
+            self.set_action(execution, Action::Opaque);
 
             if seq_cst {
-                execution.seq_cst();
+                execution.threads.seq_cst();
             }
         })
+    }
+
+    fn set_action(self, execution: &mut Execution, action: Action) {
+        execution.threads.active_mut().operation = Some(Operation {
+            object_id: self,
+            action,
+        });
     }
 }
 
