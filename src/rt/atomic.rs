@@ -104,8 +104,10 @@ impl History {
                     let ret = in_causality;
 
                     if store.first_seen.is_seen_before_yield(&threads) {
+                        let ret = first;
                         in_causality = true;
-                        return first;
+                        first = false;
+                        return ret;
                     }
 
                     first = false;
