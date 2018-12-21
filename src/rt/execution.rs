@@ -173,7 +173,12 @@ impl Execution {
             let terminal = self.threads.iter()
                 .all(|(_, th)| th.is_terminated());
 
-            assert!(terminal, "deadlock; threads = {:?}", self.threads);
+            assert!(terminal,
+                    "deadlock; threads = {:?}",
+                    self.threads.iter().map(|(i, th)| {
+                        (i, th.state)
+                    }).collect::<Vec<_>>());
+
             return true;
         }
 

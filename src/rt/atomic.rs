@@ -74,7 +74,8 @@ impl History {
         self.stores[index].sync.sync_load(threads, success);
 
         let mut new = Store {
-            sync: Synchronize::new(threads.max()),
+            // Clone the previous sync in order to form a release sequence.
+            sync: self.stores[index].sync.clone(),
             first_seen: FirstSeen::new(threads),
             seq_cst: is_seq_cst(success),
         };
