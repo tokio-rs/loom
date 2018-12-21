@@ -1,4 +1,5 @@
 pub(crate) mod arena;
+mod atomic;
 mod execution;
 mod fn_box;
 pub(crate) mod object;
@@ -58,6 +59,17 @@ where
     }
 
     ret
+}
+
+fn synchronize<F, R>(f: F) -> R
+where
+    F: FnOnce(&mut Execution) -> R
+{
+    execution(|execution| {
+        let ret = f(execution);
+        execution.threads.active_causality_inc();
+        ret
+    })
 }
 
 pub fn yield_now() {

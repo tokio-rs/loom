@@ -43,7 +43,7 @@ impl<T> Mutex<T> {
         self.object.branch_acquire(self.is_locked());
 
         rt::execution(|execution| {
-            execution.seq_cst();
+            execution.threads.seq_cst();
 
             let thread_id = execution.threads.active_id();
 
@@ -70,7 +70,7 @@ impl<T> Mutex<T> {
         self.lock.set(None);
 
         rt::execution(|execution| {
-            execution.seq_cst();
+            execution.threads.seq_cst();
 
             let thread_id = execution.threads.active_id();
 
