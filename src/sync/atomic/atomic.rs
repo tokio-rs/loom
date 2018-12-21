@@ -54,7 +54,8 @@ where
     {
         let index = self.object.atomic_rmw(
             |index| {
-                match f(self.values.borrow()[index]) {
+                let v = f(self.values.borrow()[index]);
+                match v {
                     Ok(next) => {
                         self.values.borrow_mut().push(next);
                         Ok(())
