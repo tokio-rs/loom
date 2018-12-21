@@ -91,33 +91,8 @@ impl History {
                   order: Ordering)
         -> usize
     {
-
-        /*
-        let mut first = true;
-
-        // TODO: This should factor in yielding...
-        //
-        path.branch_write({
-            self.stores.iter()
-                .enumerate()
-                .rev()
-                // Explore all stores that are not within the actor's causality
-                // as well as the latest one.
-                .take_while(|&(_, ref store)| {
-                    let mut in_causality = false;
-
-                    in_causality |= is_seq_cst(order) && store.seq_cst;
-                    in_causality |= store.first_seen.is_seen_by(&threads);
-
-                    let ret = !in_causality || first;
-                    first = false;
-                    ret
-                })
-                .map(|(i, _)| i)
-        })
-        */
-
         let mut in_causality = false;
+        let mut first = true;
 
         path.branch_write({
             self.stores.iter()
@@ -127,6 +102,13 @@ impl History {
                 // well as the latest one.
                 .take_while(|&(_, ref store)| {
                     let ret = in_causality;
+
+                    if store.first_seen.is_seen_before_yield(&threads) {
+                        in_causality = true;
+                        return first;
+                    }
+
+                    first = false;
 
                     in_causality |= is_seq_cst(order) && store.seq_cst;
                     in_causality |= store.first_seen.is_seen_by(&threads);
@@ -171,6 +153,20 @@ impl FirstSeen {
         }
 
         false
+    }
+
+    fn is_seen_before_yield(&self, threads: &thread::Set) -> bool {
+        let thread_id = threads.active_id();
+
+        let last_yield = match threads.active().last_yield {
+            Some(v) => v,
+            None => return false,
+        };
+
+        match self.0[thread_id.as_usize()] {
+            None => false,
+            Some(v) => v <= last_yield,
+        }
     }
 }
 

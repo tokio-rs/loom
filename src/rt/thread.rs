@@ -7,6 +7,8 @@ use std::ops;
 
 #[derive(Debug)]
 pub struct Thread {
+    pub id: Id,
+
     /// If the thread is runnable, blocked, or terminated.
     pub state: State,
 
@@ -24,6 +26,9 @@ pub struct Thread {
 
     /// Tracks a future's `Task::notify` flag
     pub notified: bool,
+
+    /// Version at which the thread last yielded
+    pub last_yield: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -55,14 +60,16 @@ pub enum State {
 }
 
 impl Thread {
-    fn new(max_threads: usize) -> Thread {
+    fn new(id: Id, max_threads: usize) -> Thread {
         Thread {
+            id,
             state: State::Runnable,
             critical: false,
             operation: None,
             causality: VersionVec::new(max_threads),
             dpor_vv: VersionVec::new(max_threads),
             notified: false,
+            last_yield: None,
         }
     }
 
@@ -97,6 +104,7 @@ impl Thread {
 
     pub fn set_yield(&mut self) {
         self.state = State::Yield;
+        self.last_yield = Some(self.causality[self.id]);
     }
 
     pub fn is_terminated(&self) -> bool {
@@ -132,7 +140,8 @@ impl Set {
         let max_threads = self.threads.capacity();
 
         // Push the thread onto the stack
-        self.threads.push(Thread::new(max_threads));
+        self.threads.push(
+            Thread::new(Id::from_usize(id), max_threads));
 
         if self.active.is_none() {
             self.active = Some(id);
