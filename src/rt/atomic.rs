@@ -91,10 +91,12 @@ impl History {
                   order: Ordering)
         -> usize
     {
+
+        /*
         let mut first = true;
 
         // TODO: This should factor in yielding...
-
+        //
         path.branch_write({
             self.stores.iter()
                 .enumerate()
@@ -110,6 +112,26 @@ impl History {
                     let ret = !in_causality || first;
                     first = false;
                     ret
+                })
+                .map(|(i, _)| i)
+        })
+        */
+
+        let mut in_causality = false;
+
+        path.branch_write({
+            self.stores.iter()
+                .enumerate()
+                .rev()
+                // Explore all writes that are not within the actor's causality as
+                // well as the latest one.
+                .take_while(|&(_, ref store)| {
+                    let ret = in_causality;
+
+                    in_causality |= is_seq_cst(order) && store.seq_cst;
+                    in_causality |= store.first_seen.is_seen_by(&threads);
+
+                    !ret
                 })
                 .map(|(i, _)| i)
         })

@@ -66,47 +66,6 @@ where
             success, failure)?;
 
         Ok(self.values.borrow()[index])
-
-        /*
-        self.object.branch_rmw();
-        let mut writes = self.writes.borrow_mut();
-
-        synchronize(|execution| {
-            let old = {
-                let write = writes.last_mut().unwrap();
-                write.first_seen.touch(&execution.threads);
-                write.sync.sync_read(execution, order);
-                write.value
-            };
-
-            do_write(f(old), &mut *writes, execution, order);
-            old
-        })
-        */
-
-        // ===== compare xchange =====
-
-        /*
-        self.object.branch_rmw();
-        let mut writes = self.writes.borrow_mut();
-
-        synchronize(|execution| {
-            {
-                let write = writes.last_mut().unwrap();
-                write.first_seen.touch(&execution.threads);
-
-                if write.value != current {
-                    write.sync.sync_read(execution, failure);
-                    return Err(write.value);
-                }
-
-                write.sync.sync_read(execution, success);
-            }
-
-            do_write(new, &mut *writes, execution, success);
-            Ok(current)
-        })
-        */
     }
 
     pub fn swap(&self, val: T, order: Ordering) -> T {
