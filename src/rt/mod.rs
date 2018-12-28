@@ -117,17 +117,18 @@ where
 
 if_futures! {
     use _futures::Future;
+    use _futures::Async::Ready;
     use std::mem::replace;
 
-    pub fn wait_future<F>(mut f: F)
+    pub fn wait_future<F>(mut f: F) -> Result<F::Item, F::Error>
     where
-        F: Future<Item = (), Error = ()>
+        F: Future,
     {
         loop {
-            let res = f.poll().unwrap();
-
-            if res.is_ready() {
-                return;
+            match f.poll() {
+                Ok(Ready(val)) => return Ok(val),
+                Err(e) => return Err(e),
+                _ => {}
             }
 
             let notified = execution(|execution| {

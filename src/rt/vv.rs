@@ -11,6 +11,8 @@ pub struct VersionVec {
 
 impl VersionVec {
     pub fn new(max_threads: usize) -> VersionVec {
+        assert!(max_threads > 0, "max_threads = {:?}", max_threads);
+
         VersionVec {
             versions: vec![0; max_threads].into_boxed_slice(),
         }
@@ -33,6 +35,8 @@ impl VersionVec {
     }
 
     pub fn join(&mut self, other: &VersionVec) {
+        assert_eq!(self.versions.len(), other.versions.len());
+
         for (i, &version) in other.versions.iter().enumerate() {
             self.versions[i] = cmp::max(self.versions[i], version);
         }

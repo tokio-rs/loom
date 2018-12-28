@@ -166,7 +166,9 @@ if_futures! {
             F: Fn() -> R + Sync + Send + 'static,
             R: Future<Item = (), Error = ()>,
         {
-            self.fuzz(move || rt::wait_future(f()));
+            self.fuzz(move || {
+                rt::wait_future(f()).unwrap();
+            });
         }
     }
 

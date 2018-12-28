@@ -19,9 +19,9 @@ impl<T> CausalCell<T> {
         }
     }
 
-    pub unsafe fn with<F, R>(&self, f: F) -> R
+    pub fn with<F, R>(&self, f: F) -> R
     where
-        F: FnOnce(&T) -> R,
+        F: FnOnce(*const T) -> R,
     {
         rt::execution(|execution| {
             let v = self.version.borrow();
@@ -33,13 +33,13 @@ impl<T> CausalCell<T> {
         });
 
         rt::critical(|| {
-            f(&*self.data.get())
+            f(self.data.get())
         })
     }
 
-    pub unsafe fn with_mut<F, R>(&self, f: F) -> R
+    pub fn with_mut<F, R>(&self, f: F) -> R
     where
-        F: FnOnce(&mut T) -> R,
+        F: FnOnce(*mut T) -> R,
     {
         rt::execution(|execution| {
             let mut v = self.version.borrow_mut();
@@ -53,7 +53,7 @@ impl<T> CausalCell<T> {
         });
 
         rt::critical(|| {
-            f(&mut *self.data.get())
+            f(self.data.get())
         })
     }
 }
