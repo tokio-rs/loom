@@ -33,5 +33,9 @@ pub mod task {
         pub fn notify(&self) {
             self.thread.future_notify();
         }
+
+        pub fn will_notify_current(&self) -> bool {
+            self.thread == rt::thread::Id::current()
+        }
     }
 }

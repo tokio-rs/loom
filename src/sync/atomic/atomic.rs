@@ -28,12 +28,16 @@ where
     }
 
     pub fn load(&self, order: Ordering) -> T {
+        let object = self.object;
         let index = self.object.atomic_load(order);
+        assert!(object == self.object, "atomic instance changed mid schedule, most likely due to a bug in the algorithm being checked");
         self.values.borrow_mut()[index]
     }
 
     pub fn store(&self, value: T, order: Ordering) {
+        let object = self.object;
         self.object.atomic_store(order);
+        assert!(object == self.object, "atomic instance changed mid schedule, most likely due to a bug in the algorithm being checked");
         self.values.borrow_mut().push(value);
     }
 
@@ -52,6 +56,7 @@ where
     where
         F: FnOnce(T) -> Result<T, E>,
     {
+        let object = self.object;
         let index = self.object.atomic_rmw(
             |index| {
                 let v = f(self.values.borrow()[index]);
@@ -64,6 +69,8 @@ where
                 }
             },
             success, failure)?;
+
+        assert!(object == self.object, "atomic instance changed mid schedule, most likely due to a bug in the algorithm being checked");
 
         Ok(self.values.borrow()[index])
     }
