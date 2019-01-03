@@ -34,7 +34,7 @@ scoped-mut-tls = { version = "0.1.0", git = "http://github.com/carllerche/scoped
 generator = { version = "0.6.10", optional = true }
 
 # Provides a runtime based on libfringe. Requires nightly.
-fringe = { git = "https://github.com/carllerche/libfringe", branch = "track-nightly", optional = true }
+# fringe = { git = "https://github.com/carllerche/libfringe", branch = "track-nightly", optional = true }
 
 # Optional futures support
 futures = { version = "", optional = true }
