@@ -124,6 +124,7 @@ if_futures! {
     use _futures::Async::Ready;
     use std::mem::replace;
 
+    /// Block the current thread, driving `f` to completion.
     pub fn wait_future<F>(mut f: F) -> Result<F::Item, F::Error>
     where
         F: Future,

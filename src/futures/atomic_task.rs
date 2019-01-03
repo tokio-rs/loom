@@ -5,6 +5,7 @@ use super::task;
 use std::cell::RefCell;
 use std::sync::atomic::Ordering::{Acquire, Release};
 
+/// Mock implementation of `futures::task::AtomicTask`.
 #[derive(Debug)]
 pub struct AtomicTask {
     task: RefCell<Option<task::Task>>,
@@ -14,6 +15,7 @@ pub struct AtomicTask {
 }
 
 impl AtomicTask {
+    /// Create a new instance of `AtomicTask`.
     pub fn new() -> AtomicTask {
         rt::execution(|execution| {
             AtomicTask {
@@ -25,10 +27,12 @@ impl AtomicTask {
         })
     }
 
+    /// Registers the current task to be notified on calls to `notify`.
     pub fn register(&self) {
         self.register_task(task::current());
     }
 
+    /// Registers the provided task to be notified on calls to `notify`.
     pub fn register_task(&self, task: task::Task) {
         self.object.branch();
 
@@ -39,6 +43,7 @@ impl AtomicTask {
         *self.task.borrow_mut() = Some(task);
     }
 
+    /// Notifies the task that last called `register`.
     pub fn notify(&self) {
         self.object.branch();
 

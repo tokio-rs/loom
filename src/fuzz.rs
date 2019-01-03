@@ -4,6 +4,7 @@ use rt::{self, Execution, Scheduler};
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 const DEFAULT_MAX_THREADS: usize = 4;
 
@@ -23,6 +24,12 @@ pub struct Builder {
     /// Maximum number of thread switches per permutation.
     pub max_branches: usize,
 
+    /// Maximum number of permutations to explore.
+    pub max_permutations: Option<usize>,
+
+    /// Maximum amount of time to spend on a fuzz
+    pub max_duration: Option<Duration>,
+
     /// When doing an exhaustive fuzz, uses the file to store and load the fuzz
     /// progress
     pub checkpoint_file: Option<PathBuf>,
@@ -35,6 +42,9 @@ pub struct Builder {
 
     /// Log execution output to stdout.
     pub log: bool,
+
+    // Support adding more fields in the future
+    _p: (),
 }
 
 /// Fuzz execution runtimes.
@@ -60,7 +70,7 @@ impl Builder {
 
         let checkpoint_interval = env::var("LOOM_CHECKPOINT_INTERVAL")
             .map(|v| v.parse().ok().expect("invalid value for `LOOM_CHECKPOINT_INTERVAL`"))
-            .unwrap_or(100_000);
+            .unwrap_or(20_000);
 
         let max_branches = env::var("LOOM_MAX_BRANCHES")
             .map(|v| v.parse().ok().expect("invalid value for `LOOM_MAX_BRANCHES`"))
@@ -87,14 +97,30 @@ impl Builder {
             };
         }
 
+        let max_duration = env::var("LOOM_MAX_DURATION")
+            .map(|v| {
+                let secs = v.parse().ok().expect("invalid value for `LOOM_MAX_DURATION`");
+                Duration::from_secs(secs)
+            })
+            .ok();
+
+        let max_permutations = env::var("LOOM_MAX_PERMUTATIONS")
+            .map(|v| {
+                v.parse().ok().expect("invalid value for `LOOM_MAX_PERMUTATIONS`")
+            })
+            .ok();
+
         Builder {
             max_threads: DEFAULT_MAX_THREADS,
             max_memory: DEFAULT_MAX_MEMORY,
             max_branches,
+            max_duration,
+            max_permutations,
             checkpoint_file: None,
             checkpoint_interval,
             runtime,
             log,
+            _p: (),
         }
     }
 
@@ -132,6 +158,8 @@ impl Builder {
 
         let mut i = 0;
 
+        let start = Instant::now();
+
         loop {
             i += 1;
 
@@ -142,6 +170,18 @@ impl Builder {
 
                 if let Some(ref path) = self.checkpoint_file {
                     checkpoint::store_execution_path(&execution.path, path);
+                }
+
+                if let Some(max_permutations) = self.max_permutations {
+                    if i >= max_permutations {
+                        return;
+                    }
+                }
+
+                if let Some(max_duration) = self.max_duration {
+                    if start.elapsed() >= max_duration {
+                        return;
+                    }
                 }
             }
 
