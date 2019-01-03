@@ -5,19 +5,23 @@ use std::cell::{Cell, RefCell, RefMut};
 use std::ops;
 use std::sync::LockResult;
 
+/// Mock implementation of `std::sync::Mutex`.
+#[derive(Debug)]
 pub struct Mutex<T> {
-    #[allow(unused)]
     data: RefCell<T>,
     lock: Cell<Option<thread::Id>>,
     object: object::Id,
 }
 
+/// Mock implementation of `std::sync::MutexGuard`.
+#[derive(Debug)]
 pub struct MutexGuard<'a, T: 'a> {
     lock: &'a Mutex<T>,
     data: Option<RefMut<'a, T>>,
 }
 
 impl<T> Mutex<T> {
+    /// Creates a new mutex in an unlocked state ready for use.
     pub fn new(data: T) -> Mutex<T> {
         rt::execution(|execution| {
             Mutex {
@@ -30,6 +34,7 @@ impl<T> Mutex<T> {
 }
 
 impl<T> Mutex<T> {
+    /// Acquires a mutex, blocking the current thread until it is able to do so.
     pub fn lock(&self) -> LockResult<MutexGuard<T>> {
         self.acquire();
 

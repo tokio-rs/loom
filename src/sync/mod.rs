@@ -1,3 +1,5 @@
+//! Mock implementation of `std::atomic`.
+
 mod causal;
 pub mod atomic;
 mod condvar;

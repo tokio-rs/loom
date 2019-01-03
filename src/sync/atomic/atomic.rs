@@ -4,7 +4,6 @@ use rt::object::{self, Object};
 use std::cell::RefCell;
 use std::sync::atomic::Ordering;
 
-/// An atomic value
 #[derive(Debug)]
 pub struct Atomic<T> {
     object: object::Id,

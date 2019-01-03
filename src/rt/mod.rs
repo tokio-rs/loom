@@ -72,6 +72,10 @@ where
     })
 }
 
+/// Yield the thread.
+///
+/// This enables concurrent algorithms that require other threads to make
+/// progress.
 pub fn yield_now() {
     let switch = execution(|execution| {
         execution.threads.active_mut().set_yield();

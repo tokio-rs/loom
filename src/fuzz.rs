@@ -1,3 +1,5 @@
+//! Fuzz concurrent programs.
+
 use rt::{self, Execution, Scheduler};
 
 use std::path::PathBuf;
@@ -9,6 +11,7 @@ const DEFAULT_MAX_MEMORY: usize = 4096 << 14;
 
 const DEFAULT_MAX_BRANCHES: usize = 1_000;
 
+/// Configure a fuzz execution.
 #[derive(Debug)]
 pub struct Builder {
     /// Max number of threads to check as part of the execution. This should be set as low as possible.
@@ -34,18 +37,24 @@ pub struct Builder {
     pub log: bool,
 }
 
+/// Fuzz execution runtimes.
 #[derive(Debug)]
 pub enum Runtime {
+    /// Spawn a `std` Thread for each loom thread. A mutex is used to schedule a
+    /// single thread at a time.
     Thread,
 
+    /// Use a `generator::Generator` for each loom thread, providing faster scheduling.
     #[cfg(feature = "generator")]
     Generator,
 
+    /// Use a `fringe::Generator` for each loom thread, providing faster scheduling.
     #[cfg(feature = "fringe")]
     Fringe,
 }
 
 impl Builder {
+    /// Create a new `Builder` instance with default values.
     pub fn new() -> Builder {
         use std::env;
 
@@ -89,11 +98,13 @@ impl Builder {
         }
     }
 
+    /// Set the checkpoint file.
     pub fn checkpoint_file(&mut self, file: &str) -> &mut Self {
         self.checkpoint_file = Some(file.into());
         self
     }
 
+    /// Fuzz the closure.
     pub fn fuzz<F>(&self, f: F)
     where
         F: Fn() + Sync + Send + 'static,
@@ -150,35 +161,12 @@ impl Builder {
     }
 }
 
+/// Run all concurrent permutations of the provided closure.
 pub fn fuzz<F>(f: F)
 where
     F: Fn() + Sync + Send + 'static,
 {
     Builder::new().fuzz(f)
-}
-
-if_futures! {
-    use _futures::Future;
-
-    impl Builder {
-        pub fn fuzz_future<F, R>(&self, f: F)
-        where
-            F: Fn() -> R + Sync + Send + 'static,
-            R: Future<Item = (), Error = ()>,
-        {
-            self.fuzz(move || {
-                rt::wait_future(f()).unwrap();
-            });
-        }
-    }
-
-    pub fn fuzz_future<F, R>(f: F)
-    where
-        F: Fn() -> R + Sync + Send + 'static,
-        R: Future<Item = (), Error = ()>,
-    {
-        Builder::new().fuzz_future(f);
-    }
 }
 
 impl Default for Runtime {

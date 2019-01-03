@@ -1,3 +1,5 @@
+//! Mock implementation of `std::sync::atomic`.
+
 mod atomic;
 mod ptr;
 mod usize;
