@@ -10,6 +10,10 @@ impl AtomicUsize {
         AtomicUsize(Atomic::new(v))
     }
 
+    pub fn get_mut(&mut self) -> &mut usize {
+        self.0.get_mut()
+    }
+
     pub fn load(&self, order: Ordering) -> usize {
         self.0.load(order)
     }

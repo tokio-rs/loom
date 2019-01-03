@@ -27,6 +27,11 @@ where
         })
     }
 
+    pub fn get_mut(&mut self) -> &mut T {
+        self.object.atomic_get_mut();
+        self.values.get_mut().last_mut().unwrap()
+    }
+
     pub fn load(&self, order: Ordering) -> T {
         let object = self.object;
         let index = self.object.atomic_load(order);

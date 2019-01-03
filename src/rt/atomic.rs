@@ -1,4 +1,4 @@
-use rt::{self, thread, Synchronize};
+use rt::{self, thread, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering;
 
@@ -28,6 +28,14 @@ impl History {
             sync: Synchronize::new(threads.max()),
             first_seen: FirstSeen::new(threads),
             seq_cst: false,
+        });
+    }
+
+    pub fn happens_before(&self, vv: &VersionVec) {
+        assert!({
+            self.stores.iter().all(|store| {
+                vv >= store.sync.version_vec()
+            })
         });
     }
 

@@ -230,6 +230,22 @@ impl Id {
         })
     }
 
+    /// Assert that the entire atomic history happens before the current thread.
+    /// This is required to safely call `get_mut()`.
+    pub fn atomic_get_mut(self) {
+        super::branch(|execution| {
+            self.set_action(execution, Action::Rmw);
+        });
+
+        super::execution(|execution| {
+            execution.objects[self]
+                .atomic_mut()
+                .history
+                .happens_before(
+                    &execution.threads.active().causality);
+        });
+    }
+
     pub fn branch_acquire(self, is_locked: bool) {
         super::branch(|execution| {
             self.set_action(execution, Action::Opaque);

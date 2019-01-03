@@ -17,6 +17,10 @@ impl Synchronize {
         }
     }
 
+    pub fn version_vec(&self) -> &VersionVec {
+        &self.happens_before
+    }
+
     pub fn sync_load(&mut self, threads: &mut thread::Set, order: Ordering) {
         match order {
             Relaxed | Release => {
