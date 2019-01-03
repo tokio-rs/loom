@@ -23,6 +23,17 @@ Concurrent Data Structures Written with C/C++ Atomics][cdschecker].
 
 [cdschecker]: http://demsky.eecs.uci.edu/publications/c11modelcheck.pdf
 
+
+## Limitations
+
+While already very useful, loom is in its early stages and has a number of
+limitations.
+
+* Execution is slow (#5).
+* The full C11 memory model is not implemented (#6).
+* No fence support (#7).
+* No bounding support (#8).
+
 ## License
 
 This project is licensed under the [MIT license](LICENSE).
