@@ -2,6 +2,7 @@ use rt::{thread, Execution, FnBox};
 
 use generator::{self, Gn, Generator};
 
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt;
 
@@ -16,8 +17,8 @@ pub struct Scheduler {
 
 type Thread = Generator<'static, Option<Box<FnBox>>, ()>;
 
-scoped_mut_thread_local! {
-    static STATE: State
+scoped_thread_local! {
+    static STATE: RefCell<State>
 }
 
 struct State<'a> {
@@ -44,7 +45,7 @@ impl Scheduler {
     where
         F: FnOnce(&mut Execution) -> R,
     {
-        STATE.with(|state| f(state.execution))
+        STATE.with(|state| f(&mut state.borrow_mut().execution))
     }
 
     /// Perform a context switch
@@ -54,7 +55,7 @@ impl Scheduler {
 
     pub fn spawn(f: Box<FnBox>) {
         STATE.with(|state| {
-            state.queued_spawn.push_back(f);
+            state.borrow_mut().queued_spawn.push_back(f);
         });
     }
 
@@ -90,14 +91,14 @@ impl Scheduler {
     }
 
     fn tick(&mut self, thread: thread::Id, execution: &mut Execution) {
-        let mut state = State {
+        let state = RefCell::new(State {
             execution: execution,
             queued_spawn: &mut self.queued_spawn,
-        };
+        });
 
         let threads = &mut self.threads;
 
-        STATE.set(unsafe { transmute_lt(&mut state) }, || {
+        STATE.set(unsafe { transmute_lt(&state) }, || {
             threads[thread.as_usize()].resume();
         });
     }
@@ -127,6 +128,6 @@ fn spawn_threads(n: usize) -> Vec<Thread> {
     }).collect()
 }
 
-unsafe fn transmute_lt<'a, 'b>(state: &'a mut State<'b>) -> &'a mut State<'static> {
+unsafe fn transmute_lt<'a, 'b>(state: &'a RefCell<State<'b>>) -> &'a RefCell<State<'static>> {
     ::std::mem::transmute(state)
 }

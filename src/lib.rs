@@ -123,13 +123,6 @@ extern crate generator;
 #[cfg(feature = "fringe")]
 extern crate fringe;
 
-cfg_if! {
-    if #[cfg(any(feature = "generator", feature = "fringe"))] {
-        #[macro_use]
-        extern crate scoped_mut_tls;
-    }
-}
-
 // The checkpoint feature enables serialization of the check exploration to
 // disk. This is useful for replaying a known failing permutation.
 cfg_if! {

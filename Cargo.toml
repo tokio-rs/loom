@@ -28,7 +28,6 @@ checkpoint = ["serde", "serde_derive", "serde_json"]
 cfg-if = "0.1.6"
 # libc = "0.2.44"
 scoped-tls = "0.1.2"
-scoped-mut-tls = { version = "0.1.0", git = "http://github.com/carllerche/scoped-mut-tls" }
 
 # Provides a generator based runtime
 generator = { version = "0.6.10", optional = true }
