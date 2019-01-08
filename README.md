@@ -5,6 +5,8 @@ behaviors of code under the C11 memory model, which Rust inherits.
 
 [![Build Status](https://travis-ci.com/carllerche/loom.svg?branch=master)](https://travis-ci.com/carllerche/loom)
 
+[Documentation](https://docs.rs/loom/0.1.0/loom)
+
 ## Getting started
 
 To use `loom`, first add this to your `Cargo.toml`:
