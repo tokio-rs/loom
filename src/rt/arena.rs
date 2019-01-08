@@ -11,9 +11,10 @@ use std::slice;
 
 #[derive(Debug)]
 pub struct Arena {
-    inner: Rc<Inner>,
+    // inner: Rc<Inner>,
 }
 
+/*
 pub struct Slice<T> {
     ptr: *mut T,
     len: usize,
@@ -31,12 +32,15 @@ struct Inner {
     /// Total capacity of the arena
     cap: usize,
 }
+*/
 
 impl Arena {
     /// Create an `Arena` with specified capacity.
     ///
     /// Capacity must be a power of 2. The capacity cannot be grown after the fact.
     pub fn with_capacity(capacity: usize) -> Arena {
+        Arena {}
+        /*
         let head = unsafe {
             libc::mmap(
                 ptr::null_mut(),
@@ -55,7 +59,17 @@ impl Arena {
                 cap: capacity,
             }),
         }
+        */
     }
+
+    pub fn clear(&mut self) {
+        /*
+        assert!(1 == Rc::strong_count(&self.inner));
+        self.inner.pos.set(0);
+        */
+    }
+}
+/*
 
     pub fn slice<T>(&mut self, len: usize) -> Slice<T>
     where
@@ -74,11 +88,6 @@ impl Arena {
             len,
             _inner: self.inner.clone(),
         }
-    }
-
-    pub fn clear(&mut self) {
-        assert!(1 == Rc::strong_count(&self.inner));
-        self.inner.pos.set(0);
     }
 
     fn allocate<T>(&mut self, count: usize) -> *mut T {
@@ -179,3 +188,4 @@ impl<T> Drop for Slice<T> {
         }
     }
 }
+*/
