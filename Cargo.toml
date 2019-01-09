@@ -36,7 +36,7 @@ generator = { version = "0.6.10", optional = true }
 # fringe = { git = "https://github.com/carllerche/libfringe", branch = "track-nightly", optional = true }
 
 # Optional futures support
-futures = { version = "", optional = true }
+futures = { version = "0.1.25", optional = true }
 
 # Requires for "checkpoint" feature
 serde = { version = "1.0.80", optional = true }
