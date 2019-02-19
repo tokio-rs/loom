@@ -9,11 +9,11 @@ name = "loom"
 #   - Cargo.toml
 #   - README.md
 # - Create git tag
-version = "0.1.0"
+version = "0.1.1"
 license = "MIT"
 authors = ["Carl Lerche <me@carllerche.com>"]
 description = "Model checker for concurrent code"
-documentation = "https://docs.rs/loom/0.1.0/loom"
+documentation = "https://docs.rs/loom/0.1.1/loom"
 homepage = "https://github.com/carllerche/loom"
 repository = "https://github.com/carllerche/loom"
 readme = "README.md"

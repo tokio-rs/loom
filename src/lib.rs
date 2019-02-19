@@ -1,3 +1,7 @@
+#![doc(html_root_url = "https://docs.rs/loom/0.1.1")]
+#![deny(missing_debug_implementations, missing_docs)]
+#![cfg_attr(test, deny(warnings))]
+
 //! Loom is a tool for testing concurrent programs.
 //!
 //! # Background
@@ -106,10 +110,6 @@
 //! **read** from the same atomic variable, loom does not attempt another
 //! execution given that the order in which two threads read from the same
 //! atomic cannot impact the execution.
-
-#![doc(html_root_url = "https://docs.rs/loom/0.1.0")]
-#![deny(missing_debug_implementations, missing_docs)]
-#![cfg_attr(test, deny(warnings))]
 
 #[macro_use]
 extern crate cfg_if;
