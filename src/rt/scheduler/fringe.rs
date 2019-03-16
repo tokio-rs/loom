@@ -6,7 +6,7 @@ use fringe::{
     generator::Yielder,
 };
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::fmt;
 use std::ptr;
@@ -27,8 +27,8 @@ struct State<'a> {
     queued_spawn: &'a mut VecDeque<Box<FnBox>>,
 }
 
-scoped_mut_thread_local! {
-    static STATE: State
+scoped_thread_local! {
+    static STATE: RefCell<State>
 }
 
 thread_local!(static YIELDER: Cell<*const Yielder<Option<Box<FnBox>>, ()>> = Cell::new(ptr::null()));
@@ -52,7 +52,9 @@ impl Scheduler {
     where
         F: FnOnce(&mut Execution) -> R,
     {
-        STATE.with(|state| f(state.execution))
+        use std::ops::DerefMut;
+
+        STATE.with(|state| f(state.borrow_mut().deref_mut().execution))
     }
 
     /// Perform a context switch
@@ -61,8 +63,10 @@ impl Scheduler {
     }
 
     pub fn spawn(f: Box<FnBox>) {
+        use std::ops::DerefMut;
+
         STATE.with(|state| {
-            state.queued_spawn.push_back(f);
+            state.borrow_mut().deref_mut().queued_spawn.push_back(f);
         });
     }
 
@@ -96,14 +100,14 @@ impl Scheduler {
     }
 
     fn tick(&mut self, thread: thread::Id, execution: &mut Execution) {
-        let mut state = State {
+        let state = State {
             execution: execution,
             queued_spawn: &mut self.queued_spawn,
         };
 
         let threads = &mut self.threads;
 
-        STATE.set(unsafe { transmute_lt(&mut state) }, || {
+        STATE.set(&mut RefCell::new(unsafe { transmute_lt(state) }), || {
             threads[thread.as_usize()].resume(None);
         });
     }
@@ -160,6 +164,6 @@ fn spawn_threads(n: usize) -> Vec<Thread> {
     }).collect()
 }
 
-unsafe fn transmute_lt<'a, 'b>(state: &'a mut State<'b>) -> &'a mut State<'static> {
+unsafe fn transmute_lt<'b>(state: State<'b>) -> State<'static> {
     ::std::mem::transmute(state)
 }
