@@ -1,3 +1,4 @@
+use rt::arena::Arena;
 use rt::{thread, VersionVec};
 
 use std::sync::atomic::Ordering::{self, *};
@@ -8,9 +9,8 @@ pub(crate) struct Synchronize {
 }
 
 impl Synchronize {
-    pub fn new(max_threads: usize) -> Self {
-        let happens_before =
-            VersionVec::new(max_threads);
+    pub fn new(arena: &mut Arena, max_threads: usize) -> Self {
+        let happens_before = VersionVec::new(arena, max_threads);
 
         Synchronize {
             happens_before,
