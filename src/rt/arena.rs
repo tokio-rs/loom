@@ -11,10 +11,9 @@ use std::slice;
 
 #[derive(Debug)]
 pub struct Arena {
-    // inner: Rc<Inner>,
+    inner: Rc<Inner>,
 }
 
-/*
 pub struct Slice<T> {
     ptr: *mut T,
     len: usize,
@@ -32,15 +31,12 @@ struct Inner {
     /// Total capacity of the arena
     cap: usize,
 }
-*/
 
 impl Arena {
     /// Create an `Arena` with specified capacity.
     ///
     /// Capacity must be a power of 2. The capacity cannot be grown after the fact.
     pub fn with_capacity(capacity: usize) -> Arena {
-        Arena {}
-        /*
         let head = unsafe {
             libc::mmap(
                 ptr::null_mut(),
@@ -57,65 +53,67 @@ impl Arena {
                 head: head as *mut u8,
                 pos: Cell::new(0),
                 cap: capacity,
-            }),
+            })
         }
-        */
     }
 
     pub fn clear(&mut self) {
-        /*
         assert!(1 == Rc::strong_count(&self.inner));
         self.inner.pos.set(0);
-        */
     }
-}
-/*
 
     pub fn slice<T>(&mut self, len: usize) -> Slice<T>
     where
         T: Default,
     {
-        let ptr: *mut T = self.allocate(len);
+        slice(&self.inner, len)
+    }
+}
 
-        for i in 0..len {
-            unsafe {
-                ptr::write(ptr.offset(i as isize), T::default());
-            }
-        }
+fn slice<T>(inner: &Rc<Inner>, len: usize) -> Slice<T>
+where
+    T: Default,
+{
+    let ptr: *mut T = allocate(inner, len);
 
-        Slice {
-            ptr,
-            len,
-            _inner: self.inner.clone(),
+    for i in 0..len {
+        unsafe {
+            ptr::write(ptr.offset(i as isize), T::default());
         }
     }
 
-    fn allocate<T>(&mut self, count: usize) -> *mut T {
-        let layout = Layout::new::<T>();
-        let mask = layout.align() - 1;
-        let pos = self.inner.pos.get();
-
-        debug_assert!(layout.align() >= (pos & mask));
-
-        let mut skip = layout.align() - (pos & mask);
-
-        if skip == layout.align() {
-            skip = 0;
-        }
-
-        let additional = skip + layout.size() * count;
-
-        assert!(pos + additional <= self.inner.cap, "arena overflow");
-
-        self.inner.pos.set(pos + additional);
-
-        let ret = unsafe { self.inner.head.offset((pos + skip) as isize) as *mut T };
-
-        debug_assert!((ret as usize) >= self.inner.head as usize);
-        debug_assert!((ret as usize) < (self.inner.head as usize + self.inner.cap));
-
-        ret
+    Slice {
+        ptr,
+        len,
+        _inner: inner.clone(),
     }
+}
+
+fn allocate<T>(inner: &Rc<Inner>, count: usize) -> *mut T {
+    let layout = Layout::new::<T>();
+    let mask = layout.align() - 1;
+    let pos = inner.pos.get();
+
+    debug_assert!(layout.align() >= (pos & mask));
+
+    let mut skip = layout.align() - (pos & mask);
+
+    if skip == layout.align() {
+        skip = 0;
+    }
+
+    let additional = skip + layout.size() * count;
+
+    assert!(pos + additional <= inner.cap, "arena overflow");
+
+    inner.pos.set(pos + additional);
+
+    let ret = unsafe { inner.head.offset((pos + skip) as isize) as *mut T };
+
+    debug_assert!((ret as usize) >= inner.head as usize);
+    debug_assert!((ret as usize) < (inner.head as usize + inner.cap));
+
+    ret
 }
 
 impl Drop for Inner {
@@ -127,9 +125,9 @@ impl Drop for Inner {
     }
 }
 
-impl<T: Clone> Slice<T> {
-    pub fn clone_with(&self, arena: &mut Arena) -> Slice<T> {
-        let ptr: *mut T = arena.allocate(self.len);
+impl<T: Clone> Clone for Slice<T> {
+    fn clone(&self) -> Self {
+        let ptr: *mut T = allocate(&self._inner, self.len);
 
         for i in 0..self.len {
             unsafe {
@@ -140,7 +138,7 @@ impl<T: Clone> Slice<T> {
         Slice {
             ptr,
             len: self.len,
-            _inner: arena.inner.clone(),
+            _inner: self._inner.clone(),
         }
     }
 }
@@ -188,4 +186,3 @@ impl<T> Drop for Slice<T> {
         }
     }
 }
-*/
