@@ -58,6 +58,7 @@ impl Arena {
     }
 
     pub fn clear(&mut self) {
+        println!("rc: {}", Rc::strong_count(&self.inner));
         assert!(1 == Rc::strong_count(&self.inner));
         self.inner.pos.set(0);
     }
