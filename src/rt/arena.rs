@@ -10,6 +10,7 @@ use std::ptr;
 use std::rc::Rc;
 use std::slice;
 
+#[cfg(feature = "checkpoint")]
 use serde::{Serialize, Serializer};
 
 #[derive(Debug)]

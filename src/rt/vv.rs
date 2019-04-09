@@ -4,6 +4,7 @@ use rt::thread;
 use std::cmp;
 use std::ops;
 
+#[cfg(feature = "checkpoint")]
 use serde::{Deserialize, Deserializer};
 
 #[derive(Clone, Debug, PartialOrd, Eq, PartialEq)]
