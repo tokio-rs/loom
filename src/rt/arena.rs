@@ -4,10 +4,13 @@ use std::alloc::Layout;
 use std::cell::Cell;
 use std::cmp;
 use std::fmt;
+use std::marker;
 use std::ops::{Deref, DerefMut};
 use std::ptr;
 use std::rc::Rc;
 use std::slice;
+
+use serde::{Serialize, Serializer};
 
 #[derive(Debug)]
 pub struct Arena {
@@ -18,6 +21,12 @@ pub struct Slice<T> {
     ptr: *mut T,
     len: usize,
     _inner: Rc<Inner>,
+}
+
+pub struct Iter<'a, T: 'a> {
+    ptr: *const T,
+    end: *const T,
+    _marker: marker::PhantomData<&'a T>,
 }
 
 #[derive(Debug)]
@@ -126,6 +135,22 @@ impl Drop for Inner {
     }
 }
 
+impl<T> Slice<T> {
+    pub fn iter(&self) -> Iter<T> {
+        unsafe {
+            // no ZST support
+            let ptr = self.ptr;
+            let end = self.ptr.add(self.len);
+
+            Iter {
+                ptr,
+                end,
+                _marker: marker::PhantomData,
+            }
+        }
+    }
+}
+
 impl<T: Clone> Clone for Slice<T> {
     fn clone(&self) -> Self {
         let ptr: *mut T = allocate(&self._inner, self.len);
@@ -183,6 +208,39 @@ impl<T> Drop for Slice<T> {
         for i in 0..self.len {
             unsafe {
                 ptr::read(self.ptr.offset(i as isize) as *const _);
+            }
+        }
+    }
+}
+
+#[cfg(feature = "checkpoint")]
+impl<T> Serialize for Slice<T>
+where
+    T: Serialize,
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_seq(self.iter())
+    }
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a T> {
+        if self.ptr == self.end {
+            None
+        } else {
+            unsafe {
+                // we do not ZSTs right now, the stdlib does some dancing for this
+                // which we can safely avoid for now
+                let old = self.ptr;
+                self.ptr = self.ptr.offset(1);
+                Some(&*old)
             }
         }
     }

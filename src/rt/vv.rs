@@ -4,11 +4,24 @@ use rt::thread;
 use std::cmp;
 use std::ops;
 
+use serde::{Deserialize, Deserializer};
+
 #[derive(Clone, Debug, PartialOrd, Eq, PartialEq)]
-#[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "checkpoint", derive(Serialize))]
 pub enum VersionVec {
     Arena(Slice<usize>),
     Perm(Box<[usize]>),
+}
+
+#[cfg(feature = "checkpoint")]
+impl<'de> Deserialize<'de> for VersionVec {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Deserialize::deserialize(deserializer).map(VersionVec::Perm)
+
+    }
 }
 
 impl VersionVec {
