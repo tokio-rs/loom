@@ -218,7 +218,7 @@ impl<T: Clone> Clone for Slice<T> {
 
         for i in 0..self.len {
             unsafe {
-                ptr::write(ptr.offset(i as isize), self[i].clone());
+                ptr::write(ptr.offset(i as isize), (*self.ptr.offset(i as isize)).clone());
             }
         }
 
@@ -266,10 +266,8 @@ impl<T: PartialOrd> PartialOrd for Slice<T> {
 
 impl<T> Drop for Slice<T> {
     fn drop(&mut self) {
-        for i in 0..self.len {
-            unsafe {
-                ptr::read(self.ptr.offset(i as isize) as *const _);
-            }
+        unsafe {
+            ptr::drop_in_place(&mut self[..]);
         }
     }
 }
