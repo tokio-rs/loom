@@ -42,25 +42,70 @@ struct Inner {
     cap: usize,
 }
 
+#[cfg(unix)]
+fn create_mapping(capacity: usize) -> *mut u8 {
+    let ptr = unsafe {
+        libc::mmap(
+            ptr::null_mut(),
+            capacity,
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_ANON | libc::MAP_PRIVATE,
+            -1,
+            0,
+        )
+    };
+
+    ptr as *mut u8
+}
+
+#[cfg(windows)]
+fn get_page_size() -> usize {
+    use std::mem;
+    use winapi::um::sysinfoapi::GetSystemInfo;
+
+    unsafe {
+        let mut info = mem::zeroed();
+        GetSystemInfo(&mut info);
+
+        info.dwPageSize as usize
+    }
+}
+
+#[cfg(windows)]
+fn create_mapping(capacity: usize) -> *mut u8 {
+    use std::ptr;
+    use winapi::shared::basetsd::SIZE_T;
+    use winapi::shared::minwindef::LPVOID;
+    use winapi::um::memoryapi::VirtualAlloc;
+    use winapi::um::winnt::{PAGE_READWRITE, MEM_COMMIT, MEM_RESERVE};
+
+    let lpAddress: LPVOID = ptr::null_mut();
+    let page_size = get_page_size();
+    let len = if capacity % page_size == 0 {
+        capacity
+    } else {
+        capacity + page_size - (capacity % page_size)
+    };
+    let flAllocationType = MEM_COMMIT | MEM_RESERVE;
+    let flProtect = PAGE_READWRITE;
+
+    let r = unsafe {
+        VirtualAlloc(lpAddress, len as SIZE_T, flAllocationType, flProtect)
+    };
+
+    r as *mut u8
+}
+
 impl Arena {
     /// Create an `Arena` with specified capacity.
     ///
     /// Capacity must be a power of 2. The capacity cannot be grown after the fact.
     pub fn with_capacity(capacity: usize) -> Arena {
-        let head = unsafe {
-            libc::mmap(
-                ptr::null_mut(),
-                capacity,
-                libc::PROT_READ | libc::PROT_WRITE,
-                libc::MAP_ANON | libc::MAP_PRIVATE,
-                -1,
-                0,
-            )
-        };
+        let head = create_mapping(capacity);
 
         Arena {
             inner: Rc::new(Inner {
-                head: head as *mut u8,
+                head,
                 pos: Cell::new(0),
                 cap: capacity,
             })
@@ -127,12 +172,27 @@ fn allocate<T>(inner: &Rc<Inner>, count: usize) -> *mut T {
     ret
 }
 
+#[cfg(unix)]
 impl Drop for Inner {
     fn drop(&mut self) {
         let res = unsafe { libc::munmap(self.head as *mut libc::c_void, self.cap) };
 
         // TODO: Do something on error
         debug_assert_eq!(res, 0);
+    }
+}
+
+#[cfg(windows)]
+impl Drop for Inner {
+    fn drop(&mut self) {
+        use winapi::shared::minwindef::LPVOID;
+        use winapi::um::memoryapi::VirtualFree;
+        use winapi::um::winnt::MEM_RELEASE;
+
+        let res = unsafe { VirtualFree(self.head as LPVOID, 0, MEM_RELEASE) };
+
+        // TODO: Do something on error
+        debug_assert_ne!(res, 0);
     }
 }
 

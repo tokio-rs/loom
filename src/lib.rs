@@ -113,7 +113,13 @@
 
 #[macro_use]
 extern crate cfg_if;
-// extern crate libc;
+
+#[cfg(unix)]
+extern crate libc;
+
+#[cfg(windows)]
+extern crate winapi;
+
 #[macro_use]
 extern crate scoped_tls;
 
