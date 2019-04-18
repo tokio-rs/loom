@@ -69,3 +69,9 @@ impl<T: Default> Default for Arc<T> {
         Arc::new(Default::default())
     }
 }
+
+impl<T> From<T> for Arc<T> {
+    fn from(t: T) -> Self {
+        Arc::new(t)
+    }
+}
