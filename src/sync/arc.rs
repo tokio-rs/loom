@@ -34,6 +34,12 @@ impl<T> Arc<T> {
     pub fn strong_count(this: &Self) -> usize {
         this.inner.ref_cnt.load(SeqCst)
     }
+
+    /// Returns `true` if the two `Arc`s point to the same value (not
+    /// just values that compare as equal).
+    pub fn ptr_eq(this: &Self, other: &Self) -> bool {
+        Rc::ptr_eq(&this.inner, &other.inner)
+    }
 }
 
 impl<T> ops::Deref for Arc<T> {
