@@ -63,3 +63,9 @@ impl<T> Drop for Arc<T> {
         self.inner.ref_cnt.fetch_sub(1, AcqRel);
     }
 }
+
+impl<T: Default> Default for Arc<T> {
+    fn default() -> Arc<T> {
+        Arc::new(Default::default())
+    }
+}
