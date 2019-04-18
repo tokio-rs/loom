@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use std::sync::atomic::Ordering::*;
 
-/// TODO
+/// Mock implementation of `std::sync::Arc`.
 #[derive(Debug)]
 pub struct Arc<T> {
     inner: Rc<Inner<T>>,
@@ -20,7 +20,7 @@ struct Inner<T> {
 }
 
 impl<T> Arc<T> {
-    /// TODO
+    /// Constructs a new `Arc<T>`.
     pub fn new(value: T) -> Arc<T> {
         Arc {
             inner: Rc::new(Inner {
