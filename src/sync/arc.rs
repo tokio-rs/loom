@@ -29,6 +29,11 @@ impl<T> Arc<T> {
             })
         }
     }
+
+    /// Gets the number of strong (`Arc`) pointers to this value.
+    pub fn strong_count(this: &Self) -> usize {
+        this.inner.ref_cnt.load(SeqCst)
+    }
 }
 
 impl<T> ops::Deref for Arc<T> {
