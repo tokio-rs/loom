@@ -178,7 +178,7 @@ impl Id {
 
     pub fn atomic_init(self, execution: &mut Execution) {
         execution.objects[self].atomic_mut()
-            .history.init(&mut execution.threads);
+            .history.init(&mut execution.arena, &mut execution.threads);
     }
 
     pub fn atomic_load(self, order: Ordering) -> usize {
@@ -205,7 +205,7 @@ impl Id {
             execution.objects[self]
                 .atomic_mut()
                 .history
-                .store(&mut execution.threads, order)
+                .store(&mut execution.arena, &mut execution.threads, order)
         })
     }
 

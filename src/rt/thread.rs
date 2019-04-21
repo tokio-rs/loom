@@ -1,3 +1,4 @@
+use rt::arena::Arena;
 use rt::object::Operation;
 use rt::vv::VersionVec;
 
@@ -60,14 +61,14 @@ pub enum State {
 }
 
 impl Thread {
-    fn new(id: Id, max_threads: usize) -> Thread {
+    fn new(arena: &mut Arena, id: Id, max_threads: usize) -> Thread {
         Thread {
             id,
             state: State::Runnable,
             critical: false,
             operation: None,
-            causality: VersionVec::new(max_threads),
-            dpor_vv: VersionVec::new(max_threads),
+            causality: VersionVec::new(arena, max_threads),
+            dpor_vv: VersionVec::new(arena, max_threads),
             notified: false,
             last_yield: None,
         }
@@ -127,12 +128,12 @@ impl Set {
         Set {
             threads: Vec::with_capacity(max_threads),
             active: None,
-            seq_cst_causality: VersionVec::new(max_threads),
+            seq_cst_causality: VersionVec::new_perm(max_threads),
         }
     }
 
     /// Create a new thread
-    pub fn new_thread(&mut self) -> Id {
+    pub fn new_thread(&mut self, arena: &mut Arena) -> Id {
         assert!(self.threads.len() < self.max());
 
         // Get the identifier for the thread about to be created
@@ -141,7 +142,7 @@ impl Set {
 
         // Push the thread onto the stack
         self.threads.push(
-            Thread::new(Id::from_usize(id), max_threads));
+            Thread::new(arena, Id::from_usize(id), max_threads));
 
         if self.active.is_none() {
             self.active = Some(id);
@@ -211,7 +212,11 @@ impl Set {
     pub fn clear(&mut self) {
         self.threads.clear();
         self.active = None;
-        self.seq_cst_causality = VersionVec::new(self.max());
+        self.seq_cst_causality.clear();
+    }
+
+    pub fn init(&mut self, arena: &mut Arena) {
+        self.new_thread(arena);
     }
 
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = (Id, &'a Thread)> + 'a {

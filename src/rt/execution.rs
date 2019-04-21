@@ -34,17 +34,18 @@ impl Execution {
     /// This is only called at the start of a fuzz run. The same instance is
     /// reused across permutations.
     pub fn new(max_threads: usize, max_memory: usize, max_branches: usize) -> Execution {
+        let mut arena = Arena::with_capacity(max_memory);
         let mut threads = thread::Set::new(max_threads);
 
         // Create the root thread
-        threads.new_thread();
+        threads.new_thread(&mut arena);
 
         Execution {
             // id: Id::new(),
             path: Path::new(max_branches),
             threads,
             objects: object::Set::new(),
-            arena: Arena::with_capacity(max_memory),
+            arena,
             max_threads,
             max_history: 7,
             log: false,
@@ -53,7 +54,7 @@ impl Execution {
 
     /// Create state to track a new thread
     pub fn new_thread(&mut self) -> thread::Id {
-        let thread_id = self.threads.new_thread();
+        let thread_id = self.threads.new_thread(&mut self.arena);
 
         let (active, new) = self.threads.active2_mut(thread_id);
 
@@ -93,15 +94,14 @@ impl Execution {
         let mut threads = self.threads;
 
         objects.clear();
-
+        threads.clear();
         arena.clear();
 
         if !path.step() {
             return None;
         }
 
-        threads.clear();
-        threads.new_thread();
+        threads.init(&mut arena);
 
         Some(Execution {
             path,

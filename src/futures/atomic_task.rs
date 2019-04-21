@@ -22,7 +22,7 @@ impl AtomicTask {
                 task: RefCell::new(None),
                 // TODO: Make a custom object?
                 object: execution.objects.insert(Object::condvar()),
-                sync: RefCell::new(Synchronize::new(execution.threads.max())),
+                sync: RefCell::new(Synchronize::new(&mut execution.arena, execution.threads.max())),
             }
         })
     }

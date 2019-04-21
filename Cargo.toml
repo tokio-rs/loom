@@ -26,14 +26,13 @@ checkpoint = ["serde", "serde_derive", "serde_json"]
 
 [dependencies]
 cfg-if = "0.1.6"
-# libc = "0.2.44"
 scoped-tls = "0.1.2"
 
 # Provides a generator based runtime
 generator = { version = "0.6.10", optional = true }
 
 # Provides a runtime based on libfringe. Requires nightly.
-# fringe = { git = "https://github.com/carllerche/libfringe", branch = "track-nightly", optional = true }
+fringe = { git = "https://github.com/carllerche/libfringe", branch = "track-nightly", optional = true }
 
 # Optional futures support
 futures = { version = "0.1.25", optional = true }
@@ -42,3 +41,9 @@ futures = { version = "0.1.25", optional = true }
 serde = { version = "1.0.80", optional = true }
 serde_derive = { version = "1.0.80", optional = true }
 serde_json = { version = "1.0.33", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.44"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3.7", features = ["basetsd", "memoryapi", "minwindef", "sysinfoapi", "winnt"] }
