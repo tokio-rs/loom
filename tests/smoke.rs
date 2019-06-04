@@ -1,4 +1,4 @@
-extern crate loom;
+use loom;
 
 use loom::sync::atomic::AtomicUsize;
 use loom::thread;

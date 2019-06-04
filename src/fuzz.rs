@@ -1,15 +1,12 @@
 //! Fuzz concurrent programs.
 
 use crate::rt::{self, Execution, Scheduler};
-
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const DEFAULT_MAX_THREADS: usize = 4;
-
 const DEFAULT_MAX_MEMORY: usize = 4096 << 14;
-
 const DEFAULT_MAX_BRANCHES: usize = 1_000;
 
 /// Configure a fuzz execution.

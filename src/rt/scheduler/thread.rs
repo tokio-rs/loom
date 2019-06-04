@@ -2,6 +2,7 @@
 
 use crate::rt::{Execution, FnBox};
 use crate::rt::thread::Id as ThreadId;
+use scoped_tls::scoped_thread_local;
 use std::collections::VecDeque;
 use std::fmt;
 use std::mem;
@@ -20,7 +21,7 @@ pub struct Scheduler {
 }
 
 scoped_thread_local! {
-    static STATE: State
+    static STATE: State<'_>
 }
 
 #[derive(Debug)]
@@ -60,7 +61,7 @@ unsafe impl Send for Shared {}
 unsafe impl Sync for Shared {}
 
 impl fmt::Debug for Thread {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         let state = match *self {
             Idle => "Idle",
             Pending(_) => "Pending",

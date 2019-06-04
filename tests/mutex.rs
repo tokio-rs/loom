@@ -1,4 +1,4 @@
-extern crate loom;
+use loom;
 
 use loom::sync::{CausalCell, Mutex};
 use loom::sync::atomic::AtomicUsize;

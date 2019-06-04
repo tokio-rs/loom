@@ -1,9 +1,8 @@
-use rt::{self, Synchronize};
-use rt::object::{self, Object};
-
-use super::task;
+use crate::rt::{self, Synchronize};
+use crate::rt::object::{self, Object};
 use std::cell::RefCell;
 use std::sync::atomic::Ordering::{Acquire, Release};
+use super::task;
 
 /// Mock implementation of `futures::task::AtomicTask`.
 #[derive(Debug)]

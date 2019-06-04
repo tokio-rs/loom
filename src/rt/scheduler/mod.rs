@@ -73,7 +73,7 @@ impl Scheduler {
         }
     }
 
-    pub fn spawn(f: Box<FnBox>) {
+    pub fn spawn(f: Box<dyn FnBox>) {
         match KIND.with(|c| c.get()) {
             Thread(_) => thread::Scheduler::spawn(f),
             Generator(_) => gen::Scheduler::spawn(f),

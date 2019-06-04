@@ -2,7 +2,6 @@
 
 use crate::rt::{self, oneshot};
 use crate::rt::object::{self, Object};
-
 use std::fmt;
 
 /// Mock implementation of `std::thread::JoinHandle`.
@@ -47,7 +46,7 @@ impl<T> JoinHandle<T> {
 }
 
 impl<T: fmt::Debug> fmt::Debug for JoinHandle<T> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("JoinHandle")
             .finish()
     }

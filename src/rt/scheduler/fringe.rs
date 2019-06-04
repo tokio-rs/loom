@@ -1,4 +1,4 @@
-use rt::{thread, Execution, FnBox};
+use crate::rt::{thread, Execution, FnBox};
 
 use fringe::{
     Generator,

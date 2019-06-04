@@ -224,7 +224,7 @@ impl Execution {
 }
 
 impl fmt::Debug for Execution {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Execution")
             .field("path", &self.path)
             .field("threads", &self.threads)

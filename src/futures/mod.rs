@@ -3,13 +3,11 @@
 mod atomic_task;
 
 pub use self::atomic_task::AtomicTask;
-pub use self::rt::wait_future as block_on;
-
-use rt;
+pub use crate::rt::wait_future as block_on;
 
 /// Mock implementation of `futures::task`.
 pub mod task {
-    use rt;
+    use crate::rt;
 
     /// Mock implementation of `futures::task::Task`.
     #[derive(Debug)]

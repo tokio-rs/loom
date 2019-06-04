@@ -111,32 +111,9 @@
 //! execution given that the order in which two threads read from the same
 //! atomic cannot impact the execution.
 
-#[macro_use]
-extern crate cfg_if;
-// extern crate libc;
-#[macro_use]
-extern crate scoped_tls;
-
-#[cfg(feature = "generator")]
-extern crate generator;
-
-#[cfg(feature = "fringe")]
-extern crate fringe;
-
-// The checkpoint feature enables serialization of the check exploration to
-// disk. This is useful for replaying a known failing permutation.
-cfg_if! {
-    if #[cfg(feature = "checkpoint")] {
-        extern crate serde;
-        #[macro_use]
-        extern crate serde_derive;
-        extern crate serde_json;
-    }
-}
-
 macro_rules! if_futures {
     ($($t:tt)*) => {
-        cfg_if! {
+        cfg_if::cfg_if! {
             if #[cfg(feature = "futures")] {
                 $($t)*
             }
@@ -163,8 +140,6 @@ pub mod thread;
 pub use crate::fuzz::fuzz;
 
 if_futures! {
-    extern crate futures as _futures;
-
     pub mod futures;
 }
 

@@ -102,7 +102,7 @@ impl Set {
     }
 
     pub fn last_dependent_accesses<'a>(&'a self, operation: Operation)
-        -> Box<Iterator<Item = &'a Access> + 'a>
+        -> Box<dyn Iterator<Item = &'a Access> + 'a>
     {
         use self::Action::*;
 
