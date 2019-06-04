@@ -3,7 +3,7 @@
 Loom is a model checker for concurrent Rust code. It exhaustively explores the
 behaviors of code under the C11 memory model, which Rust inherits.
 
-[![Build Status](https://travis-ci.com/carllerche/loom.svg?branch=master)](https://travis-ci.com/carllerche/loom)
+[![Build Status](https://dev.azure.com/carllerche/loom/_apis/build/status/carllerche.loom?branchName=master)](https://dev.azure.com/carllerche/loom/_build/latest?definitionId=2&branchName=master)
 
 [Documentation](https://docs.rs/loom/0.1.1/loom)
 
