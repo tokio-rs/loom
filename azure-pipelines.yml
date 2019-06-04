@@ -2,7 +2,7 @@ trigger: ["master"]
 pr: ["master"]
 
 jobs:
-Check formatting
+# Check formatting
 - job: rustfmt
   pool:
     vmImage: ubuntu-16.04
