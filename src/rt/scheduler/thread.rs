@@ -48,7 +48,7 @@ struct State<'a> {
 
 enum Thread {
     Idle,
-    Pending(Box<FnBox>),
+    Pending(Box<dyn FnBox>),
     Running,
     Shutdown,
 }
@@ -158,7 +158,7 @@ impl Scheduler {
         });
     }
 
-    pub fn spawn(f: Box<FnBox>) {
+    pub fn spawn(f: Box<dyn FnBox>) {
         STATE.with(|state| {
             let shared = state.shared.clone();
             let i = shared.next_thread.fetch_add(1, Acquire);

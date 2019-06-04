@@ -1,3 +1,5 @@
+#![deny(warnings, rust_2018_idioms)]
+
 use loom;
 
 use loom::sync::CausalCell;
