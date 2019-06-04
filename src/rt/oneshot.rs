@@ -55,8 +55,6 @@ impl<T> Receiver<T> {
 
         rt::park();
 
-        self.inner.borrow_mut()
-            .value.take()
-            .unwrap()
+        self.inner.borrow_mut().value.take().unwrap()
     }
 }

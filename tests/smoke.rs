@@ -5,8 +5,8 @@ use loom;
 use loom::sync::atomic::AtomicUsize;
 use loom::thread;
 
+use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
 use std::sync::Arc;
-use std::sync::atomic::Ordering::{Acquire, Release, Relaxed};
 
 #[test]
 fn fuzz_valid() {
@@ -25,8 +25,7 @@ fn fuzz_valid() {
             let mut curr = self.num.load(Relaxed);
 
             loop {
-                let actual = self.num.compare_and_swap(
-                    curr, curr + 1, Relaxed);
+                let actual = self.num.compare_and_swap(curr, curr + 1, Relaxed);
 
                 if actual == curr {
                     return;
@@ -40,12 +39,14 @@ fn fuzz_valid() {
     loom::fuzz(|| {
         let inc = Arc::new(Inc::new());
 
-        let ths: Vec<_> = (0..2).map(|_| {
-            let inc = inc.clone();
-            thread::spawn(move || {
-                inc.inc();
+        let ths: Vec<_> = (0..2)
+            .map(|_| {
+                let inc = inc.clone();
+                thread::spawn(move || {
+                    inc.inc();
+                })
             })
-        }).collect();
+            .collect();
 
         for th in ths {
             th.join().unwrap();
@@ -78,10 +79,12 @@ fn checks_fail() {
     loom::fuzz(|| {
         let buggy_inc = Arc::new(BuggyInc::new());
 
-        let ths: Vec<_> = (0..2).map(|_| {
-            let buggy_inc = buggy_inc.clone();
-            thread::spawn(move || buggy_inc.inc())
-        }).collect();
+        let ths: Vec<_> = (0..2)
+            .map(|_| {
+                let buggy_inc = buggy_inc.clone();
+                thread::spawn(move || buggy_inc.inc())
+            })
+            .collect();
 
         for th in ths {
             th.join().unwrap();

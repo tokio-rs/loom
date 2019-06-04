@@ -26,7 +26,7 @@ impl<T> Arc<T> {
             inner: Rc::new(Inner {
                 value,
                 ref_cnt: AtomicUsize::new(1),
-            })
+            }),
         }
     }
 
@@ -54,7 +54,9 @@ impl<T> Clone for Arc<T> {
     fn clone(&self) -> Arc<T> {
         self.inner.ref_cnt.fetch_add(1, Relaxed);
 
-        Arc { inner: self.inner.clone() }
+        Arc {
+            inner: self.inner.clone(),
+        }
     }
 }
 

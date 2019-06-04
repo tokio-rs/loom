@@ -14,9 +14,7 @@ impl<T> CausalCell<T> {
     /// Construct a new instance of `CausalCell` which will wrap the specified
     /// value.
     pub fn new(data: T) -> CausalCell<T> {
-        let v = rt::execution(|execution| {
-            execution.threads.active().causality.clone()
-        });
+        let v = rt::execution(|execution| execution.threads.active().causality.clone());
 
         CausalCell {
             data: UnsafeCell::new(data),
@@ -40,12 +38,12 @@ impl<T> CausalCell<T> {
             assert!(
                 *v <= execution.threads.active().causality,
                 "cell={:?}; thread={:?}",
-                *v, execution.threads.active().causality);
+                *v,
+                execution.threads.active().causality
+            );
         });
 
-        rt::critical(|| {
-            f(self.data.get())
-        })
+        rt::critical(|| f(self.data.get()))
     }
 
     /// Get a mutable pointer to the wrapped value.
@@ -64,13 +62,13 @@ impl<T> CausalCell<T> {
             assert!(
                 *v <= execution.threads.active().causality,
                 "cell={:?}; thread={:?}",
-                *v, execution.threads.active().causality);
+                *v,
+                execution.threads.active().causality
+            );
 
             v.join(&execution.threads.active().causality);
         });
 
-        rt::critical(|| {
-            f(self.data.get())
-        })
+        rt::critical(|| f(self.data.get()))
     }
 }

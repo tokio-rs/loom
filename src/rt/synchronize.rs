@@ -9,12 +9,9 @@ pub(crate) struct Synchronize {
 
 impl Synchronize {
     pub fn new(max_threads: usize) -> Self {
-        let happens_before =
-            VersionVec::new(max_threads);
+        let happens_before = VersionVec::new(max_threads);
 
-        Synchronize {
-            happens_before,
-        }
+        Synchronize { happens_before }
     }
 
     pub fn version_vec(&self) -> &VersionVec {

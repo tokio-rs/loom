@@ -2,12 +2,12 @@
 
 use loom;
 
-use loom::sync::CausalCell;
 use loom::sync::atomic::AtomicUsize;
+use loom::sync::CausalCell;
 use loom::thread;
 
-use std::sync::Arc;
 use std::sync::atomic::Ordering::{Acquire, Release};
+use std::sync::Arc;
 
 #[test]
 fn thread_join_causality() {
@@ -32,9 +32,7 @@ fn thread_join_causality() {
         }
 
         fn get(&self) -> usize {
-            unsafe {
-                self.cell.with(|v| *v)
-            }
+            unsafe { self.cell.with(|v| *v) }
         }
     }
 
@@ -102,7 +100,6 @@ fn atomic_causality_success() {
         th.join().unwrap();
 
         chan.get();
-
     });
 }
 
@@ -151,6 +148,5 @@ fn atomic_causality_fail() {
         th.join().unwrap();
 
         chan.get();
-
     });
 }

@@ -1,7 +1,7 @@
 use crate::rt::thread;
 
 #[cfg(feature = "checkpoint")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
 /// An execution path
@@ -91,7 +91,7 @@ impl Path {
     /// Returns the atomic write to read
     pub fn branch_write<I>(&mut self, seed: I) -> usize
     where
-        I: Iterator<Item = usize>
+        I: Iterator<Item = usize>,
     {
         use self::Branch::Write;
 
@@ -118,7 +118,7 @@ impl Path {
     /// Returns the thread identifier to schedule
     pub fn branch_thread<I>(&mut self, seed: I) -> Option<thread::Id>
     where
-        I: Iterator<Item = Thread>
+        I: Iterator<Item = Thread>,
     {
         assert!(self.branches.len() < self.max_branches);
 
@@ -130,7 +130,8 @@ impl Path {
             let active = threads.iter().any(|th| *th == Thread::Active);
 
             if !active {
-                threads.iter_mut()
+                threads
+                    .iter_mut()
                     .find(|th| **th == Thread::Yield)
                     .map(|th| *th = Thread::Active);
             }
@@ -138,9 +139,7 @@ impl Path {
             // Ensure at least one thread is active, otherwise toggle a yielded
             // thread.
 
-            self.schedules.push(Schedule {
-                threads,
-            });
+            self.schedules.push(Schedule { threads });
 
             self.branches.push(Branch::Schedule(i));
         }
@@ -154,7 +153,8 @@ impl Path {
 
         let threads = &mut self.schedules[i].threads;
 
-        threads.iter_mut()
+        threads
+            .iter_mut()
             .enumerate()
             .find(|&(_, ref th)| th.is_active())
             .map(|(i, _)| thread::Id::from_usize(i))
@@ -170,14 +170,16 @@ impl Path {
             match self.branches.last().unwrap() {
                 &Schedule(i) => {
                     // Transition the active thread to visited
-                    self.schedules[i].threads.iter_mut()
+                    self.schedules[i]
+                        .threads
+                        .iter_mut()
                         .find(|th| th.is_active())
-                        .map(|th| {
-                            *th = Thread::Visited
-                        });
+                        .map(|th| *th = Thread::Visited);
 
                     // Find a pending thread and transition it to active
-                    let rem = self.schedules[i].threads.iter_mut()
+                    let rem = self.schedules[i]
+                        .threads
+                        .iter_mut()
                         .find(|th| th.is_pending())
                         .map(|th| {
                             *th = Thread::Active;

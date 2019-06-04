@@ -1,7 +1,7 @@
-use crate::rt::Path;
 use crate::rt::arena::Arena;
 use crate::rt::object;
 use crate::rt::thread;
+use crate::rt::Path;
 
 use std::fmt;
 
@@ -170,14 +170,16 @@ impl Execution {
         // There is no active thread. Unless all threads have terminated, the
         // test has deadlocked.
         if !self.threads.is_active() {
-            let terminal = self.threads.iter()
-                .all(|(_, th)| th.is_terminated());
+            let terminal = self.threads.iter().all(|(_, th)| th.is_terminated());
 
-            assert!(terminal,
-                    "deadlock; threads = {:?}",
-                    self.threads.iter().map(|(i, th)| {
-                        (i, th.state)
-                    }).collect::<Vec<_>>());
+            assert!(
+                terminal,
+                "deadlock; threads = {:?}",
+                self.threads
+                    .iter()
+                    .map(|(i, th)| { (i, th.state) })
+                    .collect::<Vec<_>>()
+            );
 
             return true;
         }
@@ -193,10 +195,13 @@ impl Execution {
             threads.active_mut().dpor_vv[th_id] += 1;
             let _ = self.path.schedule_mut(path_id);
 
-            self.objects.set_last_access(operation, object::Access {
-                path_id: path_id,
-                dpor_vv: threads.active().dpor_vv.clone(),
-            });
+            self.objects.set_last_access(
+                operation,
+                object::Access {
+                    path_id: path_id,
+                    dpor_vv: threads.active().dpor_vv.clone(),
+                },
+            );
         }
 
         // Reactivate yielded threads, but only if the current active thread is

@@ -38,9 +38,8 @@ impl<T> AtomicPtr<T> {
         current: *mut T,
         new: *mut T,
         success: Ordering,
-        failure: Ordering
-    ) -> Result<*mut T, *mut T>
-    {
+        failure: Ordering,
+    ) -> Result<*mut T, *mut T> {
         self.0.compare_exchange(current, new, success, failure)
     }
 }

@@ -1,10 +1,6 @@
 use crate::rt::{thread, Execution, FnBox};
 
-use fringe::{
-    Generator,
-    OsStack,
-    generator::Yielder,
-};
+use fringe::{generator::Yielder, Generator, OsStack};
 
 use std::cell::Cell;
 use std::collections::VecDeque;
@@ -70,7 +66,6 @@ impl Scheduler {
     where
         F: FnOnce() + Send + 'static,
     {
-
         // Set the scheduler kind
         super::set_fringe();
 
@@ -125,39 +120,40 @@ pub fn suspend() -> Option<Box<FnBox>> {
 
 impl fmt::Debug for Scheduler {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Scheduler")
-            .finish()
+        fmt.debug_struct("Scheduler").finish()
     }
 }
 
 fn spawn_threads(n: usize) -> Vec<Thread> {
-    (0..n).map(|_| {
-        let stack = OsStack::new(STACK_SIZE).unwrap();
+    (0..n)
+        .map(|_| {
+            let stack = OsStack::new(STACK_SIZE).unwrap();
 
-        let mut g: Thread = Generator::new(stack, move |yielder, _| {
-            struct UnsetTls;
+            let mut g: Thread = Generator::new(stack, move |yielder, _| {
+                struct UnsetTls;
 
-            impl Drop for UnsetTls {
-                fn drop(&mut self) {
-                    YIELDER.with(|cell| cell.set(ptr::null()));
+                impl Drop for UnsetTls {
+                    fn drop(&mut self) {
+                        YIELDER.with(|cell| cell.set(ptr::null()));
+                    }
                 }
-            }
 
-            let _reset = UnsetTls;
+                let _reset = UnsetTls;
 
-            let ptr = yielder as *const _;
-            YIELDER.with(|cell| cell.set(ptr));
+                let ptr = yielder as *const _;
+                YIELDER.with(|cell| cell.set(ptr));
 
-            loop {
-                let f: Option<Box<FnBox>> = suspend();
-                assert!(f.is_some());
-                Scheduler::switch();
-                f.unwrap().call();
-            }
-        });
-        g.resume(None);
-        g
-    }).collect()
+                loop {
+                    let f: Option<Box<FnBox>> = suspend();
+                    assert!(f.is_some());
+                    Scheduler::switch();
+                    f.unwrap().call();
+                }
+            });
+            g.resume(None);
+            g
+        })
+        .collect()
 }
 
 unsafe fn transmute_lt<'a, 'b>(state: &'a mut State<'b>) -> &'a mut State<'static> {

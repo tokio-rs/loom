@@ -1,6 +1,6 @@
 use crate::rt::atomic;
-use crate::rt::Execution;
 use crate::rt::vv::VersionVec;
+use crate::rt::Execution;
 
 use std::marker::PhantomData;
 use std::ops;
@@ -66,7 +66,9 @@ pub struct Access {
 
 impl Object {
     pub fn atomic() -> Object {
-        Object { kind: Kind::Atomic(Atomic::default()) }
+        Object {
+            kind: Kind::Atomic(Atomic::default()),
+        }
     }
 
     fn atomic_mut(&mut self) -> &mut Atomic {
@@ -77,15 +79,21 @@ impl Object {
     }
 
     pub fn mutex() -> Object {
-        Object { kind: Kind::Mutex(None) }
+        Object {
+            kind: Kind::Mutex(None),
+        }
     }
 
     pub fn condvar() -> Object {
-        Object { kind: Kind::Condvar(None) }
+        Object {
+            kind: Kind::Condvar(None),
+        }
     }
 
     pub fn thread() -> Object {
-        Object { kind: Kind::Thread(None) }
+        Object {
+            kind: Kind::Thread(None),
+        }
     }
 }
 
@@ -101,23 +109,19 @@ impl Set {
         Id::from_usize(id)
     }
 
-    pub fn last_dependent_accesses<'a>(&'a self, operation: Operation)
-        -> Box<dyn Iterator<Item = &'a Access> + 'a>
-    {
+    pub fn last_dependent_accesses<'a>(
+        &'a self,
+        operation: Operation,
+    ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
         use self::Action::*;
 
         match self.objects[operation.object_id.as_usize()].kind {
-            Kind::Atomic(ref obj) => {
-                match operation.action {
-                    Load => Box::new(obj.last_store.iter()),
-                    Store => Box::new(obj.last_load.iter()),
-                    Rmw => Box::new({
-                        obj.last_load.iter().chain(
-                            obj.last_store.iter())
-                    }),
-                    _ => panic!(),
-                }
-            }
+            Kind::Atomic(ref obj) => match operation.action {
+                Load => Box::new(obj.last_store.iter()),
+                Store => Box::new(obj.last_load.iter()),
+                Rmw => Box::new({ obj.last_load.iter().chain(obj.last_store.iter()) }),
+                _ => panic!(),
+            },
             Kind::Mutex(ref obj) => Box::new(obj.iter()),
             Kind::Condvar(ref obj) => Box::new(obj.iter()),
             Kind::Thread(ref obj) => Box::new(obj.iter()),
@@ -128,17 +132,15 @@ impl Set {
         use self::Action::*;
 
         match self.objects[operation.object_id.as_usize()].kind {
-            Kind::Atomic(ref mut obj) => {
-                match operation.action {
-                    Load => obj.last_load = Some(access),
-                    Store => obj.last_store = Some(access),
-                    Rmw => {
-                        obj.last_load = Some(access.clone());
-                        obj.last_store = Some(access);
-                    }
-                    _ => panic!(),
+            Kind::Atomic(ref mut obj) => match operation.action {
+                Load => obj.last_load = Some(access),
+                Store => obj.last_store = Some(access),
+                Rmw => {
+                    obj.last_load = Some(access.clone());
+                    obj.last_store = Some(access);
                 }
-            }
+                _ => panic!(),
+            },
             Kind::Mutex(ref mut obj) => *obj = Some(access),
             Kind::Condvar(ref mut obj) => *obj = Some(access),
             Kind::Thread(ref mut obj) => *obj = Some(access),
@@ -177,8 +179,10 @@ impl Id {
     }
 
     pub fn atomic_init(self, execution: &mut Execution) {
-        execution.objects[self].atomic_mut()
-            .history.init(&mut execution.threads);
+        execution.objects[self]
+            .atomic_mut()
+            .history
+            .init(&mut execution.threads);
     }
 
     pub fn atomic_load(self, order: Ordering) -> usize {
@@ -187,12 +191,11 @@ impl Id {
         });
 
         super::synchronize(|execution| {
-            execution.objects[self]
-                .atomic_mut()
-                .history
-                .load(&mut execution.path,
-                      &mut execution.threads,
-                      order)
+            execution.objects[self].atomic_mut().history.load(
+                &mut execution.path,
+                &mut execution.threads,
+                order,
+            )
         })
     }
 
@@ -209,8 +212,7 @@ impl Id {
         })
     }
 
-    pub fn atomic_rmw<F, E>(self, f: F, success: Ordering, failure: Ordering)
-        -> Result<usize, E>
+    pub fn atomic_rmw<F, E>(self, f: F, success: Ordering, failure: Ordering) -> Result<usize, E>
     where
         F: FnOnce(usize) -> Result<(), E>,
     {
@@ -219,14 +221,12 @@ impl Id {
         });
 
         super::synchronize(|execution| {
-            execution.objects[self]
-                .atomic_mut()
-                .history
-                .rmw(
-                    f,
-                    &mut execution.threads,
-                    success,
-                    failure)
+            execution.objects[self].atomic_mut().history.rmw(
+                f,
+                &mut execution.threads,
+                success,
+                failure,
+            )
         })
     }
 
@@ -241,8 +241,7 @@ impl Id {
             execution.objects[self]
                 .atomic_mut()
                 .history
-                .happens_before(
-                    &execution.threads.active().causality);
+                .happens_before(&execution.threads.active().causality);
         });
     }
 
@@ -297,6 +296,4 @@ impl Operation {
     }
 }
 
-impl Kind {
-
-}
+impl Kind {}

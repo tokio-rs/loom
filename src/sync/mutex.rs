@@ -1,5 +1,5 @@
-use crate::rt::{self, thread};
 use crate::rt::object::{self, Object};
+use crate::rt::{self, thread};
 
 use std::cell::{Cell, RefCell, RefMut};
 use std::ops;
@@ -23,12 +23,10 @@ pub struct MutexGuard<'a, T> {
 impl<T> Mutex<T> {
     /// Creates a new mutex in an unlocked state ready for use.
     pub fn new(data: T) -> Mutex<T> {
-        rt::execution(|execution| {
-            Mutex {
-                data: RefCell::new(data),
-                lock: Cell::new(None),
-                object: execution.objects.insert(Object::mutex()),
-            }
+        rt::execution(|execution| Mutex {
+            data: RefCell::new(data),
+            lock: Cell::new(None),
+            object: execution.objects.insert(Object::mutex()),
         })
     }
 }
@@ -58,7 +56,9 @@ impl<T> Mutex<T> {
                     continue;
                 }
 
-                let object_id = thread.operation.as_ref()
+                let object_id = thread
+                    .operation
+                    .as_ref()
                     .map(|operation| operation.object_id());
 
                 if object_id == Some(self.object) {
@@ -84,7 +84,9 @@ impl<T> Mutex<T> {
                     continue;
                 }
 
-                let object_id = thread.operation.as_ref()
+                let object_id = thread
+                    .operation
+                    .as_ref()
                     .map(|operation| operation.object_id());
 
                 if object_id == Some(self.object) {

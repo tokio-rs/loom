@@ -1,15 +1,15 @@
 #![allow(warnings)]
 
-use crate::rt::{Execution, FnBox};
 use crate::rt::thread::Id as ThreadId;
+use crate::rt::{Execution, FnBox};
 use scoped_tls::scoped_thread_local;
 use std::collections::VecDeque;
 use std::fmt;
 use std::mem;
 use std::ptr;
-use std::sync::{Arc, Mutex, Condvar};
 use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering::{Acquire, Release, Relaxed, SeqCst};
+use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
 #[derive(Debug)]
@@ -78,13 +78,9 @@ use self::Thread::*;
 impl Scheduler {
     /// Create an execution
     pub fn new(capacity: usize) -> Scheduler {
-        let threads = (0..capacity)
-            .map(|_| Mutex::new(Idle))
-            .collect();
+        let threads = (0..capacity).map(|_| Mutex::new(Idle)).collect();
 
-        let condvars = (0..capacity)
-            .map(|_| Condvar::new())
-            .collect();
+        let condvars = (0..capacity).map(|_| Condvar::new()).collect();
 
         let shared = Arc::new(Shared {
             synced: Mutex::new(Synced {
@@ -146,7 +142,10 @@ impl Scheduler {
             }
 
             // Notify the thread
-            state.shared.active_thread.store(active_id.as_usize(), Release);
+            state
+                .shared
+                .active_thread
+                .store(active_id.as_usize(), Release);
             drop(state.shared.threads[active_id.as_usize()].lock().unwrap());
             state.shared.condvars[active_id.as_usize()].notify_one();
 
@@ -207,7 +206,7 @@ impl Scheduler {
             let done = self.shared.done.load(Acquire);
             let spawned = self.shared.next_thread.load(Acquire);
 
-            if done+1 == spawned {
+            if done + 1 == spawned {
                 break;
             }
 
@@ -241,12 +240,10 @@ fn run_worker(i: usize, shared: &Arc<Shared>) {
                     Idle => {
                         th = shared.condvars[i].wait(th).unwrap();
                     }
-                    Pending(_) => {
-                        match mem::replace(&mut *th, Running) {
-                            Pending(f) => break f,
-                            _ => panic!("unexpected state"),
-                        }
-                    }
+                    Pending(_) => match mem::replace(&mut *th, Running) {
+                        Pending(f) => break f,
+                        _ => panic!("unexpected state"),
+                    },
                     Running => panic!("unexpected state"),
                     Shutdown => return,
                 }
@@ -266,7 +263,6 @@ fn run_worker(i: usize, shared: &Arc<Shared>) {
             }
         }
 
-
         let prev = shared.done.fetch_add(1, Release);
         let next_thread = shared.next_thread.load(Acquire);
 
@@ -278,12 +274,9 @@ fn run_worker(i: usize, shared: &Arc<Shared>) {
 
 fn run_thread<F>(id: usize, shared: &Arc<Shared>, f: F)
 where
-    F: FnOnce()
+    F: FnOnce(),
 {
-    let state = State {
-        shared,
-        id,
-    };
+    let state = State { shared, id };
 
     state.acquire_lock();
 

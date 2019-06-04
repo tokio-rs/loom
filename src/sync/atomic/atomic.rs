@@ -55,8 +55,7 @@ where
         self.try_rmw(|v| Ok::<_, ()>(f(v)), order, order).unwrap()
     }
 
-    fn try_rmw<F, E>(&self, f: F, success: Ordering, failure: Ordering)
-        -> Result<T, E>
+    fn try_rmw<F, E>(&self, f: F, success: Ordering, failure: Ordering) -> Result<T, E>
     where
         F: FnOnce(T) -> Result<T, E>,
     {
@@ -72,7 +71,9 @@ where
                     Err(e) => Err(e),
                 }
             },
-            success, failure)?;
+            success,
+            failure,
+        )?;
 
         assert!(object == self.object, "atomic instance changed mid schedule, most likely due to a bug in the algorithm being checked");
 
@@ -103,9 +104,8 @@ where
         current: T,
         new: T,
         success: Ordering,
-        failure: Ordering
-    ) -> Result<T, T>
-    {
+        failure: Ordering,
+    ) -> Result<T, T> {
         self.try_rmw(
             |actual| {
                 if actual == current {
@@ -114,6 +114,8 @@ where
                     Err(actual)
                 }
             },
-            success, failure)
+            success,
+            failure,
+        )
     }
 }

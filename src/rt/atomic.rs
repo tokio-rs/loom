@@ -33,17 +33,18 @@ impl History {
 
     pub fn happens_before(&self, vv: &VersionVec) {
         assert!({
-            self.stores.iter().all(|store| {
-                vv >= store.sync.version_vec()
-            })
+            self.stores
+                .iter()
+                .all(|store| vv >= store.sync.version_vec())
         });
     }
 
-    pub fn load(&mut self,
-                path: &mut rt::Path,
-                threads: &mut thread::Set,
-                order: Ordering) -> usize
-    {
+    pub fn load(
+        &mut self,
+        path: &mut rt::Path,
+        threads: &mut thread::Set,
+        order: Ordering,
+    ) -> usize {
         // Pick a store that satisfies causality and specified ordering.
         let index = self.pick_store(path, threads, order);
         self.stores[index].first_seen.touch(threads);
@@ -62,14 +63,15 @@ impl History {
         self.stores.push(store);
     }
 
-    pub fn rmw<F, E>(&mut self,
-                     f: F,
-                     threads: &mut thread::Set,
-                     success: Ordering,
-                     failure: Ordering)
-        -> Result<usize, E>
+    pub fn rmw<F, E>(
+        &mut self,
+        f: F,
+        threads: &mut thread::Set,
+        success: Ordering,
+        failure: Ordering,
+    ) -> Result<usize, E>
     where
-        F: FnOnce(usize) -> Result<(), E>
+        F: FnOnce(usize) -> Result<(), E>,
     {
         let index = self.stores.len() - 1;
         self.stores[index].first_seen.touch(&threads);
@@ -94,17 +96,18 @@ impl History {
         Ok(index)
     }
 
-    fn pick_store(&mut self,
-                  path: &mut rt::Path,
-                  threads: &mut thread::Set,
-                  order: Ordering)
-        -> usize
-    {
+    fn pick_store(
+        &mut self,
+        path: &mut rt::Path,
+        threads: &mut thread::Set,
+        order: Ordering,
+    ) -> usize {
         let mut in_causality = false;
         let mut first = true;
 
         path.branch_write({
-            self.stores.iter()
+            self.stores
+                .iter()
                 .enumerate()
                 .rev()
                 // Explore all writes that are not within the actor's causality as
@@ -153,7 +156,9 @@ impl FirstSeen {
 
     fn is_seen_by(&self, threads: &thread::Set) -> bool {
         for (thread_id, version) in threads.active().causality.versions() {
-            let seen = self.0.get(thread_id.as_usize())
+            let seen = self
+                .0
+                .get(thread_id.as_usize())
                 .and_then(|maybe_version| *maybe_version)
                 .map(|v| v <= version)
                 .unwrap_or(false);

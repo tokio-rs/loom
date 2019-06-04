@@ -1,6 +1,6 @@
-use super::{MutexGuard, LockResult};
-use crate::rt::{self, thread};
+use super::{LockResult, MutexGuard};
 use crate::rt::object::{self, Object};
+use crate::rt::{self, thread};
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -21,22 +21,17 @@ pub struct WaitTimeoutResult(bool);
 impl Condvar {
     /// Creates a new condition variable which is ready to be waited on and notified.
     pub fn new() -> Condvar {
-        rt::execution(|execution| {
-            Condvar {
-                object: execution.objects.insert(Object::condvar()),
-                waiters: RefCell::new(VecDeque::new()),
-            }
+        rt::execution(|execution| Condvar {
+            object: execution.objects.insert(Object::condvar()),
+            waiters: RefCell::new(VecDeque::new()),
         })
     }
 
     /// Blocks the current thread until this condition variable receives a notification.
-    pub fn wait<'a, T>(&self, mut guard: MutexGuard<'a, T>)
-        -> LockResult<MutexGuard<'a, T>>
-    {
+    pub fn wait<'a, T>(&self, mut guard: MutexGuard<'a, T>) -> LockResult<MutexGuard<'a, T>> {
         self.object.branch();
 
-        self.waiters.borrow_mut()
-            .push_back(thread::Id::current());
+        self.waiters.borrow_mut().push_back(thread::Id::current());
 
         guard.release();
 
@@ -49,9 +44,11 @@ impl Condvar {
 
     /// Waits on this condition variable for a notification, timing out after a
     /// specified duration.
-    pub fn wait_timeout<'a, T>(&self, _guard: MutexGuard<'a, T>, _dur: Duration)
-        -> LockResult<(MutexGuard<'a, T>, WaitTimeoutResult)>
-    {
+    pub fn wait_timeout<'a, T>(
+        &self,
+        _guard: MutexGuard<'a, T>,
+        _dur: Duration,
+    ) -> LockResult<(MutexGuard<'a, T>, WaitTimeoutResult)> {
         unimplemented!();
     }
 
@@ -59,8 +56,7 @@ impl Condvar {
     pub fn notify_one(&self) {
         self.object.branch();
 
-        let th = self.waiters.borrow_mut()
-            .pop_front();
+        let th = self.waiters.borrow_mut().pop_front();
 
         if let Some(th) = th {
             th.unpark();

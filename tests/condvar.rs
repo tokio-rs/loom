@@ -2,12 +2,12 @@
 
 use loom;
 
-use loom::sync::{Condvar, Mutex};
 use loom::sync::atomic::AtomicUsize;
+use loom::sync::{Condvar, Mutex};
 use loom::thread;
 
-use std::sync::Arc;
 use std::sync::atomic::Ordering::SeqCst;
+use std::sync::Arc;
 
 #[test]
 fn fuzz_condvar() {
