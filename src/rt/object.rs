@@ -1,6 +1,6 @@
-use rt::atomic;
-use rt::Execution;
-use rt::vv::VersionVec;
+use crate::rt::atomic;
+use crate::rt::Execution;
+use crate::rt::vv::VersionVec;
 
 use std::marker::PhantomData;
 use std::ops;

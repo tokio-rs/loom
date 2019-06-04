@@ -1,4 +1,4 @@
-use rt::{Execution, FnBox};
+use crate::rt::{Execution, FnBox};
 
 #[derive(Debug)]
 pub struct Scheduler;

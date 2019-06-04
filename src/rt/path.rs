@@ -1,4 +1,4 @@
-use rt::thread;
+use crate::rt::thread;
 
 use std::collections::VecDeque;
 

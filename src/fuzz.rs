@@ -1,6 +1,6 @@
 //! Fuzz concurrent programs.
 
-use rt::{self, Execution, Scheduler};
+use crate::rt::{self, Execution, Scheduler};
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -252,11 +252,11 @@ mod checkpoint {
 mod checkpoint {
     use std::path::Path;
 
-    pub(crate) fn load_execution_path(_fs_path: &Path) -> ::rt::Path {
+    pub(crate) fn load_execution_path(_fs_path: &Path) -> crate::rt::Path {
         panic!("not compiled with `checkpoint` feature")
     }
 
-    pub(crate) fn store_execution_path(_path: &::rt::Path, _fs_path: &Path) {
+    pub(crate) fn store_execution_path(_path: &crate::rt::Path, _fs_path: &Path) {
         panic!("not compiled with `checkpoint` feature")
     }
 }

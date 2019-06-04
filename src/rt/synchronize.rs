@@ -1,4 +1,4 @@
-use rt::{thread, VersionVec};
+use crate::rt::{thread, VersionVec};
 
 use std::sync::atomic::Ordering::{self, *};
 

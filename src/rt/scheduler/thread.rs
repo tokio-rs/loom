@@ -1,7 +1,7 @@
 #![allow(warnings)]
 
-use rt::{Execution, FnBox};
-use rt::thread::Id as ThreadId;
+use crate::rt::{Execution, FnBox};
+use crate::rt::thread::Id as ThreadId;
 use std::collections::VecDeque;
 use std::fmt;
 use std::mem;

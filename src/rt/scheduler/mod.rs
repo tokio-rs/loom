@@ -1,4 +1,4 @@
-mod std;
+mod thread;
 
 #[cfg_attr(not(feature = "generator"), path = "stub.rs")]
 mod gen;
@@ -6,12 +6,12 @@ mod gen;
 #[cfg_attr(not(feature = "fringe"), path = "stub.rs")]
 mod fringe;
 
-use rt::{Execution, FnBox};
+use crate::rt::{Execution, FnBox};
 use std::cell::Cell;
 
 #[derive(Debug)]
 pub struct Scheduler {
-    kind: Kind<gen::Scheduler, std::Scheduler, fringe::Scheduler>,
+    kind: Kind<gen::Scheduler, thread::Scheduler, fringe::Scheduler>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -31,7 +31,7 @@ impl Scheduler {
     pub fn new_thread(capacity: usize) -> Scheduler {
         assert!(capacity > 0);
         Scheduler {
-            kind: Thread(std::Scheduler::new(capacity)),
+            kind: Thread(thread::Scheduler::new(capacity)),
         }
     }
 
@@ -58,7 +58,7 @@ impl Scheduler {
         F: FnOnce(&mut Execution) -> R,
     {
         match KIND.with(|c| c.get()) {
-            Thread(_) => std::Scheduler::with_execution(f),
+            Thread(_) => thread::Scheduler::with_execution(f),
             Generator(_) => gen::Scheduler::with_execution(f),
             Fringe(_) => fringe::Scheduler::with_execution(f),
         }
@@ -67,7 +67,7 @@ impl Scheduler {
     /// Perform a context switch
     pub fn switch() {
         match KIND.with(|c| c.get()) {
-            Thread(_) => std::Scheduler::switch(),
+            Thread(_) => thread::Scheduler::switch(),
             Generator(_) => gen::Scheduler::switch(),
             Fringe(_) => fringe::Scheduler::switch(),
         }
@@ -75,7 +75,7 @@ impl Scheduler {
 
     pub fn spawn(f: Box<FnBox>) {
         match KIND.with(|c| c.get()) {
-            Thread(_) => std::Scheduler::spawn(f),
+            Thread(_) => thread::Scheduler::spawn(f),
             Generator(_) => gen::Scheduler::spawn(f),
             Fringe(_) => fringe::Scheduler::spawn(f),
         }

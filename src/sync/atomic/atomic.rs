@@ -1,5 +1,5 @@
-use rt;
-use rt::object::{self, Object};
+use crate::rt;
+use crate::rt::object::{self, Object};
 
 use std::cell::RefCell;
 use std::sync::atomic::Ordering;

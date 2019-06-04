@@ -1,5 +1,5 @@
-use rt::{self, thread};
-use rt::object::{self, Object};
+use crate::rt::{self, thread};
+use crate::rt::object::{self, Object};
 
 use std::cell::{Cell, RefCell, RefMut};
 use std::ops;

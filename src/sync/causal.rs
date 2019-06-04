@@ -1,4 +1,4 @@
-use rt::{self, VersionVec};
+use crate::rt::{self, VersionVec};
 
 use std::cell::{RefCell, UnsafeCell};
 

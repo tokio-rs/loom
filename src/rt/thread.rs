@@ -1,5 +1,5 @@
-use rt::object::Operation;
-use rt::vv::VersionVec;
+use crate::rt::object::Operation;
+use crate::rt::vv::VersionVec;
 
 use std::fmt;
 use std::marker::PhantomData;

@@ -160,7 +160,7 @@ pub mod sync;
 pub mod thread;
 
 #[doc(inline)]
-pub use fuzz::fuzz;
+pub use crate::fuzz::fuzz;
 
 if_futures! {
     extern crate futures as _futures;
@@ -168,7 +168,7 @@ if_futures! {
     pub mod futures;
 }
 
-pub use rt::yield_now;
+pub use crate::rt::yield_now;
 
 #[doc(hidden)]
 pub fn __debug_enabled() -> bool {

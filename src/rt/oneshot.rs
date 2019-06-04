@@ -1,4 +1,4 @@
-use rt::{self, thread};
+use crate::rt::{self, thread};
 
 use std::cell::RefCell;
 use std::rc::Rc;

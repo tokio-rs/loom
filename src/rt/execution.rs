@@ -1,7 +1,7 @@
-use rt::Path;
-use rt::arena::Arena;
-use rt::object;
-use rt::thread;
+use crate::rt::Path;
+use crate::rt::arena::Arena;
+use crate::rt::object;
+use crate::rt::thread;
 
 use std::fmt;
 
@@ -116,7 +116,7 @@ impl Execution {
 
     /// Returns `true` if a switch is required
     pub fn schedule(&mut self) -> bool {
-        use rt::path::Thread;
+        use crate::rt::path::Thread;
 
         // Implementation of the DPOR algorithm.
 
