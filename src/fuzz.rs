@@ -230,14 +230,14 @@ mod checkpoint {
     use std::io::prelude::*;
     use std::path::Path;
 
-    pub(crate) fn load_execution_path(fs_path: &Path) -> ::rt::Path {
+    pub(crate) fn load_execution_path(fs_path: &Path) -> crate::rt::Path {
         let mut file = File::open(fs_path).unwrap();
         let mut contents = String::new();
         file.read_to_string(&mut contents).unwrap();
         serde_json::from_str(&contents).unwrap()
     }
 
-    pub(crate) fn store_execution_path(path: &::rt::Path, fs_path: &Path) {
+    pub(crate) fn store_execution_path(path: &crate::rt::Path, fs_path: &Path) {
         let serialized = serde_json::to_string(path).unwrap();
 
         let mut file = File::create(fs_path).unwrap();

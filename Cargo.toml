@@ -23,7 +23,7 @@ categories = ["concurrency", "data-structures"]
 
 [features]
 default = []
-checkpoint = ["serde", "serde_derive", "serde_json"]
+checkpoint = ["serde", "serde_json"]
 
 [dependencies]
 cfg-if = "0.1.6"
@@ -40,6 +40,5 @@ generator = { version = "0.6.10", optional = true }
 futures = { version = "0.1.25", optional = true }
 
 # Requires for "checkpoint" feature
-serde = { version = "1.0.80", optional = true }
-serde_derive = { version = "1.0.80", optional = true }
+serde = { version = "1.0.92", features = ["derive"], optional = true }
 serde_json = { version = "1.0.33", optional = true }
