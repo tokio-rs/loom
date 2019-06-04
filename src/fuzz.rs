@@ -66,11 +66,19 @@ impl Builder {
         use std::env;
 
         let checkpoint_interval = env::var("LOOM_CHECKPOINT_INTERVAL")
-            .map(|v| v.parse().ok().expect("invalid value for `LOOM_CHECKPOINT_INTERVAL`"))
+            .map(|v| {
+                v.parse()
+                    .ok()
+                    .expect("invalid value for `LOOM_CHECKPOINT_INTERVAL`")
+            })
             .unwrap_or(20_000);
 
         let max_branches = env::var("LOOM_MAX_BRANCHES")
-            .map(|v| v.parse().ok().expect("invalid value for `LOOM_MAX_BRANCHES`"))
+            .map(|v| {
+                v.parse()
+                    .ok()
+                    .expect("invalid value for `LOOM_MAX_BRANCHES`")
+            })
             .unwrap_or(DEFAULT_MAX_BRANCHES);
 
         let log = env::var("LOOM_LOG").is_ok();
@@ -96,14 +104,19 @@ impl Builder {
 
         let max_duration = env::var("LOOM_MAX_DURATION")
             .map(|v| {
-                let secs = v.parse().ok().expect("invalid value for `LOOM_MAX_DURATION`");
+                let secs = v
+                    .parse()
+                    .ok()
+                    .expect("invalid value for `LOOM_MAX_DURATION`");
                 Duration::from_secs(secs)
             })
             .ok();
 
         let max_permutations = env::var("LOOM_MAX_PERMUTATIONS")
             .map(|v| {
-                v.parse().ok().expect("invalid value for `LOOM_MAX_PERMUTATIONS`")
+                v.parse()
+                    .ok()
+                    .expect("invalid value for `LOOM_MAX_PERMUTATIONS`")
             })
             .ok();
 

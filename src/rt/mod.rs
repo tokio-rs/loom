@@ -11,8 +11,8 @@ pub(crate) mod thread;
 mod vv;
 
 use self::fn_box::FnBox;
-pub(crate) use self::synchronize::Synchronize;
 pub(crate) use self::path::Path;
+pub(crate) use self::synchronize::Synchronize;
 pub(crate) use self::vv::VersionVec;
 
 pub(crate) use self::execution::Execution;
@@ -30,7 +30,6 @@ where
         f();
         thread_done();
     }));
-
 }
 
 /// Marks the current thread as blocked
@@ -63,7 +62,7 @@ where
 
 fn synchronize<F, R>(f: F) -> R
 where
-    F: FnOnce(&mut Execution) -> R
+    F: FnOnce(&mut Execution) -> R,
 {
     execution(|execution| {
         let ret = f(execution);
@@ -114,7 +113,7 @@ where
 
 pub(crate) fn execution<F, R>(f: F) -> R
 where
-    F: FnOnce(&mut Execution) -> R
+    F: FnOnce(&mut Execution) -> R,
 {
     Scheduler::with_execution(f)
 }

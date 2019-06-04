@@ -1,7 +1,7 @@
 //! Mock implementation of `std::thread`.
 
-use crate::rt::{self, oneshot};
 use crate::rt::object::{self, Object};
+use crate::rt::{self, oneshot};
 use std::fmt;
 
 /// Mock implementation of `std::thread::JoinHandle`.
@@ -18,9 +18,7 @@ where
     T: 'static,
 {
     let (tx, rx) = oneshot::channel();
-    let object = rt::execution(|execution| {
-        execution.objects.insert(Object::thread())
-    });
+    let object = rt::execution(|execution| execution.objects.insert(Object::thread()));
 
     rt::spawn(move || {
         let res = Ok(f());
@@ -30,10 +28,7 @@ where
         tx.send(res);
     });
 
-    JoinHandle {
-        rx,
-        object,
-    }
+    JoinHandle { rx, object }
 }
 
 impl<T> JoinHandle<T> {
@@ -47,7 +42,6 @@ impl<T> JoinHandle<T> {
 
 impl<T: fmt::Debug> fmt::Debug for JoinHandle<T> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("JoinHandle")
-            .finish()
+        fmt.debug_struct("JoinHandle").finish()
     }
 }

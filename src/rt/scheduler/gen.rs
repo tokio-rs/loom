@@ -1,5 +1,5 @@
 use crate::rt::{thread, Execution, FnBox};
-use generator::{self, Gn, Generator};
+use generator::{self, Generator, Gn};
 use scoped_tls::scoped_thread_local;
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -62,7 +62,6 @@ impl Scheduler {
     where
         F: FnOnce() + Send + 'static,
     {
-
         // Set the scheduler kind
         super::set_generator();
 
@@ -112,19 +111,21 @@ impl fmt::Debug for Scheduler {
 }
 
 fn spawn_threads(n: usize) -> Vec<Thread> {
-    (0..n).map(|_| {
-        let mut g = Gn::new_opt(STACK_SIZE, move || {
-            loop {
-                let f: Option<Box<dyn FnBox>> = generator::yield_(()).unwrap();
-                generator::yield_with(());
-                f.unwrap().call();
-            }
+    (0..n)
+        .map(|_| {
+            let mut g = Gn::new_opt(STACK_SIZE, move || {
+                loop {
+                    let f: Option<Box<dyn FnBox>> = generator::yield_(()).unwrap();
+                    generator::yield_with(());
+                    f.unwrap().call();
+                }
 
-            // done!();
-        });
-        g.resume();
-        g
-    }).collect()
+                // done!();
+            });
+            g.resume();
+            g
+        })
+        .collect()
 }
 
 unsafe fn transmute_lt<'a, 'b>(state: &'a RefCell<State<'b>>) -> &'a RefCell<State<'static>> {

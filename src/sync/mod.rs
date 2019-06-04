@@ -1,8 +1,8 @@
 //! Mock implementation of `std::atomic`.
 
 mod arc;
-mod causal;
 pub mod atomic;
+mod causal;
 mod condvar;
 mod mutex;
 

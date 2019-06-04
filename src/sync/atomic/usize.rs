@@ -48,9 +48,8 @@ impl AtomicUsize {
         current: usize,
         new: usize,
         success: Ordering,
-        failure: Ordering
-    ) -> Result<usize, usize>
-    {
+        failure: Ordering,
+    ) -> Result<usize, usize> {
         self.0.compare_exchange(current, new, success, failure)
     }
 

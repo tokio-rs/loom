@@ -2,29 +2,31 @@
 
 use loom;
 
-use loom::sync::{CausalCell, Mutex};
 use loom::sync::atomic::AtomicUsize;
+use loom::sync::{CausalCell, Mutex};
 use loom::thread;
 
-use std::sync::Arc;
 use std::sync::atomic::Ordering::SeqCst;
+use std::sync::Arc;
 
 #[test]
 fn mutex_enforces_mutal_exclusion() {
     loom::fuzz(|| {
         let data = Arc::new((Mutex::new(0), AtomicUsize::new(0)));
 
-        let ths: Vec<_> = (0..2).map(|_| {
-            let data = data.clone();
+        let ths: Vec<_> = (0..2)
+            .map(|_| {
+                let data = data.clone();
 
-            thread::spawn(move || {
-                let mut locked = data.0.lock().unwrap();
+                thread::spawn(move || {
+                    let mut locked = data.0.lock().unwrap();
 
-                let prev = data.1.fetch_add(1, SeqCst);
-                assert_eq!(prev, *locked);
-                *locked += 1;
+                    let prev = data.1.fetch_add(1, SeqCst);
+                    assert_eq!(prev, *locked);
+                    *locked += 1;
+                })
             })
-        }).collect();
+            .collect();
 
         for th in ths {
             th.join().unwrap();

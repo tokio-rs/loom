@@ -1,7 +1,7 @@
 use crate::rt::thread;
 
 #[cfg(feature = "checkpoint")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::ops;
 
@@ -21,11 +21,10 @@ impl VersionVec {
     }
 
     pub fn versions<'a>(&'a self) -> impl Iterator<Item = (thread::Id, usize)> + 'a {
-        self.versions.iter()
+        self.versions
+            .iter()
             .enumerate()
-            .map(|(thread_id, &version)| {
-                (thread::Id::from_usize(thread_id), version)
-            })
+            .map(|(thread_id, &version)| (thread::Id::from_usize(thread_id), version))
     }
 
     pub fn len(&self) -> usize {

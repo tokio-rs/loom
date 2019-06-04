@@ -140,8 +140,8 @@ impl Set {
         let max_threads = self.threads.capacity();
 
         // Push the thread onto the stack
-        self.threads.push(
-            Thread::new(Id::from_usize(id), max_threads));
+        self.threads
+            .push(Thread::new(Id::from_usize(id), max_threads));
 
         if self.active.is_none() {
             self.active = Some(id);
@@ -175,9 +175,7 @@ impl Set {
     }
 
     /// Get the active thread and second thread
-    pub fn active2_mut(&mut self, other: Id)
-        -> (&mut Thread, &mut Thread)
-    {
+    pub fn active2_mut(&mut self, other: Id) -> (&mut Thread, &mut Thread) {
         let active = self.active.unwrap();
         let other = other.id;
 
@@ -204,8 +202,11 @@ impl Set {
 
     /// Insert a point of sequential consistency
     pub fn seq_cst(&mut self) {
-        self.threads[self.active.unwrap()].causality.join(&self.seq_cst_causality);
-        self.seq_cst_causality.join(&self.threads[self.active.unwrap()].causality);
+        self.threads[self.active.unwrap()]
+            .causality
+            .join(&self.seq_cst_causality);
+        self.seq_cst_causality
+            .join(&self.threads[self.active.unwrap()].causality);
     }
 
     pub fn clear(&mut self) {
@@ -215,20 +216,18 @@ impl Set {
     }
 
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = (Id, &'a Thread)> + 'a {
-        self.threads.iter()
+        self.threads
+            .iter()
             .enumerate()
-            .map(|(id, thread)| {
-                (Id::from_usize(id), thread)
-            })
+            .map(|(id, thread)| (Id::from_usize(id), thread))
     }
 
     pub fn iter_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = (Id, &'a mut Thread)> + 'a> {
         Box::new({
-            self.threads.iter_mut()
+            self.threads
+                .iter_mut()
                 .enumerate()
-                .map(|(id, thread)| {
-                    (Id::from_usize(id), thread)
-                })
+                .map(|(id, thread)| (Id::from_usize(id), thread))
         })
     }
 }
@@ -260,9 +259,7 @@ impl Id {
     }
 
     pub fn current() -> Id {
-        super::execution(|execution| {
-            execution.threads.active_id()
-        })
+        super::execution(|execution| execution.threads.active_id())
     }
 
     pub fn unpark(self) {
@@ -277,7 +274,9 @@ impl Id {
             execution.threads[self].notified = true;
 
             if self == execution.threads.active_id() {
-                let num_runnable = execution.threads.iter()
+                let num_runnable = execution
+                    .threads
+                    .iter()
                     .filter(|(_, th)| th.is_runnable())
                     .count();
 
@@ -295,9 +294,9 @@ impl Id {
 }
 
 impl fmt::Display for Id {
-     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-         self.id.fmt(fmt)
-     }
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.id.fmt(fmt)
+    }
 }
 
 impl fmt::Debug for Id {
