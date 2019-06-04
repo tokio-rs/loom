@@ -1,10 +1,23 @@
 mod thread;
 
-#[cfg_attr(not(feature = "generator"), path = "stub.rs")]
+#[cfg(feature = "generator")]
 mod gen;
 
-#[cfg_attr(not(feature = "fringe"), path = "stub.rs")]
+#[cfg(not(feature = "generator"))]
+mod gen {
+    pub use super::stub::Scheduler;
+}
+
+#[cfg(feature = "fringe")]
 mod fringe;
+
+#[cfg(not(feature = "fringe"))]
+mod fringe {
+    pub use super::stub::Scheduler;
+}
+
+#[cfg(any(not(feature = "generator"), not(feature = "fringe")))]
+mod stub;
 
 use crate::rt::{Execution, FnBox};
 use std::cell::Cell;
