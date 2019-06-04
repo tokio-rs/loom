@@ -1,7 +1,6 @@
-use rt::{thread, Execution, FnBox};
-
+use crate::rt::{thread, Execution, FnBox};
 use generator::{self, Gn, Generator};
-
+use scoped_tls::scoped_thread_local;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt;
@@ -12,18 +11,18 @@ pub struct Scheduler {
 
     next_thread: usize,
 
-    queued_spawn: VecDeque<Box<FnBox>>,
+    queued_spawn: VecDeque<Box<dyn FnBox>>,
 }
 
-type Thread = Generator<'static, Option<Box<FnBox>>, ()>;
+type Thread = Generator<'static, Option<Box<dyn FnBox>>, ()>;
 
 scoped_thread_local! {
-    static STATE: RefCell<State>
+    static STATE: RefCell<State<'_>>
 }
 
 struct State<'a> {
     execution: &'a mut Execution,
-    queued_spawn: &'a mut VecDeque<Box<FnBox>>,
+    queued_spawn: &'a mut VecDeque<Box<dyn FnBox>>,
 }
 
 const STACK_SIZE: usize = 1 << 23;
@@ -53,7 +52,7 @@ impl Scheduler {
         generator::yield_with(());
     }
 
-    pub fn spawn(f: Box<FnBox>) {
+    pub fn spawn(f: Box<dyn FnBox>) {
         STATE.with(|state| {
             state.borrow_mut().queued_spawn.push_back(f);
         });
@@ -105,7 +104,7 @@ impl Scheduler {
 }
 
 impl fmt::Debug for Scheduler {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Schedule")
             .field("threads", &self.threads)
             .finish()
@@ -116,7 +115,7 @@ fn spawn_threads(n: usize) -> Vec<Thread> {
     (0..n).map(|_| {
         let mut g = Gn::new_opt(STACK_SIZE, move || {
             loop {
-                let f: Option<Box<FnBox>> = generator::yield_(()).unwrap();
+                let f: Option<Box<dyn FnBox>> = generator::yield_(()).unwrap();
                 generator::yield_with(());
                 f.unwrap().call();
             }

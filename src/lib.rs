@@ -1,5 +1,5 @@
 #![doc(html_root_url = "https://docs.rs/loom/0.1.1")]
-#![deny(missing_debug_implementations, missing_docs)]
+#![deny(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![cfg_attr(test, deny(warnings))]
 
 //! Loom is a tool for testing concurrent programs.
@@ -111,32 +111,9 @@
 //! execution given that the order in which two threads read from the same
 //! atomic cannot impact the execution.
 
-#[macro_use]
-extern crate cfg_if;
-// extern crate libc;
-#[macro_use]
-extern crate scoped_tls;
-
-#[cfg(feature = "generator")]
-extern crate generator;
-
-#[cfg(feature = "fringe")]
-extern crate fringe;
-
-// The checkpoint feature enables serialization of the check exploration to
-// disk. This is useful for replaying a known failing permutation.
-cfg_if! {
-    if #[cfg(feature = "checkpoint")] {
-        extern crate serde;
-        #[macro_use]
-        extern crate serde_derive;
-        extern crate serde_json;
-    }
-}
-
 macro_rules! if_futures {
     ($($t:tt)*) => {
-        cfg_if! {
+        cfg_if::cfg_if! {
             if #[cfg(feature = "futures")] {
                 $($t)*
             }
@@ -160,15 +137,13 @@ pub mod sync;
 pub mod thread;
 
 #[doc(inline)]
-pub use fuzz::fuzz;
+pub use crate::fuzz::fuzz;
 
 if_futures! {
-    extern crate futures as _futures;
-
     pub mod futures;
 }
 
-pub use rt::yield_now;
+pub use crate::rt::yield_now;
 
 #[doc(hidden)]
 pub fn __debug_enabled() -> bool {

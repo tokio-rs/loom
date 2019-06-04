@@ -1,14 +1,12 @@
 //! Mock implementation of `std::thread`.
 
-use rt::{self, oneshot};
-use rt::object::{self, Object};
-
+use crate::rt::{self, oneshot};
+use crate::rt::object::{self, Object};
 use std::fmt;
-use std::thread as std;
 
 /// Mock implementation of `std::thread::JoinHandle`.
 pub struct JoinHandle<T> {
-    rx: oneshot::Receiver<std::Result<T>>,
+    rx: oneshot::Receiver<std::thread::Result<T>>,
     object: object::Id,
 }
 
@@ -40,7 +38,7 @@ where
 
 impl<T> JoinHandle<T> {
     /// Waits for the associated thread to finish.
-    pub fn join(self) -> std::Result<T> {
+    pub fn join(self) -> std::thread::Result<T> {
         let ret = self.rx.recv();
         self.object.branch_park(true);
         ret
@@ -48,7 +46,7 @@ impl<T> JoinHandle<T> {
 }
 
 impl<T: fmt::Debug> fmt::Debug for JoinHandle<T> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("JoinHandle")
             .finish()
     }

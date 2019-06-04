@@ -1,4 +1,4 @@
-use rt::{Execution, FnBox};
+use crate::rt::{Execution, FnBox};
 
 #[derive(Debug)]
 pub struct Scheduler;
@@ -16,7 +16,7 @@ impl Scheduler {
         panic!("called from outside a loom check execution");
     }
 
-    pub fn spawn(_: Box<FnBox>) {
+    pub fn spawn(_: Box<dyn FnBox>) {
         panic!("called from outside a loom check execution");
     }
 

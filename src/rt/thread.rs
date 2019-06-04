@@ -1,5 +1,5 @@
-use rt::object::Operation;
-use rt::vv::VersionVec;
+use crate::rt::object::Operation;
+use crate::rt::vv::VersionVec;
 
 use std::fmt;
 use std::marker::PhantomData;
@@ -222,7 +222,7 @@ impl Set {
             })
     }
 
-    pub fn iter_mut<'a>(&'a mut self) -> Box<Iterator<Item = (Id, &'a mut Thread)> + 'a> {
+    pub fn iter_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = (Id, &'a mut Thread)> + 'a> {
         Box::new({
             self.threads.iter_mut()
                 .enumerate()
@@ -295,13 +295,13 @@ impl Id {
 }
 
 impl fmt::Display for Id {
-     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
          self.id.fmt(fmt)
      }
 }
 
 impl fmt::Debug for Id {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "Id({})", self.id)
     }
 }

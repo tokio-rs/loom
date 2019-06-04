@@ -1,15 +1,12 @@
 //! Fuzz concurrent programs.
 
-use rt::{self, Execution, Scheduler};
-
+use crate::rt::{self, Execution, Scheduler};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const DEFAULT_MAX_THREADS: usize = 4;
-
 const DEFAULT_MAX_MEMORY: usize = 4096 << 14;
-
 const DEFAULT_MAX_BRANCHES: usize = 1_000;
 
 /// Configure a fuzz execution.
@@ -233,14 +230,14 @@ mod checkpoint {
     use std::io::prelude::*;
     use std::path::Path;
 
-    pub(crate) fn load_execution_path(fs_path: &Path) -> ::rt::Path {
+    pub(crate) fn load_execution_path(fs_path: &Path) -> crate::rt::Path {
         let mut file = File::open(fs_path).unwrap();
         let mut contents = String::new();
         file.read_to_string(&mut contents).unwrap();
         serde_json::from_str(&contents).unwrap()
     }
 
-    pub(crate) fn store_execution_path(path: &::rt::Path, fs_path: &Path) {
+    pub(crate) fn store_execution_path(path: &crate::rt::Path, fs_path: &Path) {
         let serialized = serde_json::to_string(path).unwrap();
 
         let mut file = File::create(fs_path).unwrap();
@@ -252,11 +249,11 @@ mod checkpoint {
 mod checkpoint {
     use std::path::Path;
 
-    pub(crate) fn load_execution_path(_fs_path: &Path) -> ::rt::Path {
+    pub(crate) fn load_execution_path(_fs_path: &Path) -> crate::rt::Path {
         panic!("not compiled with `checkpoint` feature")
     }
 
-    pub(crate) fn store_execution_path(_path: &::rt::Path, _fs_path: &Path) {
+    pub(crate) fn store_execution_path(_path: &crate::rt::Path, _fs_path: &Path) {
         panic!("not compiled with `checkpoint` feature")
     }
 }

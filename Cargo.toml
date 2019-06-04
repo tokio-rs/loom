@@ -9,7 +9,8 @@ name = "loom"
 #   - Cargo.toml
 #   - README.md
 # - Create git tag
-version = "0.1.1"
+version = "0.2.0"
+edition = "2018"
 license = "MIT"
 authors = ["Carl Lerche <me@carllerche.com>"]
 description = "Model checker for concurrent code"
@@ -19,10 +20,11 @@ repository = "https://github.com/carllerche/loom"
 readme = "README.md"
 keywords = ["atomic", "lock-free"]
 categories = ["concurrency", "data-structures"]
+publish = false
 
 [features]
 default = []
-checkpoint = ["serde", "serde_derive", "serde_json"]
+checkpoint = ["serde", "serde_json"]
 
 [dependencies]
 cfg-if = "0.1.6"
@@ -39,6 +41,5 @@ generator = { version = "0.6.10", optional = true }
 futures = { version = "0.1.25", optional = true }
 
 # Requires for "checkpoint" feature
-serde = { version = "1.0.80", optional = true }
-serde_derive = { version = "1.0.80", optional = true }
+serde = { version = "1.0.92", features = ["derive"], optional = true }
 serde_json = { version = "1.0.33", optional = true }

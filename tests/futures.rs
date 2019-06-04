@@ -1,4 +1,5 @@
 #![cfg(feature = "futures")]
+#![deny(warnings, rust_2018_idioms)]
 
 extern crate futures;
 extern crate loom;

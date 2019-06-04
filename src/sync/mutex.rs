@@ -1,5 +1,5 @@
-use rt::{self, thread};
-use rt::object::{self, Object};
+use crate::rt::{self, thread};
+use crate::rt::object::{self, Object};
 
 use std::cell::{Cell, RefCell, RefMut};
 use std::ops;
@@ -15,7 +15,7 @@ pub struct Mutex<T> {
 
 /// Mock implementation of `std::sync::MutexGuard`.
 #[derive(Debug)]
-pub struct MutexGuard<'a, T: 'a> {
+pub struct MutexGuard<'a, T> {
     lock: &'a Mutex<T>,
     data: Option<RefMut<'a, T>>,
 }
@@ -35,7 +35,7 @@ impl<T> Mutex<T> {
 
 impl<T> Mutex<T> {
     /// Acquires a mutex, blocking the current thread until it is able to do so.
-    pub fn lock(&self) -> LockResult<MutexGuard<T>> {
+    pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {
         self.acquire();
 
         Ok(MutexGuard {

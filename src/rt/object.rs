@@ -1,6 +1,6 @@
-use rt::atomic;
-use rt::Execution;
-use rt::vv::VersionVec;
+use crate::rt::atomic;
+use crate::rt::Execution;
+use crate::rt::vv::VersionVec;
 
 use std::marker::PhantomData;
 use std::ops;
@@ -102,7 +102,7 @@ impl Set {
     }
 
     pub fn last_dependent_accesses<'a>(&'a self, operation: Operation)
-        -> Box<Iterator<Item = &'a Access> + 'a>
+        -> Box<dyn Iterator<Item = &'a Access> + 'a>
     {
         use self::Action::*;
 

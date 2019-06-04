@@ -1,4 +1,6 @@
-extern crate loom;
+#![deny(warnings, rust_2018_idioms)]
+
+use loom;
 
 use loom::sync::{CausalCell, Mutex};
 use loom::sync::atomic::AtomicUsize;

@@ -120,8 +120,8 @@ where
 }
 
 if_futures! {
-    use _futures::Future;
-    use _futures::Async::Ready;
+    use futures::Future;
+    use futures::Async::Ready;
     use std::mem::replace;
 
     /// Block the current thread, driving `f` to completion.

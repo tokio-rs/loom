@@ -1,5 +1,7 @@
-use rt::thread;
+use crate::rt::thread;
 
+#[cfg(feature = "checkpoint")]
+use serde::{Serialize, Deserialize};
 use std::collections::VecDeque;
 
 /// An execution path
