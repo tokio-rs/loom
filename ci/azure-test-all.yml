@@ -1,0 +1,29 @@
+jobs:
+- job: cargo_test_all
+  displayName: cargo test
+  pool:
+    vmImage: ubuntu-16.04
+  strategy:
+    matrix:
+      stable:
+        rust_version: stable
+      beta:
+        rust_version: beta
+      nightly:
+        rust_version: nightly
+  steps:
+
+  - template: azure-install-rust.yml
+    parameters:
+      rust_version: $(rust_version)
+
+  - script: cargo test
+    displayName: cargo test
+
+  # Run tests with generator based runtime
+  - script: cargo test --tests --features generator
+    displayName: cargo test --tests --features generator
+
+  # Check with serde based checkpoint feature
+  - script: cargo check --features checkpoint
+    displayName: cargo check --features checkpoint
