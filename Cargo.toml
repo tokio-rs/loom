@@ -44,3 +44,4 @@ serde_json = { version = "1.0.33", optional = true }
 
 arc-waker = { git = "https://github.com/tokio-rs/async", optional = true }
 pin-utils = { version = "0.1.0-alpha.4", optional = true }
+pin-convert = "0.1.0"

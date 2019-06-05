@@ -4,6 +4,7 @@ mod atomic_waker;
 
 pub use self::atomic_waker::AtomicWaker;
 pub use crate::rt::wait_future as block_on;
+pub use crate::rt::poll_future;
 
 use crate::rt::thread;
 

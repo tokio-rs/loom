@@ -121,6 +121,7 @@ where
 if_futures! {
     use crate::futures;
 
+    use pin_convert::AsPinMut;
     use pin_utils::pin_mut;
     use std::future::Future;
     use std::mem::replace;
@@ -153,6 +154,18 @@ if_futures! {
                 park();
             }
         }
+    }
+
+    /// Poll the future one time
+    pub fn poll_future<T, F>(mut fut: T) -> Poll<F::Output>
+    where
+        T: AsPinMut<F>,
+        F: Future,
+    {
+        let mut waker = futures::current_waker();
+        let mut cx = Context::from_waker(&mut waker);
+
+        fut.as_pin_mut().poll(&mut cx)
     }
 }
 
