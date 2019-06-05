@@ -1,4 +1,4 @@
-use crate::rt::thread;
+use crate::rt::{execution, thread};
 
 #[cfg(feature = "checkpoint")]
 use serde::{Deserialize, Serialize};
@@ -116,7 +116,7 @@ impl Path {
     }
 
     /// Returns the thread identifier to schedule
-    pub fn branch_thread<I>(&mut self, seed: I) -> Option<thread::Id>
+    pub fn branch_thread<I>(&mut self, execution_id: execution::Id, seed: I) -> Option<thread::Id>
     where
         I: Iterator<Item = Thread>,
     {
@@ -157,7 +157,7 @@ impl Path {
             .iter_mut()
             .enumerate()
             .find(|&(_, ref th)| th.is_active())
-            .map(|(i, _)| thread::Id::from_usize(i))
+            .map(|(i, _)| thread::Id::new(execution_id, i))
     }
 
     /// Returns `false` if there are no more paths to explore

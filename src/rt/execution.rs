@@ -6,6 +6,9 @@ use crate::rt::Path;
 use std::fmt;
 
 pub struct Execution {
+    /// Uniquely identifies an execution
+    pub id: Id,
+
     /// Execution path taken
     pub path: Path,
 
@@ -25,7 +28,7 @@ pub struct Execution {
     pub log: bool,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
 pub struct Id(usize);
 
 impl Execution {
@@ -34,13 +37,14 @@ impl Execution {
     /// This is only called at the start of a fuzz run. The same instance is
     /// reused across permutations.
     pub fn new(max_threads: usize, max_memory: usize, max_branches: usize) -> Execution {
-        let mut threads = thread::Set::new(max_threads);
+        let id = Id::new();
+        let mut threads = thread::Set::new(id, max_threads);
 
         // Create the root thread
         threads.new_thread();
 
         Execution {
-            // id: Id::new(),
+            id,
             path: Path::new(max_branches),
             threads,
             objects: object::Set::new(),
@@ -49,6 +53,10 @@ impl Execution {
             max_history: 7,
             log: false,
         }
+    }
+
+    pub fn id(&self) -> Id {
+        self.id
     }
 
     /// Create state to track a new thread
@@ -83,6 +91,7 @@ impl Execution {
 
     /// Resets the execution state for the next execution run
     pub fn step(self) -> Option<Self> {
+        let id = Id::new();
         let max_threads = self.max_threads;
         let max_history = self.max_history;
         let log = self.log;
@@ -100,10 +109,11 @@ impl Execution {
             return None;
         }
 
-        threads.clear();
+        threads.clear(id);
         threads.new_thread();
 
         Some(Execution {
+            id,
             path,
             threads,
             objects,
@@ -147,7 +157,7 @@ impl Execution {
 
         let path_id = self.path.pos();
 
-        let next = self.path.branch_thread({
+        let next = self.path.branch_thread(self.id, {
             self.threads.iter().map(|(i, th)| {
                 if initial.is_none() && th.is_runnable() {
                     initial = Some(i);
@@ -234,5 +244,18 @@ impl fmt::Debug for Execution {
             .field("path", &self.path)
             .field("threads", &self.threads)
             .finish()
+    }
+}
+
+impl Id {
+    pub fn new() -> Id {
+        use std::sync::atomic::AtomicUsize;
+        use std::sync::atomic::Ordering::Relaxed;
+
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+
+        let next = NEXT_ID.fetch_add(1, Relaxed);
+
+        Id(next)
     }
 }

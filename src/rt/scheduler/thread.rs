@@ -231,8 +231,10 @@ fn spawn_worker(i: usize, shared: Arc<Shared>) {
 
 fn run_worker(i: usize, shared: &Arc<Shared>) {
     loop {
+        let f;
+
         // Get a fn
-        let f = {
+        {
             let mut th = shared.threads[i].lock().unwrap();
 
             loop {
@@ -241,7 +243,10 @@ fn run_worker(i: usize, shared: &Arc<Shared>) {
                         th = shared.condvars[i].wait(th).unwrap();
                     }
                     Pending(_) => match mem::replace(&mut *th, Running) {
-                        Pending(f) => break f,
+                        Pending(func) => {
+                            f = func;
+                            break;
+                        }
                         _ => panic!("unexpected state"),
                     },
                     Running => panic!("unexpected state"),

@@ -119,19 +119,26 @@ where
 }
 
 if_futures! {
-    use futures::Future;
-    use futures::Async::Ready;
+    use crate::futures;
+
+    use pin_utils::pin_mut;
+    use std::future::Future;
     use std::mem::replace;
+    use std::task::{Context, Poll};
 
     /// Block the current thread, driving `f` to completion.
-    pub fn wait_future<F>(mut f: F) -> Result<F::Item, F::Error>
+    pub fn wait_future<F>(f: F) -> F::Output
     where
         F: Future,
     {
+        pin_mut!(f);
+
+        let mut waker = futures::current_waker();
+        let mut cx = Context::from_waker(&mut waker);
+
         loop {
-            match f.poll() {
-                Ok(Ready(val)) => return Ok(val),
-                Err(e) => return Err(e),
+            match f.as_mut().poll(&mut cx) {
+                Poll::Ready(val) => return val,
                 _ => {}
             }
 

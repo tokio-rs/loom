@@ -155,7 +155,7 @@ impl FirstSeen {
     }
 
     fn is_seen_by(&self, threads: &thread::Set) -> bool {
-        for (thread_id, version) in threads.active().causality.versions() {
+        for (thread_id, version) in threads.active().causality.versions(threads.execution_id()) {
             let seen = self
                 .0
                 .get(thread_id.as_usize())
