@@ -1,5 +1,7 @@
 use crate::rt::thread;
+use crate::SmallRng;
 
+use rand::seq::{IteratorRandom, SliceRandom};
 #[cfg(feature = "checkpoint")]
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -28,6 +30,9 @@ pub struct Path {
 
     /// Maximum number of branches to explore
     max_branches: usize,
+
+    /// RNG used to shuffle execution path.
+    rng: SmallRng,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -67,13 +72,14 @@ pub enum Thread {
 
 impl Path {
     /// New Path
-    pub fn new(max_branches: usize) -> Path {
+    pub fn new(max_branches: usize, rng: SmallRng) -> Path {
         Path {
             branches: vec![],
             pos: 0,
             schedules: vec![],
             writes: vec![],
             max_branches,
+            rng,
         }
     }
 
@@ -100,7 +106,15 @@ impl Path {
         if self.pos == self.branches.len() {
             let i = self.writes.len();
 
-            self.writes.push(seed.collect());
+            // randomize the order of writes for this execution
+            let mut seed = seed.collect::<VecDeque<_>>();
+            {
+                let (a, b) = seed.as_mut_slices();
+                assert!(b.is_empty());
+                a.shuffle(&mut self.rng);
+            }
+
+            self.writes.push(seed);
 
             self.branches.push(Branch::Write(i));
         }
@@ -127,17 +141,18 @@ impl Path {
 
             let mut threads: Vec<_> = seed.collect();
 
+            // Ensure at least one thread is active, otherwise toggle a yielded
+            // thread.
             let active = threads.iter().any(|th| *th == Thread::Active);
 
             if !active {
                 threads
                     .iter_mut()
-                    .find(|th| **th == Thread::Yield)
+                    .filter(|th| **th == Thread::Yield)
+                    // Randomly pick a yielded thread to be the active one
+                    .choose(&mut self.rng)
                     .map(|th| *th = Thread::Active);
             }
-
-            // Ensure at least one thread is active, otherwise toggle a yielded
-            // thread.
 
             self.schedules.push(Schedule { threads });
 
@@ -176,11 +191,12 @@ impl Path {
                         .find(|th| th.is_active())
                         .map(|th| *th = Thread::Visited);
 
-                    // Find a pending thread and transition it to active
+                    // Find a pending thread randomly and transition it to active
                     let rem = self.schedules[i]
                         .threads
                         .iter_mut()
-                        .find(|th| th.is_pending())
+                        .filter(|th| th.is_pending())
+                        .choose(&mut self.rng)
                         .map(|th| {
                             *th = Thread::Active;
                         })
