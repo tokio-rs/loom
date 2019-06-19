@@ -9,6 +9,7 @@ pub use crate::rt::poll_future;
 use crate::rt::thread;
 
 use arc_waker::Wake;
+use std::sync::Arc;
 use std::task::Waker;
 
 struct ThreadWaker {
@@ -19,11 +20,13 @@ pub(crate) fn current_waker() -> Waker {
     use std::sync::Arc;
 
     let thread = thread::Id::current();
-    Arc::new(ThreadWaker { thread }).into_waker()
+    let waker = Arc::new(ThreadWaker { thread });
+    arc_waker::waker(waker)
+
 }
 
 impl Wake for ThreadWaker {
-    fn wake_by_ref(&self) {
-        self.thread.future_notify()
+    fn wake_by_ref(me: &Arc<Self>) {
+        me.thread.future_notify()
     }
 }
