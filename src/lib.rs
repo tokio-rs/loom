@@ -131,6 +131,9 @@ macro_rules! debug {
     };
 }
 
+// Top-level alias to ease changing the implementation.
+type SmallRng = rand_pcg::Pcg32;
+
 pub mod fuzz;
 mod rt;
 pub mod sync;
