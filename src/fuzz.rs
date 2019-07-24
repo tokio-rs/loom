@@ -36,9 +36,6 @@ pub struct Builder {
     /// How often to write the checkpoint file
     pub checkpoint_interval: usize,
 
-    /// What runtime to use
-    pub runtime: Runtime,
-
     /// Log execution output to stdout.
     pub log: bool,
 
@@ -49,22 +46,6 @@ pub struct Builder {
 
     // Support adding more fields in the future
     _p: (),
-}
-
-/// Fuzz execution runtimes.
-#[derive(Debug)]
-pub enum Runtime {
-    /// Spawn a `std` Thread for each loom thread. A mutex is used to schedule a
-    /// single thread at a time.
-    Thread,
-
-    /// Use a `generator::Generator` for each loom thread, providing faster scheduling.
-    #[cfg(feature = "generator")]
-    Generator,
-
-    /// Use a `fringe::Generator` for each loom thread, providing faster scheduling.
-    #[cfg(feature = "fringe")]
-    Fringe,
 }
 
 impl Builder {
@@ -89,25 +70,6 @@ impl Builder {
             .unwrap_or(DEFAULT_MAX_BRANCHES);
 
         let log = env::var("LOOM_LOG").is_ok();
-
-        let mut runtime = Runtime::default();
-
-        if let Ok(rt) = env::var("LOOM_RUNTIME") {
-            runtime = match &rt[..] {
-                "thread" => Runtime::Thread,
-
-                #[cfg(feature = "generator")]
-                "generator" => Runtime::Generator,
-                #[cfg(not(feature = "generator"))]
-                "generator" => panic!("not compiled with `generator` feature"),
-
-                #[cfg(feature = "fringe")]
-                "fringe" => Runtime::Fringe,
-                #[cfg(not(feature = "fringe"))]
-                "fringe" => panic!("not compiled with `fringe` feature"),
-                v => panic!("invalid runtime `{}`", v),
-            };
-        }
 
         let max_duration = env::var("LOOM_MAX_DURATION")
             .map(|v| {
@@ -139,7 +101,6 @@ impl Builder {
             max_permutations,
             checkpoint_file: None,
             checkpoint_interval,
-            runtime,
             log,
             rng_seed,
             _p: (),
@@ -163,15 +124,8 @@ impl Builder {
         };
         let mut execution =
             Execution::new(self.max_threads, self.max_memory, self.max_branches, rng);
-        let mut scheduler = match self.runtime {
-            Runtime::Thread => Scheduler::new_thread(self.max_threads),
 
-            #[cfg(feature = "generator")]
-            Runtime::Generator => Scheduler::new_generator(self.max_threads),
-
-            #[cfg(feature = "fringe")]
-            Runtime::Fringe => Scheduler::new_fringe(self.max_threads),
-        };
+        let mut scheduler = Scheduler::new(self.max_threads);
 
         if let Some(ref path) = self.checkpoint_file {
             if path.exists() {
@@ -234,23 +188,6 @@ where
     F: Fn() + Sync + Send + 'static,
 {
     Builder::new().fuzz(f)
-}
-
-impl Default for Runtime {
-    #[cfg(feature = "fringe")]
-    fn default() -> Runtime {
-        Runtime::Fringe
-    }
-
-    #[cfg(all(feature = "generator", not(feature = "fringe")))]
-    fn default() -> Runtime {
-        Runtime::Generator
-    }
-
-    #[cfg(all(not(feature = "generator"), not(feature = "fringe")))]
-    fn default() -> Runtime {
-        Runtime::Thread
-    }
 }
 
 #[cfg(feature = "checkpoint")]
