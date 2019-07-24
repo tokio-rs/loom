@@ -20,10 +20,6 @@ jobs:
   - script: cargo +$(rust_version) test
     displayName: cargo test
 
-  # Run tests with generator based runtime
-  - script: cargo +$(rust_version) test --tests --features generator
-    displayName: cargo test --tests --features generator
-
   # Check with serde based checkpoint feature
   - script: cargo +$(rust_version) check --features checkpoint
     displayName: cargo check --features checkpoint

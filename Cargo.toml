@@ -34,10 +34,7 @@ rand_pcg = "0.1.1"
 scoped-tls = "0.1.2"
 
 # Provides a generator based runtime
-generator = { version = "=0.6.13", optional = true }
-
-# Provides a runtime based on libfringe. Requires nightly.
-# fringe = { git = "https://github.com/carllerche/libfringe", branch = "track-nightly", optional = true }
+generator = "0.6.16"
 
 # Optional futures support
 futures = { version = "0.1.25", optional = true }

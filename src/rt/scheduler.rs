@@ -25,8 +25,6 @@ struct State<'a> {
     queued_spawn: &'a mut VecDeque<Box<dyn FnBox>>,
 }
 
-const STACK_SIZE: usize = 1 << 23;
-
 impl Scheduler {
     /// Create an execution
     pub fn new(capacity: usize) -> Scheduler {
@@ -62,9 +60,6 @@ impl Scheduler {
     where
         F: FnOnce() + Send + 'static,
     {
-        // Set the scheduler kind
-        super::set_generator();
-
         self.next_thread = 1;
         self.threads[0].set_para(Some(Box::new(f)));
         self.threads[0].resume();
@@ -113,7 +108,7 @@ impl fmt::Debug for Scheduler {
 fn spawn_threads(n: usize) -> Vec<Thread> {
     (0..n)
         .map(|_| {
-            let mut g = Gn::new_opt(STACK_SIZE, move || {
+            let mut g = Gn::new(move || {
                 loop {
                     let f: Option<Box<dyn FnBox>> = generator::yield_(()).unwrap();
                     generator::yield_with(());
