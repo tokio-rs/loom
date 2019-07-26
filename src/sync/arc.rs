@@ -13,6 +13,7 @@ pub struct Arc<T> {
 
 #[derive(Debug)]
 struct Inner<T> {
+    // This must be the first field to make into_raw / from_raw work
     value: T,
 
     /// Used to track causality
@@ -39,6 +40,21 @@ impl<T> Arc<T> {
     /// just values that compare as equal).
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
         Rc::ptr_eq(&this.inner, &other.inner)
+    }
+
+    /// Consumes the `Arc`, returning the wrapped pointer.
+    pub fn into_raw(this: Self) -> *const T {
+        use std::mem;
+
+        let ptr = &*this as *const _;
+        mem::forget(this);
+        ptr as *const T
+    }
+
+    /// Constructs an `Arc` from a raw pointer.
+    pub unsafe fn from_raw(ptr: *const T) -> Self {
+        let inner = Rc::from_raw(ptr as *const Inner<T>);
+        Arc { inner }
     }
 }
 
