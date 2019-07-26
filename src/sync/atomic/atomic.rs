@@ -31,6 +31,10 @@ where
         self.values.get_mut().last_mut().unwrap()
     }
 
+    pub unsafe fn unsync_load(&self) -> T {
+        unimplemented!();
+    }
+
     pub fn load(&self, order: Ordering) -> T {
         let object = self.object;
         let index = self.object.atomic_load(order);
