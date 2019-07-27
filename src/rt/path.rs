@@ -141,11 +141,12 @@ impl Path {
 
             let mut threads: Vec<_> = seed.collect();
 
+            let num_active = threads.iter().filter(|th| th.is_active()).count();
+            assert!(num_active <= 1, "num_active = {}", num_active);
+
             // Ensure at least one thread is active, otherwise toggle a yielded
             // thread.
-            let active = threads.iter().any(|th| *th == Thread::Active);
-
-            if !active {
+            if num_active == 0 {
                 threads
                     .iter_mut()
                     .filter(|th| **th == Thread::Yield)

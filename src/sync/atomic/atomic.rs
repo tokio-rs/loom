@@ -32,7 +32,8 @@ where
     }
 
     pub unsafe fn unsync_load(&self) -> T {
-        unimplemented!();
+        self.object.atomic_get_mut();
+        *self.values.borrow().last().unwrap()
     }
 
     pub fn load(&self, order: Ordering) -> T {

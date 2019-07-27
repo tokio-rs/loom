@@ -140,7 +140,7 @@ pub mod sync;
 pub mod thread;
 
 #[doc(inline)]
-pub use crate::model::check;
+pub use crate::model::model;
 
 if_futures! {
     pub mod futures;

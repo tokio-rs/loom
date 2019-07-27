@@ -195,7 +195,7 @@ impl Builder {
 }
 
 /// Run all concurrent permutations of the provided closure.
-pub fn check<F>(f: F)
+pub fn model<F>(f: F)
 where
     F: Fn() + Sync + Send + 'static,
 {
