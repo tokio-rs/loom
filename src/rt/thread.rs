@@ -1,9 +1,8 @@
+use crate::rt::execution;
 use crate::rt::object::Operation;
 use crate::rt::vv::VersionVec;
 
-use std::fmt;
-use std::marker::PhantomData;
-use std::ops;
+use std::{fmt, ops};
 
 #[derive(Debug)]
 pub struct Thread {
@@ -33,6 +32,10 @@ pub struct Thread {
 
 #[derive(Debug)]
 pub struct Set {
+    /// Unique execution identifier
+    execution_id: execution::Id,
+
+    /// Set of threads
     threads: Vec<Thread>,
 
     /// Currently scheduled thread.
@@ -47,8 +50,8 @@ pub struct Set {
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone)]
 pub struct Id {
+    execution_id: execution::Id,
     id: usize,
-    _p: PhantomData<::std::rc::Rc<()>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -123,12 +126,17 @@ impl Set {
     /// Create an empty thread set.
     ///
     /// The set may contain up to `max_threads` threads.
-    pub fn new(max_threads: usize) -> Set {
+    pub fn new(execution_id: execution::Id, max_threads: usize) -> Set {
         Set {
+            execution_id,
             threads: Vec::with_capacity(max_threads),
             active: None,
             seq_cst_causality: VersionVec::new(max_threads),
         }
+    }
+
+    pub fn execution_id(&self) -> execution::Id {
+        self.execution_id
     }
 
     /// Create a new thread
@@ -141,13 +149,13 @@ impl Set {
 
         // Push the thread onto the stack
         self.threads
-            .push(Thread::new(Id::from_usize(id), max_threads));
+            .push(Thread::new(Id::new(self.execution_id, id), max_threads));
 
         if self.active.is_none() {
             self.active = Some(id);
         }
 
-        Id::from_usize(id)
+        Id::new(self.execution_id, id)
     }
 
     pub fn max(&self) -> usize {
@@ -159,7 +167,7 @@ impl Set {
     }
 
     pub fn active_id(&self) -> Id {
-        Id::from_usize(self.active.unwrap())
+        Id::new(self.execution_id, self.active.unwrap())
     }
 
     pub fn active(&self) -> &Thread {
@@ -209,25 +217,28 @@ impl Set {
             .join(&self.threads[self.active.unwrap()].causality);
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self, execution_id: execution::Id) {
+        self.execution_id = execution_id;
         self.threads.clear();
         self.active = None;
         self.seq_cst_causality = VersionVec::new(self.max());
     }
 
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = (Id, &'a Thread)> + 'a {
+        let execution_id = self.execution_id;
         self.threads
             .iter()
             .enumerate()
-            .map(|(id, thread)| (Id::from_usize(id), thread))
+            .map(move |(id, thread)| (Id::new(execution_id, id), thread))
     }
 
     pub fn iter_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = (Id, &'a mut Thread)> + 'a> {
+        let execution_id = self.execution_id;
         Box::new({
             self.threads
                 .iter_mut()
                 .enumerate()
-                .map(|(id, thread)| (Id::from_usize(id), thread))
+                .map(move |(id, thread)| (Id::new(execution_id, id), thread))
         })
     }
 }
@@ -247,11 +258,8 @@ impl ops::IndexMut<Id> for Set {
 }
 
 impl Id {
-    pub fn from_usize(id: usize) -> Id {
-        Id {
-            id,
-            _p: PhantomData,
-        }
+    pub fn new(execution_id: execution::Id, id: usize) -> Id {
+        Id { execution_id, id }
     }
 
     pub fn as_usize(self) -> usize {
@@ -264,6 +272,7 @@ impl Id {
 
     pub fn unpark(self) {
         super::execution(|execution| {
+            assert_eq!(execution.id(), self.execution_id);
             execution.unpark_thread(self);
         });
     }
@@ -271,6 +280,8 @@ impl Id {
     #[cfg(feature = "futures")]
     pub fn future_notify(self) {
         let yield_now = super::execution(|execution| {
+            assert_eq!(execution.id(), self.execution_id);
+
             execution.threads[self].notified = true;
 
             if self == execution.threads.active_id() {

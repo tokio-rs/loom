@@ -1,45 +1,60 @@
 #![cfg(feature = "futures")]
 #![deny(warnings, rust_2018_idioms)]
 
-extern crate futures;
-extern crate loom;
-
-use loom::futures::task;
-use loom::fuzz_future;
+use loom::futures::{block_on, AtomicWaker};
 use loom::sync::atomic::AtomicUsize;
 use loom::thread;
 
-use futures::{
-    future::{lazy, poll_fn},
-    Async,
-};
-
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::Arc;
+use std::task::{Context, Poll};
+
+struct MyFuture {
+    state: Arc<State>,
+}
+
+struct State {
+    num: AtomicUsize,
+    waker: AtomicWaker,
+}
+
+impl Future for MyFuture {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
+        self.as_mut()
+            .get_mut()
+            .state
+            .waker
+            .register_by_ref(cx.waker());
+
+        if 1 == self.as_mut().get_mut().state.num.load(Relaxed) {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
+    }
+}
 
 #[test]
 fn fuzz_valid() {
-    fuzz_future(|| {
-        lazy(|| {
-            let num = Arc::new(AtomicUsize::new(0));
-            let task = task::current();
+    loom::fuzz(|| {
+        let fut = MyFuture {
+            state: Arc::new(State {
+                num: AtomicUsize::new(0),
+                waker: AtomicWaker::new(),
+            }),
+        };
 
-            thread::spawn({
-                let num = num.clone();
+        let state = fut.state.clone();
 
-                move || {
-                    num.store(1, Relaxed);
-                    task.notify();
-                }
-            });
+        thread::spawn(move || {
+            state.num.store(1, Relaxed);
+            state.waker.wake();
+        });
 
-            poll_fn(move || {
-                if 1 == num.load(Relaxed) {
-                    Ok(Async::Ready(()))
-                } else {
-                    Ok(Async::NotReady)
-                }
-            })
-        })
+        block_on(fut);
     });
 }
