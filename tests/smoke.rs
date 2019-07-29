@@ -9,7 +9,7 @@ use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
 use std::sync::Arc;
 
 #[test]
-fn fuzz_valid() {
+fn valid() {
     struct Inc {
         num: AtomicUsize,
     }
@@ -36,7 +36,7 @@ fn fuzz_valid() {
         }
     }
 
-    loom::fuzz(|| {
+    loom::model(|| {
         let inc = Arc::new(Inc::new());
 
         let ths: Vec<_> = (0..2)
@@ -76,7 +76,7 @@ fn checks_fail() {
         }
     }
 
-    loom::fuzz(|| {
+    loom::model(|| {
         let buggy_inc = Arc::new(BuggyInc::new());
 
         let ths: Vec<_> = (0..2)
@@ -97,7 +97,7 @@ fn checks_fail() {
 #[test]
 #[should_panic]
 fn check_ordering() {
-    loom::fuzz(|| {
+    loom::model(|| {
         let n1 = Arc::new((AtomicUsize::new(0), AtomicUsize::new(0)));
         let n2 = n1.clone();
 

@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 #[test]
 fn mutex_enforces_mutal_exclusion() {
-    loom::fuzz(|| {
+    loom::model(|| {
         let data = Arc::new((Mutex::new(0), AtomicUsize::new(0)));
 
         let ths: Vec<_> = (0..2)
@@ -40,7 +40,7 @@ fn mutex_enforces_mutal_exclusion() {
 
 #[test]
 fn mutex_establishes_seq_cst() {
-    loom::fuzz(|| {
+    loom::model(|| {
         struct Data {
             cell: CausalCell<usize>,
             flag: Mutex<bool>,
