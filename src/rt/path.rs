@@ -40,10 +40,16 @@ enum Branch {
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub struct Schedule {
+    pub preemptions: usize,
+
+    pub initial_active: Option<usize>,
+
     pub threads: Vec<Thread>,
+
+    init_threads: Vec<Thread>,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub enum Thread {
     /// The thread is currently disabled
@@ -81,13 +87,6 @@ impl Path {
         self.pos
     }
 
-    pub fn schedule_mut(&mut self, index: usize) -> &mut Schedule {
-        match self.branches[index] {
-            Branch::Schedule(val) => &mut self.schedules[val],
-            _ => panic!(),
-        }
-    }
-
     /// Returns the atomic write to read
     pub fn branch_write<I>(&mut self, seed: I) -> usize
     where
@@ -123,6 +122,8 @@ impl Path {
         assert!(self.branches.len() < self.max_branches);
 
         if self.pos == self.branches.len() {
+            // Entering a new exploration space.
+
             let i = self.schedules.len();
 
             let mut threads: Vec<_> = seed.collect();
@@ -133,16 +134,41 @@ impl Path {
             // Ensure at least one thread is active, otherwise toggle a yielded
             // thread.
             if num_active == 0 {
-                threads
-                    .iter_mut()
-                    .find(|th| **th == Thread::Yield)
-                    .map(|th| *th = Thread::Active);
+                for th in &mut threads {
+                    if *th == Thread::Yield {
+                        *th = Thread::Active;
+                    }
+                }
             }
 
-            // Ensure at least one thread is active, otherwise toggle a yielded
-            // thread.
+            let curr_active = active(&threads);
 
-            self.schedules.push(Schedule { threads });
+            let initial_active = if let Some(prev) = self.schedules.last() {
+                if curr_active == active(&prev.threads) {
+                    curr_active
+                } else {
+                    None
+                }
+            } else {
+                curr_active
+            };
+
+            let preemptions = if let Some(prev) = self.schedules.last() {
+                let mut preemptions = prev.preemptions;
+
+                if prev.initial_active.is_some() && prev.initial_active != active(&prev.threads) {
+                    preemptions += 1;
+                }
+
+                preemptions
+            } else {
+                0
+            };
+
+            assert!(preemptions <= crate::rt::BOUND, "actual == {}; prev = {:#?}; threads = {:?}", preemptions, self.schedules, threads);
+
+            let threads_clone = threads.clone();
+            self.schedules.push(Schedule { preemptions, threads, initial_active, init_threads: threads_clone });
 
             self.branches.push(Branch::Schedule(i));
         }
@@ -163,6 +189,29 @@ impl Path {
             .map(|(i, _)| thread::Id::from_usize(i))
     }
 
+    pub fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
+        let index = match self.branches[point] {
+            Branch::Schedule(index) => index,
+            _ => panic!(),
+        };
+
+        // Exhaustive DPOR only requires adding this backtrack point
+        self.schedules[index].backtrack(thread_id);
+
+        if index > 0 {
+            for j in (1..index).rev() {
+                // Preemption bounded DPOR requires conservatively adding another
+                // backtrack point to cover cases missed by the bounds.
+                if active(&self.schedules[j].threads) != active(&self.schedules[j-1].threads) {
+                    self.schedules[j].backtrack(thread_id);
+                    return;
+                }
+            }
+
+            self.schedules[0].backtrack(thread_id);
+        }
+    }
+
     /// Returns `false` if there are no more paths to explore
     pub fn step(&mut self) -> bool {
         use self::Branch::*;
@@ -172,7 +221,7 @@ impl Path {
         while self.branches.len() > 0 {
             match self.branches.last().unwrap() {
                 &Schedule(i) => {
-                    // Transition the active thread to visited
+                    // Transition the active thread to visited.
                     self.schedules[i]
                         .threads
                         .iter_mut()
@@ -214,8 +263,18 @@ impl Path {
 }
 
 impl Schedule {
-    pub fn backtrack(&mut self, thread_id: thread::Id) {
+    fn backtrack(&mut self, thread_id: thread::Id) {
+        assert!(self.preemptions <= crate::rt::BOUND, "actual = {}", self.preemptions);
+
+        if self.preemptions == crate::rt::BOUND {
+            return;
+        }
+
         let thread_id = thread_id.as_usize();
+
+        if thread_id >= self.threads.len() {
+            return;
+        }
 
         if self.threads[thread_id].is_enabled() {
             self.threads[thread_id].explore();
@@ -252,6 +311,17 @@ impl Thread {
     }
 
     fn is_enabled(&self) -> bool {
-        !self.is_pending()
+        !self.is_disabled()
     }
+
+    fn is_disabled(&self) -> bool {
+        *self == Thread::Disabled
+    }
+}
+
+fn active(threads: &[Thread]) -> Option<usize> {
+    // Get the index of the currently active thread
+    threads.iter().enumerate()
+        .find(|(_, th)| th.is_active())
+        .map(|(index, _)| index)
 }

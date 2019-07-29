@@ -135,12 +135,15 @@ impl Execution {
                     continue;
                 }
 
-                self.path.schedule_mut(access.path_id).backtrack(th_id);
+                self.path.backtrack(access.path_id, th_id);
             }
         }
 
+        // It's important to avoid pre-emption as much as possible
         let mut initial = Some(self.threads.active_id());
 
+        // If the thread is not runnable, then we can pick any arbitrary other
+        // runnable thread.
         if !self.threads.active().is_runnable() {
             initial = None;
         }
@@ -193,7 +196,6 @@ impl Execution {
             }
 
             threads.active_mut().dpor_vv[th_id] += 1;
-            let _ = self.path.schedule_mut(path_id);
 
             self.objects.set_last_access(
                 operation,

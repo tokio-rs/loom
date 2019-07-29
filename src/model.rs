@@ -158,6 +158,7 @@ impl Builder {
             if let Some(next) = execution.step() {
                 execution = next;
             } else {
+                println!("Completed in {} iterations", i);
                 return;
             }
         }

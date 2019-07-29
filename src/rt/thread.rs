@@ -215,6 +215,10 @@ impl Set {
         self.seq_cst_causality = VersionVec::new(self.max());
     }
 
+    pub fn len(&self) -> usize {
+        self.threads.len()
+    }
+
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = (Id, &'a Thread)> + 'a {
         self.threads
             .iter()
