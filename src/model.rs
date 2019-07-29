@@ -1,4 +1,4 @@
-//! Fuzz concurrent programs.
+//! Model concurrent programs.
 
 use crate::rt::{self, Execution, Scheduler};
 use std::path::PathBuf;
@@ -9,7 +9,7 @@ const DEFAULT_MAX_THREADS: usize = 4;
 const DEFAULT_MAX_MEMORY: usize = 4096 << 14;
 const DEFAULT_MAX_BRANCHES: usize = 1_000;
 
-/// Configure a fuzz execution.
+/// Configure a model
 #[derive(Debug)]
 pub struct Builder {
     /// Max number of threads to check as part of the execution. This should be set as low as possible.
@@ -24,40 +24,24 @@ pub struct Builder {
     /// Maximum number of permutations to explore.
     pub max_permutations: Option<usize>,
 
-    /// Maximum amount of time to spend on a fuzz
+    /// Maximum amount of time to spend on checking
     pub max_duration: Option<Duration>,
 
-    /// When doing an exhaustive fuzz, uses the file to store and load the fuzz
-    /// progress
+    /// Maximum number of thread preemptions to explore
+    pub preemption_bound: Option<usize>,
+
+    /// When doing an exhaustive check, uses the file to store and load the
+    /// check progress
     pub checkpoint_file: Option<PathBuf>,
 
     /// How often to write the checkpoint file
     pub checkpoint_interval: usize,
-
-    /// What runtime to use
-    pub runtime: Runtime,
 
     /// Log execution output to stdout.
     pub log: bool,
 
     // Support adding more fields in the future
     _p: (),
-}
-
-/// Fuzz execution runtimes.
-#[derive(Debug)]
-pub enum Runtime {
-    /// Spawn a `std` Thread for each loom thread. A mutex is used to schedule a
-    /// single thread at a time.
-    Thread,
-
-    /// Use a `generator::Generator` for each loom thread, providing faster scheduling.
-    #[cfg(feature = "generator")]
-    Generator,
-
-    /// Use a `fringe::Generator` for each loom thread, providing faster scheduling.
-    #[cfg(feature = "fringe")]
-    Fringe,
 }
 
 impl Builder {
@@ -83,25 +67,6 @@ impl Builder {
 
         let log = env::var("LOOM_LOG").is_ok();
 
-        let mut runtime = Runtime::default();
-
-        if let Ok(rt) = env::var("LOOM_RUNTIME") {
-            runtime = match &rt[..] {
-                "thread" => Runtime::Thread,
-
-                #[cfg(feature = "generator")]
-                "generator" => Runtime::Generator,
-                #[cfg(not(feature = "generator"))]
-                "generator" => panic!("not compiled with `generator` feature"),
-
-                #[cfg(feature = "fringe")]
-                "fringe" => Runtime::Fringe,
-                #[cfg(not(feature = "fringe"))]
-                "fringe" => panic!("not compiled with `fringe` feature"),
-                v => panic!("invalid runtime `{}`", v),
-            };
-        }
-
         let max_duration = env::var("LOOM_MAX_DURATION")
             .map(|v| {
                 let secs = v
@@ -120,15 +85,23 @@ impl Builder {
             })
             .ok();
 
+        let preemption_bound = env::var("LOOM_MAX_PREEMPTIONS")
+            .map(|v| {
+                v.parse()
+                    .ok()
+                    .expect("invalid value for `LOOM_MAX_PREEMPTIONS`")
+            })
+            .ok();
+
         Builder {
             max_threads: DEFAULT_MAX_THREADS,
             max_memory: DEFAULT_MAX_MEMORY,
             max_branches,
             max_duration,
             max_permutations,
+            preemption_bound,
             checkpoint_file: None,
             checkpoint_interval,
-            runtime,
             log,
             _p: (),
         }
@@ -140,21 +113,18 @@ impl Builder {
         self
     }
 
-    /// Fuzz the closure.
-    pub fn fuzz<F>(&self, f: F)
+    /// CHeck a model
+    pub fn check<F>(&self, f: F)
     where
         F: Fn() + Sync + Send + 'static,
     {
-        let mut execution = Execution::new(self.max_threads, self.max_memory, self.max_branches);
-        let mut scheduler = match self.runtime {
-            Runtime::Thread => Scheduler::new_thread(self.max_threads),
-
-            #[cfg(feature = "generator")]
-            Runtime::Generator => Scheduler::new_generator(self.max_threads),
-
-            #[cfg(feature = "fringe")]
-            Runtime::Fringe => Scheduler::new_fringe(self.max_threads),
-        };
+        let mut execution = Execution::new(
+            self.max_threads,
+            self.max_memory,
+            self.max_branches,
+            self.preemption_bound,
+        );
+        let mut scheduler = Scheduler::new(self.max_threads);
 
         if let Some(ref path) = self.checkpoint_file {
             if path.exists() {
@@ -205,6 +175,7 @@ impl Builder {
             if let Some(next) = execution.step() {
                 execution = next;
             } else {
+                println!("Completed in {} iterations", i);
                 return;
             }
         }
@@ -212,28 +183,11 @@ impl Builder {
 }
 
 /// Run all concurrent permutations of the provided closure.
-pub fn fuzz<F>(f: F)
+pub fn model<F>(f: F)
 where
     F: Fn() + Sync + Send + 'static,
 {
-    Builder::new().fuzz(f)
-}
-
-impl Default for Runtime {
-    #[cfg(feature = "fringe")]
-    fn default() -> Runtime {
-        Runtime::Fringe
-    }
-
-    #[cfg(all(feature = "generator", not(feature = "fringe")))]
-    fn default() -> Runtime {
-        Runtime::Generator
-    }
-
-    #[cfg(all(not(feature = "generator"), not(feature = "fringe")))]
-    fn default() -> Runtime {
-        Runtime::Thread
-    }
+    Builder::new().check(f)
 }
 
 #[cfg(feature = "checkpoint")]

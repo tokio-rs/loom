@@ -131,13 +131,13 @@ macro_rules! debug {
     };
 }
 
-pub mod fuzz;
+pub mod model;
 mod rt;
 pub mod sync;
 pub mod thread;
 
 #[doc(inline)]
-pub use crate::fuzz::fuzz;
+pub use crate::model::model;
 
 if_futures! {
     pub mod futures;

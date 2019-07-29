@@ -36,7 +36,7 @@ fn thread_join_causality() {
         }
     }
 
-    loom::fuzz(|| {
+    loom::model(|| {
         let data = Data::new();
 
         let th = {
@@ -81,7 +81,7 @@ fn atomic_causality_success() {
         }
     }
 
-    loom::fuzz(|| {
+    loom::model(|| {
         let chan = Arc::new(Chan {
             data: CausalCell::new(0),
             guard: AtomicUsize::new(0),
@@ -131,7 +131,7 @@ fn atomic_causality_fail() {
         }
     }
 
-    loom::fuzz(|| {
+    loom::model(|| {
         let chan = Arc::new(Chan {
             data: CausalCell::new(0),
             guard: AtomicUsize::new(0),

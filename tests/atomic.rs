@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 #[test]
 fn valid_get_mut() {
-    loom::fuzz(|| {
+    loom::model(|| {
         let v1 = Arc::new(UnsafeCell::new(AtomicUsize::new(0)));
         let v2 = v1.clone();
 
@@ -29,7 +29,7 @@ fn valid_get_mut() {
 #[test]
 #[should_panic]
 fn invalid_get_mut() {
-    loom::fuzz(|| {
+    loom::model(|| {
         let v1 = Arc::new(UnsafeCell::new(AtomicUsize::new(0)));
         let v2 = v1.clone();
 

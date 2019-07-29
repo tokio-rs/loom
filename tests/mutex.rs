@@ -6,13 +6,13 @@ use loom::sync::atomic::AtomicUsize;
 use loom::sync::{CausalCell, Mutex};
 use loom::thread;
 
+use std::rc::Rc;
 use std::sync::atomic::Ordering::SeqCst;
-use std::sync::Arc;
 
 #[test]
 fn mutex_enforces_mutal_exclusion() {
-    loom::fuzz(|| {
-        let data = Arc::new((Mutex::new(0), AtomicUsize::new(0)));
+    loom::model(|| {
+        let data = Rc::new((Mutex::new(0), AtomicUsize::new(0)));
 
         let ths: Vec<_> = (0..2)
             .map(|_| {
@@ -40,13 +40,13 @@ fn mutex_enforces_mutal_exclusion() {
 
 #[test]
 fn mutex_establishes_seq_cst() {
-    loom::fuzz(|| {
+    loom::model(|| {
         struct Data {
             cell: CausalCell<usize>,
             flag: Mutex<bool>,
         }
 
-        let data = Arc::new(Data {
+        let data = Rc::new(Data {
             cell: CausalCell::new(0),
             flag: Mutex::new(false),
         });

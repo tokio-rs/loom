@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering::SeqCst;
 use std::sync::Arc;
 
 #[test]
-fn fuzz_condvar() {
+fn condvar() {
     struct Inc {
         num: AtomicUsize,
         mutex: Mutex<()>,
@@ -33,7 +33,7 @@ fn fuzz_condvar() {
         }
     }
 
-    loom::fuzz(|| {
+    loom::model(|| {
         let inc = Arc::new(Inc::new());
 
         for _ in 0..1 {
