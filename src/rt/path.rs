@@ -75,7 +75,7 @@ pub enum Thread {
 
 impl Path {
     /// New Path
-    pub fn new(max_branches: usize, preemption_bound: Option<usize>,) -> Path {
+    pub fn new(max_branches: usize, preemption_bound: Option<usize>) -> Path {
         Path {
             preemption_bound,
             branches: vec![],
@@ -209,7 +209,8 @@ impl Path {
                 for j in (1..index).rev() {
                     // Preemption bounded DPOR requires conservatively adding another
                     // backtrack point to cover cases missed by the bounds.
-                    if active(&self.schedules[j].threads) != active(&self.schedules[j - 1].threads) {
+                    if active(&self.schedules[j].threads) != active(&self.schedules[j - 1].threads)
+                    {
                         self.schedules[j].backtrack(thread_id, self.preemption_bound);
                         return;
                     }
@@ -272,12 +273,8 @@ impl Path {
 
 impl Schedule {
     fn backtrack(&mut self, thread_id: thread::Id, preemption_bound: Option<usize>) {
-        if let Some(bound) = preemption_bound  {
-            assert!(
-                self.preemptions <= bound,
-                "actual = {}",
-                self.preemptions
-            );
+        if let Some(bound) = preemption_bound {
+            assert!(self.preemptions <= bound, "actual = {}", self.preemptions);
 
             if self.preemptions == bound {
                 return;

@@ -118,7 +118,12 @@ impl Builder {
     where
         F: Fn() + Sync + Send + 'static,
     {
-        let mut execution = Execution::new(self.max_threads, self.max_memory, self.max_branches, self.preemption_bound);
+        let mut execution = Execution::new(
+            self.max_threads,
+            self.max_memory,
+            self.max_branches,
+            self.preemption_bound,
+        );
         let mut scheduler = Scheduler::new(self.max_threads);
 
         if let Some(ref path) = self.checkpoint_file {
