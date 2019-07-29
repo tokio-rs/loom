@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 #[test]
 fn yield_completes() {
-    loom::fuzz(|| {
+    loom::model(|| {
         let inc = Arc::new(AtomicUsize::new(0));
 
         {

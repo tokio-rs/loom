@@ -1,4 +1,4 @@
-//! Fuzz concurrent programs.
+//! Model concurrent programs.
 
 use crate::rt::{self, Execution, Scheduler};
 use crate::SmallRng;
@@ -11,7 +11,7 @@ const DEFAULT_MAX_THREADS: usize = 4;
 const DEFAULT_MAX_MEMORY: usize = 4096 << 14;
 const DEFAULT_MAX_BRANCHES: usize = 1_000;
 
-/// Configure a fuzz execution.
+/// Configure a model
 #[derive(Debug)]
 pub struct Builder {
     /// Max number of threads to check as part of the execution. This should be set as low as possible.
@@ -26,11 +26,11 @@ pub struct Builder {
     /// Maximum number of permutations to explore.
     pub max_permutations: Option<usize>,
 
-    /// Maximum amount of time to spend on a fuzz
+    /// Maximum amount of time to spend on checking
     pub max_duration: Option<Duration>,
 
-    /// When doing an exhaustive fuzz, uses the file to store and load the fuzz
-    /// progress
+    /// When doing an exhaustive check, uses the file to store and load the
+    /// check progress
     pub checkpoint_file: Option<PathBuf>,
 
     /// How often to write the checkpoint file
@@ -38,6 +38,9 @@ pub struct Builder {
 
     /// Log execution output to stdout.
     pub log: bool,
+
+    /// When `true`, randomly explore instead of attempting an exhaustive check.
+    pub random: bool,
 
     /// Seeds the execution path RNG shuffler, if set.
     ///
@@ -89,6 +92,14 @@ impl Builder {
             })
             .ok();
 
+        let random = env::var("LOOM_RANDOM_EXPLORATION")
+            .map(|v| {
+                v.parse()
+                    .ok()
+                    .expect("invalid value for `LOOM_RANDOM_EXPLORATION`")
+            })
+            .unwrap_or(false);
+
         let rng_seed = env::var("LOOM_RNG_SEED")
             .map(|v| v.parse().ok().expect("invalid value for `LOOM_RNG_SEED`"))
             .ok();
@@ -102,6 +113,7 @@ impl Builder {
             checkpoint_file: None,
             checkpoint_interval,
             log,
+            random,
             rng_seed,
             _p: (),
         }
@@ -113,8 +125,8 @@ impl Builder {
         self
     }
 
-    /// Fuzz the closure.
-    pub fn fuzz<F>(&self, f: F)
+    /// CHeck a model
+    pub fn check<F>(&self, f: F)
     where
         F: Fn() + Sync + Send + 'static,
     {
@@ -183,11 +195,11 @@ impl Builder {
 }
 
 /// Run all concurrent permutations of the provided closure.
-pub fn fuzz<F>(f: F)
+pub fn model<F>(f: F)
 where
     F: Fn() + Sync + Send + 'static,
 {
-    Builder::new().fuzz(f)
+    Builder::new().check(f)
 }
 
 #[cfg(feature = "checkpoint")]

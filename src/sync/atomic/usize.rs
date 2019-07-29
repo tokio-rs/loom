@@ -22,6 +22,11 @@ impl AtomicUsize {
         self.0.get_mut()
     }
 
+    /// Load the value without any synchronization.
+    pub unsafe fn unsync_load(&self) -> usize {
+        self.0.unsync_load()
+    }
+
     /// Loads a value from the atomic integer.
     pub fn load(&self, order: Ordering) -> usize {
         self.0.load(order)

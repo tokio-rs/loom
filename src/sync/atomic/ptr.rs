@@ -12,6 +12,11 @@ impl<T> AtomicPtr<T> {
         AtomicPtr(Atomic::new(v))
     }
 
+    /// Load the value without any synchronization.
+    pub unsafe fn unsync_load(&self) -> *mut T {
+        self.0.unsync_load()
+    }
+
     /// Loads a value from the pointer.
     pub fn load(&self, order: Ordering) -> *mut T {
         self.0.load(order)

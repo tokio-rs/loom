@@ -134,13 +134,13 @@ macro_rules! debug {
 // Top-level alias to ease changing the implementation.
 type SmallRng = rand_pcg::Pcg32;
 
-pub mod fuzz;
+pub mod model;
 mod rt;
 pub mod sync;
 pub mod thread;
 
 #[doc(inline)]
-pub use crate::fuzz::fuzz;
+pub use crate::model::model;
 
 if_futures! {
     pub mod futures;

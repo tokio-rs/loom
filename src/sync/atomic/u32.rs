@@ -22,6 +22,11 @@ impl AtomicU32 {
         self.0.get_mut()
     }
 
+    /// Load the value without any synchronization.
+    pub unsafe fn unsync_load(&self) -> u32 {
+        self.0.unsync_load()
+    }
+
     /// Loads a value from the atomic integer.
     pub fn load(&self, order: Ordering) -> u32 {
         self.0.load(order)
