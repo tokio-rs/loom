@@ -165,10 +165,21 @@ impl Path {
                 0
             };
 
-            assert!(preemptions <= crate::rt::BOUND, "actual == {}; prev = {:#?}; threads = {:?}", preemptions, self.schedules, threads);
+            assert!(
+                preemptions <= crate::rt::BOUND,
+                "actual == {}; prev = {:#?}; threads = {:?}",
+                preemptions,
+                self.schedules,
+                threads
+            );
 
             let threads_clone = threads.clone();
-            self.schedules.push(Schedule { preemptions, threads, initial_active, init_threads: threads_clone });
+            self.schedules.push(Schedule {
+                preemptions,
+                threads,
+                initial_active,
+                init_threads: threads_clone,
+            });
 
             self.branches.push(Branch::Schedule(i));
         }
@@ -202,7 +213,7 @@ impl Path {
             for j in (1..index).rev() {
                 // Preemption bounded DPOR requires conservatively adding another
                 // backtrack point to cover cases missed by the bounds.
-                if active(&self.schedules[j].threads) != active(&self.schedules[j-1].threads) {
+                if active(&self.schedules[j].threads) != active(&self.schedules[j - 1].threads) {
                     self.schedules[j].backtrack(thread_id);
                     return;
                 }
@@ -264,7 +275,11 @@ impl Path {
 
 impl Schedule {
     fn backtrack(&mut self, thread_id: thread::Id) {
-        assert!(self.preemptions <= crate::rt::BOUND, "actual = {}", self.preemptions);
+        assert!(
+            self.preemptions <= crate::rt::BOUND,
+            "actual = {}",
+            self.preemptions
+        );
 
         if self.preemptions == crate::rt::BOUND {
             return;
@@ -321,7 +336,9 @@ impl Thread {
 
 fn active(threads: &[Thread]) -> Option<usize> {
     // Get the index of the currently active thread
-    threads.iter().enumerate()
+    threads
+        .iter()
+        .enumerate()
         .find(|(_, th)| th.is_active())
         .map(|(index, _)| index)
 }
