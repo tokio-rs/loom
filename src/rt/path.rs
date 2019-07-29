@@ -8,6 +8,8 @@ use std::collections::VecDeque;
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub struct Path {
+    preemption_bound: Option<usize>,
+
     /// Path taken
     branches: Vec<Branch>,
 
@@ -73,8 +75,9 @@ pub enum Thread {
 
 impl Path {
     /// New Path
-    pub fn new(max_branches: usize) -> Path {
+    pub fn new(max_branches: usize, preemption_bound: Option<usize>,) -> Path {
         Path {
+            preemption_bound,
             branches: vec![],
             pos: 0,
             schedules: vec![],
@@ -165,14 +168,6 @@ impl Path {
                 0
             };
 
-            assert!(
-                preemptions <= crate::rt::BOUND,
-                "actual == {}; prev = {:#?}; threads = {:?}",
-                preemptions,
-                self.schedules,
-                threads
-            );
-
             let threads_clone = threads.clone();
             self.schedules.push(Schedule {
                 preemptions,
@@ -207,19 +202,21 @@ impl Path {
         };
 
         // Exhaustive DPOR only requires adding this backtrack point
-        self.schedules[index].backtrack(thread_id);
+        self.schedules[index].backtrack(thread_id, self.preemption_bound);
 
-        if index > 0 {
-            for j in (1..index).rev() {
-                // Preemption bounded DPOR requires conservatively adding another
-                // backtrack point to cover cases missed by the bounds.
-                if active(&self.schedules[j].threads) != active(&self.schedules[j - 1].threads) {
-                    self.schedules[j].backtrack(thread_id);
-                    return;
+        if self.preemption_bound.is_some() {
+            if index > 0 {
+                for j in (1..index).rev() {
+                    // Preemption bounded DPOR requires conservatively adding another
+                    // backtrack point to cover cases missed by the bounds.
+                    if active(&self.schedules[j].threads) != active(&self.schedules[j - 1].threads) {
+                        self.schedules[j].backtrack(thread_id, self.preemption_bound);
+                        return;
+                    }
                 }
-            }
 
-            self.schedules[0].backtrack(thread_id);
+                self.schedules[0].backtrack(thread_id, self.preemption_bound);
+            }
         }
     }
 
@@ -274,15 +271,17 @@ impl Path {
 }
 
 impl Schedule {
-    fn backtrack(&mut self, thread_id: thread::Id) {
-        assert!(
-            self.preemptions <= crate::rt::BOUND,
-            "actual = {}",
-            self.preemptions
-        );
+    fn backtrack(&mut self, thread_id: thread::Id, preemption_bound: Option<usize>) {
+        if let Some(bound) = preemption_bound  {
+            assert!(
+                self.preemptions <= bound,
+                "actual = {}",
+                self.preemptions
+            );
 
-        if self.preemptions == crate::rt::BOUND {
-            return;
+            if self.preemptions == bound {
+                return;
+            }
         }
 
         let thread_id = thread_id.as_usize();

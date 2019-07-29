@@ -18,9 +18,6 @@ pub(crate) use self::vv::VersionVec;
 pub(crate) use self::execution::Execution;
 pub(crate) use self::scheduler::Scheduler;
 
-/// Pre-emption bound
-const BOUND: usize = 5;
-
 pub fn spawn<F>(f: F)
 where
     F: FnOnce() + 'static,

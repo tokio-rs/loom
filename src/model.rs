@@ -27,6 +27,9 @@ pub struct Builder {
     /// Maximum amount of time to spend on checking
     pub max_duration: Option<Duration>,
 
+    /// Maximum number of thread preemptions to explore
+    pub preemption_bound: Option<usize>,
+
     /// When doing an exhaustive check, uses the file to store and load the
     /// check progress
     pub checkpoint_file: Option<PathBuf>,
@@ -82,12 +85,21 @@ impl Builder {
             })
             .ok();
 
+        let preemption_bound = env::var("LOOM_MAX_PREEMPTIONS")
+            .map(|v| {
+                v.parse()
+                    .ok()
+                    .expect("invalid value for `LOOM_MAX_PREEMPTIONS`")
+            })
+            .ok();
+
         Builder {
             max_threads: DEFAULT_MAX_THREADS,
             max_memory: DEFAULT_MAX_MEMORY,
             max_branches,
             max_duration,
             max_permutations,
+            preemption_bound,
             checkpoint_file: None,
             checkpoint_interval,
             log,
@@ -106,7 +118,7 @@ impl Builder {
     where
         F: Fn() + Sync + Send + 'static,
     {
-        let mut execution = Execution::new(self.max_threads, self.max_memory, self.max_branches);
+        let mut execution = Execution::new(self.max_threads, self.max_memory, self.max_branches, self.preemption_bound);
         let mut scheduler = Scheduler::new(self.max_threads);
 
         if let Some(ref path) = self.checkpoint_file {

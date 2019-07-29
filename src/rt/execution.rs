@@ -33,7 +33,7 @@ impl Execution {
     ///
     /// This is only called at the start of a fuzz run. The same instance is
     /// reused across permutations.
-    pub fn new(max_threads: usize, max_memory: usize, max_branches: usize) -> Execution {
+    pub fn new(max_threads: usize, max_memory: usize, max_branches: usize, preemption_bound: Option<usize>) -> Execution {
         let mut threads = thread::Set::new(max_threads);
 
         // Create the root thread
@@ -41,7 +41,7 @@ impl Execution {
 
         Execution {
             // id: Id::new(),
-            path: Path::new(max_branches),
+            path: Path::new(max_branches, preemption_bound),
             threads,
             objects: object::Set::new(),
             arena: Arena::with_capacity(max_memory),
