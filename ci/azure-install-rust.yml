@@ -20,10 +20,6 @@ steps:
     condition: eq(variables['Agent.OS'], 'Windows_NT')
   # All platforms.
   - script: |
-        rustup toolchain install $RUSTUP_TOOLCHAIN
-        rustup toolchain list
-        rustc +$RUSTUP_TOOLCHAIN -Vv
-        cargo +$RUSTUP_TOOLCHAIN -V
+        rustc -Vv
+        cargo -V
     displayName: Query rust and cargo versions
-    env:
-      RUSTUP_TOOLCHAIN: ${{parameters.rust_version}}

@@ -1,8 +1,6 @@
 //! Model concurrent programs.
 
 use crate::rt::{self, Execution, Scheduler};
-use crate::SmallRng;
-use rand::{FromEntropy, SeedableRng};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -38,14 +36,6 @@ pub struct Builder {
 
     /// Log execution output to stdout.
     pub log: bool,
-
-    /// When `true`, randomly explore instead of attempting an exhaustive check.
-    pub random: bool,
-
-    /// Seeds the execution path RNG shuffler, if set.
-    ///
-    /// Default uses a random seed.
-    pub rng_seed: Option<u64>,
 
     // Support adding more fields in the future
     _p: (),
@@ -92,18 +82,6 @@ impl Builder {
             })
             .ok();
 
-        let random = env::var("LOOM_RANDOM_EXPLORATION")
-            .map(|v| {
-                v.parse()
-                    .ok()
-                    .expect("invalid value for `LOOM_RANDOM_EXPLORATION`")
-            })
-            .unwrap_or(false);
-
-        let rng_seed = env::var("LOOM_RNG_SEED")
-            .map(|v| v.parse().ok().expect("invalid value for `LOOM_RNG_SEED`"))
-            .ok();
-
         Builder {
             max_threads: DEFAULT_MAX_THREADS,
             max_memory: DEFAULT_MAX_MEMORY,
@@ -113,8 +91,6 @@ impl Builder {
             checkpoint_file: None,
             checkpoint_interval,
             log,
-            random,
-            rng_seed,
             _p: (),
         }
     }
@@ -130,13 +106,7 @@ impl Builder {
     where
         F: Fn() + Sync + Send + 'static,
     {
-        let rng = match self.rng_seed {
-            Some(seed) => SmallRng::seed_from_u64(seed),
-            None => SmallRng::from_entropy(),
-        };
-        let mut execution =
-            Execution::new(self.max_threads, self.max_memory, self.max_branches, rng);
-
+        let mut execution = Execution::new(self.max_threads, self.max_memory, self.max_branches);
         let mut scheduler = Scheduler::new(self.max_threads);
 
         if let Some(ref path) = self.checkpoint_file {

@@ -2,7 +2,6 @@ use crate::rt::arena::Arena;
 use crate::rt::object;
 use crate::rt::thread;
 use crate::rt::Path;
-use crate::SmallRng;
 
 use std::fmt;
 
@@ -34,12 +33,7 @@ impl Execution {
     ///
     /// This is only called at the start of a fuzz run. The same instance is
     /// reused across permutations.
-    pub fn new(
-        max_threads: usize,
-        max_memory: usize,
-        max_branches: usize,
-        rng: SmallRng,
-    ) -> Execution {
+    pub fn new(max_threads: usize, max_memory: usize, max_branches: usize) -> Execution {
         let mut threads = thread::Set::new(max_threads);
 
         // Create the root thread
@@ -47,7 +41,7 @@ impl Execution {
 
         Execution {
             // id: Id::new(),
-            path: Path::new(max_branches, rng),
+            path: Path::new(max_branches),
             threads,
             objects: object::Set::new(),
             arena: Arena::with_capacity(max_memory),
