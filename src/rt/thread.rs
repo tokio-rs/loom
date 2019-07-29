@@ -259,10 +259,7 @@ impl ops::IndexMut<Id> for Set {
 
 impl Id {
     pub fn new(execution_id: execution::Id, id: usize) -> Id {
-        Id {
-            execution_id,
-            id,
-        }
+        Id { execution_id, id }
     }
 
     pub fn as_usize(self) -> usize {

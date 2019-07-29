@@ -1,7 +1,7 @@
 #![cfg(feature = "futures")]
 #![deny(warnings, rust_2018_idioms)]
 
-use loom::futures::{AtomicWaker, block_on};
+use loom::futures::{block_on, AtomicWaker};
 use loom::sync::atomic::AtomicUsize;
 use loom::thread;
 
@@ -24,7 +24,11 @@ impl Future for MyFuture {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
-        self.as_mut().get_mut().state.waker.register_by_ref(cx.waker());
+        self.as_mut()
+            .get_mut()
+            .state
+            .waker
+            .register_by_ref(cx.waker());
 
         if 1 == self.as_mut().get_mut().state.num.load(Relaxed) {
             Poll::Ready(())
