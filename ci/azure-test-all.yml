@@ -17,9 +17,9 @@ jobs:
     parameters:
       rust_version: $(rust_version)
 
-  - script: cargo +$(rust_version) test
+  - script: cargo test
     displayName: cargo test
 
   # Check with serde based checkpoint feature
-  - script: cargo +$(rust_version) check --features checkpoint
+  - script: cargo check --features checkpoint
     displayName: cargo check --features checkpoint

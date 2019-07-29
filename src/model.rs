@@ -1,8 +1,6 @@
 //! Model concurrent programs.
 
 use crate::rt::{self, Execution, Scheduler};
-use crate::SmallRng;
-use rand::{FromEntropy, SeedableRng};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -29,6 +27,9 @@ pub struct Builder {
     /// Maximum amount of time to spend on checking
     pub max_duration: Option<Duration>,
 
+    /// Maximum number of thread preemptions to explore
+    pub preemption_bound: Option<usize>,
+
     /// When doing an exhaustive check, uses the file to store and load the
     /// check progress
     pub checkpoint_file: Option<PathBuf>,
@@ -38,14 +39,6 @@ pub struct Builder {
 
     /// Log execution output to stdout.
     pub log: bool,
-
-    /// When `true`, randomly explore instead of attempting an exhaustive check.
-    pub random: bool,
-
-    /// Seeds the execution path RNG shuffler, if set.
-    ///
-    /// Default uses a random seed.
-    pub rng_seed: Option<u64>,
 
     // Support adding more fields in the future
     _p: (),
@@ -92,16 +85,12 @@ impl Builder {
             })
             .ok();
 
-        let random = env::var("LOOM_RANDOM_EXPLORATION")
+        let preemption_bound = env::var("LOOM_MAX_PREEMPTIONS")
             .map(|v| {
                 v.parse()
                     .ok()
-                    .expect("invalid value for `LOOM_RANDOM_EXPLORATION`")
+                    .expect("invalid value for `LOOM_MAX_PREEMPTIONS`")
             })
-            .unwrap_or(false);
-
-        let rng_seed = env::var("LOOM_RNG_SEED")
-            .map(|v| v.parse().ok().expect("invalid value for `LOOM_RNG_SEED`"))
             .ok();
 
         Builder {
@@ -110,11 +99,10 @@ impl Builder {
             max_branches,
             max_duration,
             max_permutations,
+            preemption_bound,
             checkpoint_file: None,
             checkpoint_interval,
             log,
-            random,
-            rng_seed,
             _p: (),
         }
     }
@@ -130,13 +118,12 @@ impl Builder {
     where
         F: Fn() + Sync + Send + 'static,
     {
-        let rng = match self.rng_seed {
-            Some(seed) => SmallRng::seed_from_u64(seed),
-            None => SmallRng::from_entropy(),
-        };
-        let mut execution =
-            Execution::new(self.max_threads, self.max_memory, self.max_branches, rng);
-
+        let mut execution = Execution::new(
+            self.max_threads,
+            self.max_memory,
+            self.max_branches,
+            self.preemption_bound,
+        );
         let mut scheduler = Scheduler::new(self.max_threads);
 
         if let Some(ref path) = self.checkpoint_file {
@@ -188,6 +175,7 @@ impl Builder {
             if let Some(next) = execution.step() {
                 execution = next;
             } else {
+                println!("Completed in {} iterations", i);
                 return;
             }
         }

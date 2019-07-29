@@ -1,7 +1,5 @@
 use crate::rt::thread;
-use crate::SmallRng;
 
-use rand::seq::{IteratorRandom, SliceRandom};
 #[cfg(feature = "checkpoint")]
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -10,6 +8,8 @@ use std::collections::VecDeque;
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub struct Path {
+    preemption_bound: Option<usize>,
+
     /// Path taken
     branches: Vec<Branch>,
 
@@ -30,9 +30,6 @@ pub struct Path {
 
     /// Maximum number of branches to explore
     max_branches: usize,
-
-    /// RNG used to shuffle execution path.
-    rng: SmallRng,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -45,10 +42,16 @@ enum Branch {
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub struct Schedule {
+    pub preemptions: usize,
+
+    pub initial_active: Option<usize>,
+
     pub threads: Vec<Thread>,
+
+    init_threads: Vec<Thread>,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub enum Thread {
     /// The thread is currently disabled
@@ -72,26 +75,19 @@ pub enum Thread {
 
 impl Path {
     /// New Path
-    pub fn new(max_branches: usize, rng: SmallRng) -> Path {
+    pub fn new(max_branches: usize, preemption_bound: Option<usize>) -> Path {
         Path {
+            preemption_bound,
             branches: vec![],
             pos: 0,
             schedules: vec![],
             writes: vec![],
             max_branches,
-            rng,
         }
     }
 
     pub fn pos(&self) -> usize {
         self.pos
-    }
-
-    pub fn schedule_mut(&mut self, index: usize) -> &mut Schedule {
-        match self.branches[index] {
-            Branch::Schedule(val) => &mut self.schedules[val],
-            _ => panic!(),
-        }
     }
 
     /// Returns the atomic write to read
@@ -106,15 +102,7 @@ impl Path {
         if self.pos == self.branches.len() {
             let i = self.writes.len();
 
-            // randomize the order of writes for this execution
-            let mut seed = seed.collect::<VecDeque<_>>();
-            {
-                let (a, b) = seed.as_mut_slices();
-                assert!(b.is_empty());
-                a.shuffle(&mut self.rng);
-            }
-
-            self.writes.push(seed);
+            self.writes.push(seed.collect());
 
             self.branches.push(Branch::Write(i));
         }
@@ -137,6 +125,8 @@ impl Path {
         assert!(self.branches.len() < self.max_branches);
 
         if self.pos == self.branches.len() {
+            // Entering a new exploration space.
+
             let i = self.schedules.len();
 
             let mut threads: Vec<_> = seed.collect();
@@ -147,15 +137,44 @@ impl Path {
             // Ensure at least one thread is active, otherwise toggle a yielded
             // thread.
             if num_active == 0 {
-                threads
-                    .iter_mut()
-                    .filter(|th| **th == Thread::Yield)
-                    // Randomly pick a yielded thread to be the active one
-                    .choose(&mut self.rng)
-                    .map(|th| *th = Thread::Active);
+                for th in &mut threads {
+                    if *th == Thread::Yield {
+                        *th = Thread::Active;
+                    }
+                }
             }
 
-            self.schedules.push(Schedule { threads });
+            let curr_active = active(&threads);
+
+            let initial_active = if let Some(prev) = self.schedules.last() {
+                if curr_active == active(&prev.threads) {
+                    curr_active
+                } else {
+                    None
+                }
+            } else {
+                curr_active
+            };
+
+            let preemptions = if let Some(prev) = self.schedules.last() {
+                let mut preemptions = prev.preemptions;
+
+                if prev.initial_active.is_some() && prev.initial_active != active(&prev.threads) {
+                    preemptions += 1;
+                }
+
+                preemptions
+            } else {
+                0
+            };
+
+            let threads_clone = threads.clone();
+            self.schedules.push(Schedule {
+                preemptions,
+                threads,
+                initial_active,
+                init_threads: threads_clone,
+            });
 
             self.branches.push(Branch::Schedule(i));
         }
@@ -176,6 +195,32 @@ impl Path {
             .map(|(i, _)| thread::Id::from_usize(i))
     }
 
+    pub fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
+        let index = match self.branches[point] {
+            Branch::Schedule(index) => index,
+            _ => panic!(),
+        };
+
+        // Exhaustive DPOR only requires adding this backtrack point
+        self.schedules[index].backtrack(thread_id, self.preemption_bound);
+
+        if self.preemption_bound.is_some() {
+            if index > 0 {
+                for j in (1..index).rev() {
+                    // Preemption bounded DPOR requires conservatively adding another
+                    // backtrack point to cover cases missed by the bounds.
+                    if active(&self.schedules[j].threads) != active(&self.schedules[j - 1].threads)
+                    {
+                        self.schedules[j].backtrack(thread_id, self.preemption_bound);
+                        return;
+                    }
+                }
+
+                self.schedules[0].backtrack(thread_id, self.preemption_bound);
+            }
+        }
+    }
+
     /// Returns `false` if there are no more paths to explore
     pub fn step(&mut self) -> bool {
         use self::Branch::*;
@@ -185,19 +230,18 @@ impl Path {
         while self.branches.len() > 0 {
             match self.branches.last().unwrap() {
                 &Schedule(i) => {
-                    // Transition the active thread to visited
+                    // Transition the active thread to visited.
                     self.schedules[i]
                         .threads
                         .iter_mut()
                         .find(|th| th.is_active())
                         .map(|th| *th = Thread::Visited);
 
-                    // Find a pending thread randomly and transition it to active
+                    // Find a pending thread and transition it to active
                     let rem = self.schedules[i]
                         .threads
                         .iter_mut()
-                        .filter(|th| th.is_pending())
-                        .choose(&mut self.rng)
+                        .find(|th| th.is_pending())
                         .map(|th| {
                             *th = Thread::Active;
                         })
@@ -228,8 +272,20 @@ impl Path {
 }
 
 impl Schedule {
-    pub fn backtrack(&mut self, thread_id: thread::Id) {
+    fn backtrack(&mut self, thread_id: thread::Id, preemption_bound: Option<usize>) {
+        if let Some(bound) = preemption_bound {
+            assert!(self.preemptions <= bound, "actual = {}", self.preemptions);
+
+            if self.preemptions == bound {
+                return;
+            }
+        }
+
         let thread_id = thread_id.as_usize();
+
+        if thread_id >= self.threads.len() {
+            return;
+        }
 
         if self.threads[thread_id].is_enabled() {
             self.threads[thread_id].explore();
@@ -266,6 +322,19 @@ impl Thread {
     }
 
     fn is_enabled(&self) -> bool {
-        !self.is_pending()
+        !self.is_disabled()
     }
+
+    fn is_disabled(&self) -> bool {
+        *self == Thread::Disabled
+    }
+}
+
+fn active(threads: &[Thread]) -> Option<usize> {
+    // Get the index of the currently active thread
+    threads
+        .iter()
+        .enumerate()
+        .find(|(_, th)| th.is_active())
+        .map(|(index, _)| index)
 }

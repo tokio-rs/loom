@@ -24,13 +24,11 @@ publish = false
 
 [features]
 default = []
-checkpoint = ["rand_pcg/serde1", "serde", "serde_json"]
+checkpoint = ["serde", "serde_json"]
 
 [dependencies]
 cfg-if = "0.1.6"
 # libc = "0.2.44"
-rand = "0.6"
-rand_pcg = "0.1.1"
 scoped-tls = "0.1.2"
 
 # Provides a generator based runtime
