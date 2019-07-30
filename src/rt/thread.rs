@@ -28,6 +28,9 @@ pub struct Thread {
 
     /// Version at which the thread last yielded
     pub last_yield: Option<usize>,
+
+    /// Number of times the thread yielded
+    pub yield_count: usize,
 }
 
 #[derive(Debug)]
@@ -73,6 +76,7 @@ impl Thread {
             dpor_vv: VersionVec::new(max_threads),
             notified: false,
             last_yield: None,
+            yield_count: 0,
         }
     }
 
@@ -108,6 +112,7 @@ impl Thread {
     pub fn set_yield(&mut self) {
         self.state = State::Yield;
         self.last_yield = Some(self.causality[self.id]);
+        self.yield_count += 1;
     }
 
     pub fn is_terminated(&self) -> bool {

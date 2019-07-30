@@ -4,6 +4,8 @@ use crate::rt::object::{self, Object};
 use crate::rt::{self, oneshot};
 use std::fmt;
 
+pub use crate::rt::yield_now;
+
 /// Mock implementation of `std::thread::JoinHandle`.
 pub struct JoinHandle<T> {
     rx: oneshot::Receiver<std::thread::Result<T>>,

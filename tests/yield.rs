@@ -25,7 +25,7 @@ fn yield_completes() {
                 return;
             }
 
-            loom::yield_now();
+            loom::thread::yield_now();
         }
     });
 }
