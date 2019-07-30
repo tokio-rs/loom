@@ -39,8 +39,8 @@ impl Future for MyFuture {
 }
 
 #[test]
-fn fuzz_valid() {
-    loom::fuzz(|| {
+fn valid() {
+    loom::model(|| {
         let fut = MyFuture {
             state: Arc::new(State {
                 num: AtomicUsize::new(0),
