@@ -25,3 +25,7 @@ jobs:
   # Check with serde based checkpoint feature
   - script: cargo check --features checkpoint
     displayName: cargo check --features checkpoint
+
+  # Test with futures feature
+  - script: cargo test --features futures
+    displayName: cargo test --features futures
