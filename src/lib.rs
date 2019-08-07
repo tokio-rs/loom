@@ -143,8 +143,6 @@ if_futures! {
     pub mod futures;
 }
 
-pub use crate::rt::yield_now;
-
 #[doc(hidden)]
 pub fn __debug_enabled() -> bool {
     rt::execution(|e| e.log)

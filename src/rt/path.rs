@@ -97,13 +97,17 @@ impl Path {
     {
         use self::Branch::Write;
 
-        assert!(self.branches.len() < self.max_branches);
+        assert!(
+            self.branches.len() < self.max_branches,
+            "actual = {}",
+            self.branches.len()
+        );
 
         if self.pos == self.branches.len() {
             let i = self.writes.len();
 
-            self.writes.push(seed.collect());
-
+            let writes: VecDeque<_> = seed.collect();
+            self.writes.push(writes);
             self.branches.push(Branch::Write(i));
         }
 
@@ -122,7 +126,11 @@ impl Path {
     where
         I: Iterator<Item = Thread>,
     {
-        assert!(self.branches.len() < self.max_branches);
+        assert!(
+            self.branches.len() < self.max_branches,
+            "actual = {}",
+            self.branches.len()
+        );
 
         if self.pos == self.branches.len() {
             // Entering a new exploration space.

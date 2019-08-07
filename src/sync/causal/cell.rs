@@ -32,6 +32,20 @@ impl<T> CausalCell<T> {
     where
         F: FnOnce(*const T) -> R,
     {
+        self.check();
+        self.with_unchecked(f)
+    }
+
+    /// Get an immutable pointer to the wrapped value.
+    pub fn with_unchecked<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(*const T) -> R,
+    {
+        rt::critical(|| f(self.data.get()))
+    }
+
+    /// Check that the current thread has all causality for the cell
+    pub fn check(&self) {
         rt::execution(|execution| {
             let v = self.version.borrow();
 
@@ -42,8 +56,6 @@ impl<T> CausalCell<T> {
                 execution.threads.active().causality
             );
         });
-
-        rt::critical(|| f(self.data.get()))
     }
 
     /// Get a mutable pointer to the wrapped value.

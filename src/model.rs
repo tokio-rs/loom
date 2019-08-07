@@ -93,6 +93,14 @@ impl Builder {
             })
             .ok();
 
+        let checkpoint_file = env::var("LOOM_CHECKPOINT_FILE")
+            .map(|v| {
+                v.parse()
+                    .ok()
+                    .expect("invalid value for `LOOM_CHECKPOINT_FILE`")
+            })
+            .ok();
+
         Builder {
             max_threads: DEFAULT_MAX_THREADS,
             max_memory: DEFAULT_MAX_MEMORY,
@@ -100,7 +108,7 @@ impl Builder {
             max_duration,
             max_permutations,
             preemption_bound,
-            checkpoint_file: None,
+            checkpoint_file,
             checkpoint_interval,
             log,
             _p: (),

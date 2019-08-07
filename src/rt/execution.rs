@@ -161,6 +161,20 @@ impl Execution {
         // runnable thread.
         if !self.threads.active().is_runnable() {
             initial = None;
+
+            for (i, th) in self.threads.iter() {
+                if !th.is_runnable() {
+                    continue;
+                }
+
+                if let Some(ref mut init) = initial {
+                    if th.yield_count < self.threads[*init].yield_count {
+                        *init = i;
+                    }
+                } else {
+                    initial = Some(i)
+                }
+            }
         }
 
         let path_id = self.path.pos();
@@ -182,6 +196,8 @@ impl Execution {
                 }
             })
         });
+
+        let switched = Some(self.threads.active_id()) != next;
 
         self.threads.set_active(next);
 
@@ -229,7 +245,7 @@ impl Execution {
             }
         }
 
-        if self.log {
+        if self.log && switched {
             println!("~~~~~~~~ THREAD {} ~~~~~~~~", self.threads.active_id());
         }
 
