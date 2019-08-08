@@ -118,57 +118,6 @@ where
     Scheduler::with_execution(f)
 }
 
-if_futures! {
-    use crate::futures;
-
-    use pin_convert::AsPinMut;
-    use pin_utils::pin_mut;
-    use std::future::Future;
-    use std::mem::replace;
-    use std::task::{Context, Poll};
-
-    /// Block the current thread, driving `f` to completion.
-    pub fn wait_future<F>(f: F) -> F::Output
-    where
-        F: Future,
-    {
-        pin_mut!(f);
-
-        let mut waker = futures::current_waker();
-        let mut cx = Context::from_waker(&mut waker);
-
-        loop {
-            match f.as_mut().poll(&mut cx) {
-                Poll::Ready(val) => return val,
-                _ => {}
-            }
-
-            let notified = execution(|execution| {
-                replace(
-                    &mut execution.threads.active_mut().notified,
-                    false)
-
-            });
-
-            if !notified {
-                park();
-            }
-        }
-    }
-
-    /// Poll the future one time
-    pub fn poll_future<T, F>(mut fut: T) -> Poll<F::Output>
-    where
-        T: AsPinMut<F>,
-        F: Future,
-    {
-        let mut waker = futures::current_waker();
-        let mut cx = Context::from_waker(&mut waker);
-
-        fut.as_pin_mut().poll(&mut cx)
-    }
-}
-
 pub fn thread_done() {
     execution(|execution| {
         execution.threads.active_mut().set_terminated();

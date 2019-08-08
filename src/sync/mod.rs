@@ -1,4 +1,4 @@
-//! Mock implementation of `std::atomic`.
+//! Mock implementation of `std::sync`.
 
 mod arc;
 pub mod atomic;

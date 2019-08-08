@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/loom/0.1.1")]
+#![doc(html_root_url = "https://docs.rs/loom/0.2.0")]
 #![deny(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![cfg_attr(test, deny(warnings))]
 
@@ -12,13 +12,15 @@
 //!
 //! Consider a simple example:
 //!
-//! ```ignore
+//! ```no_run
 //! use std::sync::Arc;
 //! use std::sync::atomic::AtomicUsize;
 //! use std::sync::atomic::Ordering::SeqCst;
 //! use std::thread;
 //!
+//! # /*
 //! #[test]
+//! # */
 //! fn test_concurrent_logic() {
 //!     let v1 = Arc::new(AtomicUsize::new(0));
 //!     let v2 = v1.clone();
@@ -49,18 +51,18 @@
 //!
 //! The above example can be rewritten as:
 //!
-//! ```ignore
-//! extern crate loom;
-//!
+//! ```no_run
 //! use loom::sync::atomic::AtomicUsize;
 //! use loom::thread;
 //!
 //! use std::sync::Arc;
 //! use std::sync::atomic::Ordering::SeqCst;
 //!
+//! # /*
 //! #[test]
+//! # */
 //! fn test_concurrent_logic() {
-//!     loom::fuzz(|| {
+//!     loom::model(|| {
 //!         let v1 = Arc::new(AtomicUsize::new(0));
 //!         let v2 = v1.clone();
 //!

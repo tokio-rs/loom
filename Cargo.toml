@@ -13,8 +13,8 @@ version = "0.2.0"
 edition = "2018"
 license = "MIT"
 authors = ["Carl Lerche <me@carllerche.com>"]
-description = "Model checker for concurrent code"
-documentation = "https://docs.rs/loom/0.1.1/loom"
+description = "Permutation testing for concurrent code"
+documentation = "https://docs.rs/loom/0.2.0/loom"
 homepage = "https://github.com/carllerche/loom"
 repository = "https://github.com/carllerche/loom"
 readme = "README.md"
@@ -25,11 +25,11 @@ publish = false
 [features]
 default = []
 checkpoint = ["serde", "serde_json"]
-futures = ["arc-waker", "pin-utils"]
+futures = ["futures-util-preview"]
+# futures = ["arc-waker", "pin-utils"]
 
 [dependencies]
 cfg-if = "0.1.6"
-# libc = "0.2.44"
 scoped-tls = "0.1.2"
 
 # Provides a generator based runtime
@@ -39,6 +39,4 @@ generator = "0.6.16"
 serde = { version = "1.0.92", features = ["derive"], optional = true }
 serde_json = { version = "1.0.33", optional = true }
 
-arc-waker = { git = "https://github.com/tokio-rs/async", optional = true }
-pin-utils = { version = "0.1.0-alpha.4", optional = true }
-pin-convert = "0.1.0"
+futures-util-preview = { version = "= 0.3.0-alpha.17", optional = true }
