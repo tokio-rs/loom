@@ -20,7 +20,6 @@ repository = "https://github.com/carllerche/loom"
 readme = "README.md"
 keywords = ["atomic", "lock-free"]
 categories = ["concurrency", "data-structures"]
-publish = false
 
 [features]
 default = []
