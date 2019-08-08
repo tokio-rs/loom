@@ -1,7 +1,7 @@
 #![cfg(feature = "futures")]
 #![deny(warnings, rust_2018_idioms)]
 
-use loom::futures::{block_on, AtomicWaker};
+use loom::future::{block_on, AtomicWaker};
 use loom::sync::atomic::AtomicUsize;
 use loom::thread;
 
