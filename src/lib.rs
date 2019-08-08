@@ -142,7 +142,7 @@ pub mod thread;
 pub use crate::model::model;
 
 if_futures! {
-    pub mod futures;
+    pub mod future;
 }
 
 #[doc(hidden)]
