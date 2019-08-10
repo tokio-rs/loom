@@ -13,7 +13,7 @@ To use `loom`, first add this to your `Cargo.toml`:
 
 ```toml
 [dev-dependencies]
-loom = "0.2.0"
+loom = "0.2.1"
 ```
 
 Next, create a test file.
