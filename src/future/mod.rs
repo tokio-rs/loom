@@ -7,7 +7,7 @@ pub use self::atomic_waker::AtomicWaker;
 use crate::rt::{self, thread};
 
 use futures_util::pin_mut;
-use futures_util::task::ArcWake;
+use futures_util::task::{self, ArcWake};
 use std::future::Future;
 use std::mem;
 use std::sync::Arc;
@@ -51,8 +51,7 @@ fn current_waker() -> Waker {
 
     let thread = thread::Id::current();
     let waker = Arc::new(ThreadWaker { thread });
-    waker.into_waker()
-
+    task::waker(waker)
 }
 
 impl ArcWake for ThreadWaker {
