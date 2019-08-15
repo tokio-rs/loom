@@ -5,7 +5,7 @@ behaviors of code under the C11 memory model, which Rust inherits.
 
 [![Build Status](https://dev.azure.com/carllerche/loom/_apis/build/status/carllerche.loom?branchName=master)](https://dev.azure.com/carllerche/loom/_build/latest?definitionId=2&branchName=master)
 
-[Documentation](https://docs.rs/loom/0.2.0/loom)
+[Documentation](https://docs.rs/loom/0.2.2/loom)
 
 ## Getting started
 
@@ -13,7 +13,7 @@ To use `loom`, first add this to your `Cargo.toml`:
 
 ```toml
 [dev-dependencies]
-loom = "0.2.1"
+loom = "0.2.2"
 ```
 
 Next, create a test file.

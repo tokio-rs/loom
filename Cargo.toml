@@ -9,12 +9,12 @@ name = "loom"
 #   - Cargo.toml
 #   - README.md
 # - Create git tag
-version = "0.2.1"
+version = "0.2.2"
 edition = "2018"
 license = "MIT"
 authors = ["Carl Lerche <me@carllerche.com>"]
 description = "Permutation testing for concurrent code"
-documentation = "https://docs.rs/loom/0.2.1/loom"
+documentation = "https://docs.rs/loom/0.2.2/loom"
 homepage = "https://github.com/carllerche/loom"
 repository = "https://github.com/carllerche/loom"
 readme = "README.md"
