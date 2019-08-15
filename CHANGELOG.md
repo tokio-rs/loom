@@ -1,3 +1,14 @@
+# 0.2.2 (August 14, 2019)
+
+### Fixed
+- incorrect causality comparison (#38).
+- detect race with CausalCell accessed immediately post spawn (#38).
+
+### Added
+- implementation of all atomic numeric types (#30).
+- `AtomicBool` (#39).
+- `Condvar::notify_all` (#40).
+
 # 0.2.1 (August 10, 2019)
 
 ### Chore
@@ -16,7 +27,7 @@
 
 ### Changed
 - remove scheduler implementation choices -- generator only (#23).
-- Use `std::future` (#20).
+- use `std::future` (#20).
 
 # 0.1.1 (February 19, 2019)
 
