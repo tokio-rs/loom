@@ -1,11 +1,13 @@
 //! Mock implementation of `std::sync::atomic`.
 
 mod atomic;
+mod bool;
 mod int;
 mod ptr;
 
 use self::atomic::Atomic;
 
+pub use self::bool::AtomicBool;
 pub use self::int::AtomicU32;
 pub use self::int::AtomicU64;
 pub use self::int::AtomicUsize;
