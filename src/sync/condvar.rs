@@ -62,4 +62,16 @@ impl Condvar {
             th.unpark();
         }
     }
+
+    /// Wakes up all blocked threads on this condvar.
+    pub fn notify_all(&self) {
+        self.object.branch();
+
+        // Grab a mut lock for sanity of `th.unpark()`...
+        let mut waiters = self.waiters.borrow_mut();
+
+        while let Some(th) = waiters.pop_front() {
+            th.unpark();
+        }
+    }
 }
