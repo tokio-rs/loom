@@ -150,3 +150,47 @@ fn atomic_causality_fail() {
         chan.get();
     });
 }
+
+#[test]
+#[should_panic]
+fn causal_cell_race_1() {
+    loom::model(|| {
+        let x = Arc::new(CausalCell::new(1_u32));
+        let y = Arc::clone(&x);
+
+        let th1 = thread::spawn(move || {
+            x.with_mut(|v| unsafe { *v += 1 });
+        });
+
+        y.with_mut(|v| unsafe { *v += 10 });
+
+        th1.join().unwrap();
+
+        let v = y.with_mut(|v| unsafe { *v });
+        assert_eq!(12, v);
+    });
+}
+
+#[test]
+#[should_panic]
+fn causal_cell_race_2() {
+    loom::model(|| {
+        let x = Arc::new(CausalCell::new(1_u32));
+        let y = Arc::clone(&x);
+        let z = Arc::clone(&x);
+
+        let th1 = thread::spawn(move || {
+            x.with_mut(|v| unsafe { *v += 1 });
+        });
+
+        let th2 = thread::spawn(move || {
+            y.with_mut(|v| unsafe { *v += 10 });
+        });
+
+        th1.join().unwrap();
+        th2.join().unwrap();
+
+        let v = z.with_mut(|v| unsafe { *v });
+        assert_eq!(12, v);
+    });
+}

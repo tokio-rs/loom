@@ -67,15 +67,17 @@ impl Execution {
     /// Create state to track a new thread
     pub fn new_thread(&mut self) -> thread::Id {
         let thread_id = self.threads.new_thread();
+        let active_id = self.threads.active_id();
 
         let (active, new) = self.threads.active2_mut(thread_id);
 
         new.causality.join(&active.causality);
         new.dpor_vv.join(&active.dpor_vv);
 
-        // TODO: Does this have to be bumped here? Bumping this should not be
-        // harmful even if not needed.
+        // Bump causality in order to ensure CausalCell accuratly detects
+        // incorrect access when first action.
         new.causality[thread_id] += 1;
+        active.causality[active_id] += 1;
 
         thread_id
     }

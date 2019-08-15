@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::ops;
 
-#[derive(Debug, Clone, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub struct VersionVec {
     versions: Box<[usize]>,
@@ -44,6 +44,38 @@ impl VersionVec {
         for (i, &version) in other.versions.iter().enumerate() {
             self.versions[i] = cmp::max(self.versions[i], version);
         }
+    }
+}
+
+impl cmp::PartialOrd for VersionVec {
+    fn partial_cmp(&self, other: &VersionVec) -> Option<cmp::Ordering> {
+        use cmp::Ordering::*;
+
+        let len = cmp::max(self.len(), other.len());
+        let mut ret = Equal;
+
+        for i in 0..len {
+            let a = self.versions.get(i).unwrap_or(&0);
+            let b = other.versions.get(i).unwrap_or(&0);
+
+            if a == b {
+                // Keep checking
+            } else if a < b {
+                if ret == Greater {
+                    return None;
+                }
+
+                ret = Less;
+            } else {
+                if ret == Less {
+                    return None;
+                }
+
+                ret = Greater;
+            }
+        }
+
+        Some(ret)
     }
 }
 
