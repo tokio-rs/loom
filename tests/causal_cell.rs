@@ -153,7 +153,7 @@ fn atomic_causality_fail() {
 
 #[test]
 #[should_panic]
-fn causal_cell_race() {
+fn causal_cell_race_1() {
     loom::model(|| {
         let x = Arc::new(CausalCell::new(1_u32));
         let y = Arc::clone(&x);
@@ -173,7 +173,7 @@ fn causal_cell_race() {
 
 #[test]
 #[should_panic]
-fn causal_cell_race_fixed() {
+fn causal_cell_race_2() {
     loom::model(|| {
         let x = Arc::new(CausalCell::new(1_u32));
         let y = Arc::clone(&x);
