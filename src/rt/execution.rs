@@ -74,7 +74,7 @@ impl Execution {
         new.causality.join(&active.causality);
         new.dpor_vv.join(&active.dpor_vv);
 
-        // Bump causality in order to ensure CausalCell accuratly detects
+        // Bump causality in order to ensure CausalCell accurately detects
         // incorrect access when first action.
         new.causality[thread_id] += 1;
         active.causality[active_id] += 1;
