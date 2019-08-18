@@ -1,3 +1,8 @@
+# 0.2.3 (August 17, 2019)
+
+### Fixed
+- `CausalCell` failed to detect concurrent immutable/mutable access (#42).
+
 # 0.2.2 (August 14, 2019)
 
 ### Fixed
