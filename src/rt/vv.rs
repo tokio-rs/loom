@@ -45,6 +45,10 @@ impl VersionVec {
             self.versions[i] = cmp::max(self.versions[i], version);
         }
     }
+
+    pub fn copy_from(&mut self, other: &VersionVec) {
+        self.versions.copy_from_slice(&other.versions);
+    }
 }
 
 impl cmp::PartialOrd for VersionVec {
