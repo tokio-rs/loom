@@ -1,3 +1,8 @@
+# 0.2.4 (August 20, 2019)
+
+### Fixed
+- only unblock future thread when notified using waker (#44).
+
 # 0.2.3 (August 17, 2019)
 
 ### Fixed
