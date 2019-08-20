@@ -24,18 +24,24 @@ where
     let mut cx = Context::from_waker(&mut waker);
 
     loop {
+        // Reset flags before entering `Future::poll()`.
+        rt::execution(|execution| {
+            execution.threads.active_mut().pending = false;
+            execution.threads.active_mut().notified = false;
+        });
+
         match f.as_mut().poll(&mut cx) {
             Poll::Ready(val) => return val,
-            _ => {}
+            Poll::Pending => {}
         }
 
         let notified = rt::execution(|execution| {
-            mem::replace(
-                &mut execution.threads.active_mut().notified,
-                false)
-
+            execution.threads.active_mut().pending = true;
+            mem::replace(&mut execution.threads.active_mut().notified, false)
         });
 
+        // If our waker was notified during `Future::poll()`, then just loop
+        // again. Otherwise, park the thread until someone wakes us.
         if !notified {
             rt::park();
         }

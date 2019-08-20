@@ -23,8 +23,11 @@ pub struct Thread {
     /// Tracks DPOR relations
     pub dpor_vv: VersionVec,
 
-    /// Tracks a future's `Task::notify` flag
+    /// Tracks if a Future's `Waker` has been called
     pub notified: bool,
+
+    /// Tracks if a Future parked because it returned `Poll::Pending`
+    pub pending: bool,
 
     /// Version at which the thread last yielded
     pub last_yield: Option<usize>,
@@ -75,6 +78,7 @@ impl Thread {
             causality: VersionVec::new(max_threads),
             dpor_vv: VersionVec::new(max_threads),
             notified: false,
+            pending: false,
             last_yield: None,
             yield_count: 0,
         }
@@ -298,7 +302,15 @@ impl Id {
 
                 num_runnable > 1
             } else {
-                execution.unpark_thread(self);
+                // Only unpark the future's executor thread if it parked because
+                // the future returned `Poll::Pending`. Otherwise, we would
+                // accidentally wake up the thread even though it actually parked
+                // from e.g. waiting on a locked mutex. Instead, since we have
+                // set the `notified` flag, the future will immediately poll
+                // again after it finally returns `Poll::Pending`.
+                if execution.threads[self].pending {
+                    execution.unpark_thread(self);
+                }
                 false
             }
         });
