@@ -5,7 +5,7 @@ use std::sync::atomic::Ordering;
 macro_rules! atomic_int {
     ($name: ident, $atomic_type: ty) => {
         /// Mock implementation of `std::sync::atomic::$name`.
-        #[derive(Debug)]
+        #[derive(Debug, Default)]
         pub struct $name(Atomic<$atomic_type>);
 
         impl $name {

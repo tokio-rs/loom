@@ -3,7 +3,7 @@ use super::Atomic;
 use std::sync::atomic::Ordering;
 
 /// Mock implementation of `std::sync::atomic::AtomicBool`.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AtomicBool(Atomic<bool>);
 
 impl AtomicBool {
