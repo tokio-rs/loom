@@ -1,3 +1,8 @@
+# 0.2.5 (September 4, 2019)
+
+### Added
+- implement `Default` for atomic types (#48).
+
 # 0.2.4 (August 20, 2019)
 
 ### Fixed
