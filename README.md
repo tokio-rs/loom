@@ -34,7 +34,6 @@ limitations.
 * Execution is slow (#5).
 * The full C11 memory model is not implemented (#6).
 * No fence support (#7).
-* No bounding support (#8).
 
 ## License
 
