@@ -124,3 +124,12 @@ where
         )
     }
 }
+
+impl<T> Default for Atomic<T>
+where
+    T: Default + Copy + PartialEq,
+{
+    fn default() -> Atomic<T> {
+        Atomic::new(T::default())
+    }
+}

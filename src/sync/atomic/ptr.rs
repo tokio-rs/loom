@@ -48,3 +48,9 @@ impl<T> AtomicPtr<T> {
         self.0.compare_exchange(current, new, success, failure)
     }
 }
+
+impl<T> Default for AtomicPtr<T> {
+    fn default() -> AtomicPtr<T> {
+        AtomicPtr::new(std::ptr::null_mut())
+    }
+}
