@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use crate::rt::{thread, Execution, FnBox};
 use generator::{self, Generator, Gn};
 use scoped_tls::scoped_thread_local;
