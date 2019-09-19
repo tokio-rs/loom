@@ -9,7 +9,6 @@ macro_rules! test_int {
             const NUM_A: u64 = 11641914933775430211;
             const NUM_B: u64 = 13209405719799650717;
 
-
             #[test]
             fn xor() {
                 loom::model(|| {
@@ -24,7 +23,7 @@ macro_rules! test_int {
                 });
             }
         }
-    }
+    };
 }
 
 test_int!(atomic_u8, u8, AtomicU8);
