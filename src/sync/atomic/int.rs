@@ -84,10 +84,17 @@ macro_rules! atomic_int {
             pub fn fetch_or(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
                 self.0.rmw(|v| v | val, order)
             }
+
+            /// Bitwise "xor" with the current value.
+            pub fn fetch_xor(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
+                self.0.rmw(|v| v ^ val, order)
+            }
         }
     };
 }
 
+atomic_int!(AtomicU8, u8);
+atomic_int!(AtomicU16, u16);
 atomic_int!(AtomicU32, u32);
 atomic_int!(AtomicU64, u64);
 atomic_int!(AtomicUsize, usize);

@@ -8,9 +8,7 @@ mod ptr;
 use self::atomic::Atomic;
 
 pub use self::bool::AtomicBool;
-pub use self::int::AtomicU32;
-pub use self::int::AtomicU64;
-pub use self::int::AtomicUsize;
+pub use self::int::{AtomicU8, AtomicU16, AtomicU32, AtomicU64, AtomicUsize};
 pub use self::ptr::AtomicPtr;
 
 /// Signals the processor that it is entering a busy-wait spin-loop.
