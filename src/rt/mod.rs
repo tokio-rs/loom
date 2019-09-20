@@ -2,7 +2,7 @@ mod access;
 use self::access::Access;
 
 mod atomic;
-pub(crate) use self::atomic::Atomic;
+pub(crate) use self::atomic::{Atomic, fence};
 
 mod execution;
 pub(crate) use self::execution::Execution;

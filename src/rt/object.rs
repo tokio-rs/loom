@@ -53,10 +53,10 @@ pub(crate) enum Action {
 }
 
 impl Object {
-    pub(super) fn atomic_mut(&mut self) -> &mut atomic::State {
+    pub(super) fn atomic_mut(&mut self) -> Option<&mut atomic::State> {
         match self.kind {
-            Kind::Atomic(ref mut v) => v,
-            _ => panic!(),
+            Kind::Atomic(ref mut v) => Some(v),
+            _ => None,
         }
     }
 
@@ -120,6 +120,10 @@ impl Set {
 
     pub(crate) fn clear(&mut self) {
         self.objects.clear();
+    }
+
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut Object> {
+        self.objects.iter_mut()
     }
 }
 

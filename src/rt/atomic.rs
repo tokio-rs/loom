@@ -1,6 +1,7 @@
 use crate::rt::{self, object, thread, Access, Action, Path, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering;
+use std::sync::atomic::Ordering::Acquire;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) struct Atomic {
@@ -59,6 +60,7 @@ impl Atomic {
         super::synchronize(|execution| {
             execution.objects[self.object_id]
                 .atomic_mut()
+                .unwrap()
                 .load(&mut execution.path, &mut execution.threads, order)
         })
     }
@@ -69,6 +71,7 @@ impl Atomic {
         super::synchronize(|execution| {
             execution.objects[self.object_id]
                 .atomic_mut()
+                .unwrap()
                 .store(&mut execution.threads, order)
         })
     }
@@ -82,6 +85,7 @@ impl Atomic {
         super::synchronize(|execution| {
             execution.objects[self.object_id]
                 .atomic_mut()
+                .unwrap()
                 .rmw(
                     f,
                     &mut execution.threads,
@@ -100,9 +104,36 @@ impl Atomic {
         super::execution(|execution| {
             execution.objects[self.object_id]
                 .atomic_mut()
+                .unwrap()
                 .happens_before(&execution.threads.active().causality);
         });
     }
+}
+
+pub(crate) fn fence(order: Ordering) {
+    assert_eq!(order, Acquire, "only Acquire fences are currently supported");
+
+    rt::execution(|execution| {
+        // Find all stores for all atomic objects and, if they have been read by
+        // the current thread, establish an acquire synchronization.
+        for object in execution.objects.iter_mut() {
+            let atomic = match object.atomic_mut() {
+                Some(atomic) => atomic,
+                None => continue,
+            };
+
+            // Iterate all the stores
+            for store in &mut atomic.history.stores {
+                if !store.first_seen.is_seen_by_current(&execution.threads) {
+                    continue;
+                }
+
+                store.sync.sync_load(&mut execution.threads, order);
+            }
+        }
+
+        execution.threads.active_causality_inc();
+    });
 }
 
 impl State {
@@ -230,7 +261,7 @@ impl History {
                     first = false;
 
                     in_causality |= is_seq_cst(order) && store.seq_cst;
-                    in_causality |= store.first_seen.is_seen_by(&threads);
+                    in_causality |= store.first_seen.is_seen_by_current(&threads);
 
                     !ret
                 })
@@ -259,7 +290,7 @@ impl FirstSeen {
         }
     }
 
-    fn is_seen_by(&self, threads: &thread::Set) -> bool {
+    fn is_seen_by_current(&self, threads: &thread::Set) -> bool {
         for (thread_id, version) in threads.active().causality.versions(threads.execution_id()) {
             let seen = self
                 .0
