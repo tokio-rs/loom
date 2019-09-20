@@ -38,6 +38,7 @@ macro_rules! test_int {
             }
 
             #[test]
+            #[ignore]
             fn compare_exchange_weak() {
                 loom::model(|| {
                     let a: $int = NUM_A as $int;
