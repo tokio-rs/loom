@@ -1,22 +1,30 @@
-pub(crate) mod arena;
+mod access;
+use self::access::Access;
+
 mod atomic;
+pub(crate) use self::atomic::{fence, Atomic};
+
 mod execution;
-mod fn_box;
-pub(crate) mod object;
-pub(crate) mod oneshot;
-mod path;
-mod scheduler;
-mod synchronize;
-pub(crate) mod thread;
-mod vv;
-
-use self::fn_box::FnBox;
-pub(crate) use self::path::Path;
-pub(crate) use self::synchronize::Synchronize;
-pub(crate) use self::vv::VersionVec;
-
 pub(crate) use self::execution::Execution;
+
+pub(crate) mod object;
+use self::object::Action;
+
+pub(crate) mod oneshot;
+
+mod path;
+pub(crate) use self::path::Path;
+
+mod scheduler;
 pub(crate) use self::scheduler::Scheduler;
+
+mod synchronize;
+pub(crate) use self::synchronize::Synchronize;
+
+pub(crate) mod thread;
+
+mod vv;
+pub(crate) use self::vv::VersionVec;
 
 pub fn spawn<F>(f: F)
 where

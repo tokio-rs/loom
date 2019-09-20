@@ -47,7 +47,7 @@ impl AtomicBool {
         self.0.compare_and_swap(current, new, order)
     }
 
-    /// Stores a value into the atomic integer if the current value is the same as the `current` value.
+    /// Stores a value into the atomic if the current value is the same as the `current` value.
     pub fn compare_exchange(
         &self,
         current: bool,
@@ -56,6 +56,17 @@ impl AtomicBool {
         failure: Ordering,
     ) -> Result<bool, bool> {
         self.0.compare_exchange(current, new, success, failure)
+    }
+
+    /// Stores a value into the atomic if the current value is the same as the current value.
+    pub fn compare_exchange_weak(
+        &self,
+        current: bool,
+        new: bool,
+        success: Ordering,
+        failure: Ordering,
+    ) -> Result<bool, bool> {
+        self.compare_exchange(current, new, success, failure)
     }
 
     /// Logical "and" with the current value.

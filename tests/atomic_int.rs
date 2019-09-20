@@ -22,6 +22,35 @@ macro_rules! test_int {
                     assert_eq!(a ^ b, atomic.load(SeqCst));
                 });
             }
+
+            #[test]
+            fn compare_exchange() {
+                loom::model(|| {
+                    let a: $int = NUM_A as $int;
+                    let b: $int = NUM_B as $int;
+
+                    let atomic = <$atomic>::new(a);
+                    assert_eq!(Err(a), atomic.compare_exchange(b, a, SeqCst, SeqCst));
+                    assert_eq!(Ok(a), atomic.compare_exchange(a, b, SeqCst, SeqCst));
+
+                    assert_eq!(b, atomic.load(SeqCst));
+                });
+            }
+
+            #[test]
+            #[ignore]
+            fn compare_exchange_weak() {
+                loom::model(|| {
+                    let a: $int = NUM_A as $int;
+                    let b: $int = NUM_B as $int;
+
+                    let atomic = <$atomic>::new(a);
+                    assert_eq!(Err(a), atomic.compare_exchange_weak(b, a, SeqCst, SeqCst));
+                    assert_eq!(Ok(a), atomic.compare_exchange_weak(a, b, SeqCst, SeqCst));
+
+                    assert_eq!(b, atomic.load(SeqCst));
+                });
+            }
         }
     };
 }

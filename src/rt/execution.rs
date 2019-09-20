@@ -1,7 +1,4 @@
-use crate::rt::arena::Arena;
-use crate::rt::object;
-use crate::rt::thread;
-use crate::rt::Path;
+use crate::rt::{object, thread, Access, Path};
 
 use std::fmt;
 
@@ -15,9 +12,6 @@ pub struct Execution {
     pub threads: thread::Set,
 
     pub objects: object::Set,
-
-    /// Arena allocator
-    pub arena: Arena,
 
     /// Maximum number of concurrent threads
     pub max_threads: usize,
@@ -38,7 +32,6 @@ impl Execution {
     /// reused across permutations.
     pub fn new(
         max_threads: usize,
-        max_memory: usize,
         max_branches: usize,
         preemption_bound: Option<usize>,
     ) -> Execution {
@@ -53,7 +46,6 @@ impl Execution {
             path: Path::new(max_branches, preemption_bound),
             threads,
             objects: object::Set::new(),
-            arena: Arena::with_capacity(max_memory),
             max_threads,
             max_history: 7,
             log: false,
@@ -102,15 +94,12 @@ impl Execution {
         let max_threads = self.max_threads;
         let max_history = self.max_history;
         let log = self.log;
-        let mut arena = self.arena;
         let mut path = self.path;
         let mut objects = self.objects;
 
         let mut threads = self.threads;
 
         objects.clear();
-
-        arena.clear();
 
         if !path.step() {
             return None;
@@ -124,7 +113,6 @@ impl Execution {
             path,
             threads,
             objects,
-            arena,
             max_threads,
             max_history,
             log,
@@ -146,13 +134,13 @@ impl Execution {
             };
 
             for access in self.objects.last_dependent_accesses(operation) {
-                if access.dpor_vv <= th.dpor_vv {
+                if access.happens_before(&th.dpor_vv) {
                     // The previous access happened before this access, thus
                     // there is no race.
                     continue;
                 }
 
-                self.path.backtrack(access.path_id, th_id);
+                self.path.backtrack(access.path_id(), th_id);
             }
         }
 
@@ -220,23 +208,19 @@ impl Execution {
             return true;
         }
 
+        // TODO: refactor
         if let Some(operation) = self.threads.active().operation {
             let threads = &mut self.threads;
             let th_id = threads.active_id();
 
             for access in self.objects.last_dependent_accesses(operation) {
-                threads.active_mut().dpor_vv.join(&access.dpor_vv);
+                threads.active_mut().dpor_vv.join(access.version());
             }
 
             threads.active_mut().dpor_vv[th_id] += 1;
 
-            self.objects.set_last_access(
-                operation,
-                object::Access {
-                    path_id: path_id,
-                    dpor_vv: threads.active().dpor_vv.clone(),
-                },
-            );
+            self.objects
+                .set_last_access(operation, Access::new(path_id, &threads.active().dpor_vv));
         }
 
         // Reactivate yielded threads, but only if the current active thread is

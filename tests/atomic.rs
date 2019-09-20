@@ -1,12 +1,10 @@
 #![deny(warnings, rust_2018_idioms)]
 
-use loom;
-
 use loom::sync::atomic::AtomicUsize;
 use loom::thread;
 
 use std::cell::UnsafeCell;
-use std::sync::atomic::Ordering::SeqCst;
+use std::sync::atomic::Ordering::{AcqRel, Acquire, Release, SeqCst};
 use std::sync::Arc;
 
 #[test]
@@ -38,5 +36,35 @@ fn invalid_get_mut() {
         });
 
         let _ = unsafe { *(*v1.get()).get_mut() };
+    });
+}
+
+#[test]
+#[ignore]
+#[should_panic]
+fn wut() {
+    loom::model(|| {
+        let a = Arc::new(AtomicUsize::new(0));
+        let b = Arc::new(AtomicUsize::new(0));
+
+        let a2 = a.clone();
+        let b2 = b.clone();
+
+        let th = thread::spawn(move || {
+            a2.store(1, Release);
+            b2.compare_and_swap(0, 2, AcqRel);
+        });
+
+        b.store(1, Release);
+        a.compare_and_swap(0, 2, AcqRel);
+
+        th.join().unwrap();
+
+        let a_val = a.load(Acquire);
+        let b_val = b.load(Acquire);
+
+        if a_val == 2 && b_val == 2 {
+            panic!();
+        }
     });
 }

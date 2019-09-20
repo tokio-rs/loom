@@ -1,9 +1,22 @@
-use crate::rt::{self, thread, Synchronize, VersionVec};
+use crate::rt::{self, object, thread, Access, Action, Path, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering;
+use std::sync::atomic::Ordering::Acquire;
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub(crate) struct Atomic {
+    object_id: object::Id,
+}
 
 #[derive(Debug, Default)]
-pub struct History {
+pub(super) struct State {
+    last_load: Option<Access>,
+    last_store: Option<Access>,
+    history: History,
+}
+
+#[derive(Debug, Default)]
+struct History {
     stores: Vec<Store>,
 }
 
@@ -22,37 +35,142 @@ struct Store {
 #[derive(Debug)]
 struct FirstSeen(Vec<Option<usize>>);
 
-impl History {
-    pub fn init(&mut self, threads: &mut thread::Set) {
-        self.stores.push(Store {
-            sync: Synchronize::new(threads.max()),
-            first_seen: FirstSeen::new(threads),
-            seq_cst: false,
-        });
+impl Atomic {
+    pub(crate) fn new() -> Atomic {
+        rt::execution(|execution| {
+            let mut state = State::default();
+
+            // All atomics are initialized with a value, which brings the causality
+            // of the thread initializing the atomic.
+            state.history.stores.push(Store {
+                sync: Synchronize::new(execution.threads.max()),
+                first_seen: FirstSeen::new(&mut execution.threads),
+                seq_cst: false,
+            });
+
+            let object_id = execution.objects.insert_atomic(state);
+
+            Atomic { object_id }
+        })
     }
 
-    pub fn happens_before(&self, vv: &VersionVec) {
-        assert!({
-            self.stores
-                .iter()
-                .all(|store| vv >= store.sync.version_vec())
-        });
+    pub(crate) fn load(self, order: Ordering) -> usize {
+        self.object_id.branch_load();
+
+        super::synchronize(|execution| {
+            execution.objects[self.object_id]
+                .atomic_mut()
+                .unwrap()
+                .load(&mut execution.path, &mut execution.threads, order)
+        })
     }
 
-    pub fn load(
-        &mut self,
-        path: &mut rt::Path,
-        threads: &mut thread::Set,
-        order: Ordering,
-    ) -> usize {
+    pub(crate) fn store(self, order: Ordering) {
+        self.object_id.branch_store();
+
+        super::synchronize(|execution| {
+            execution.objects[self.object_id]
+                .atomic_mut()
+                .unwrap()
+                .store(&mut execution.threads, order)
+        })
+    }
+
+    pub(crate) fn rmw<F, E>(self, f: F, success: Ordering, failure: Ordering) -> Result<usize, E>
+    where
+        F: FnOnce(usize) -> Result<(), E>,
+    {
+        self.object_id.branch_rmw();
+
+        super::synchronize(|execution| {
+            execution.objects[self.object_id].atomic_mut().unwrap().rmw(
+                f,
+                &mut execution.threads,
+                success,
+                failure,
+            )
+        })
+    }
+
+    /// Assert that the entire atomic history happens before the current thread.
+    /// This is required to safely call `get_mut()`.
+    pub(crate) fn get_mut(self) {
+        // TODO: Is this needed?
+        self.object_id.branch_rmw();
+
+        super::execution(|execution| {
+            execution.objects[self.object_id]
+                .atomic_mut()
+                .unwrap()
+                .happens_before(&execution.threads.active().causality);
+        });
+    }
+}
+
+pub(crate) fn fence(order: Ordering) {
+    assert_eq!(
+        order, Acquire,
+        "only Acquire fences are currently supported"
+    );
+
+    rt::execution(|execution| {
+        // Find all stores for all atomic objects and, if they have been read by
+        // the current thread, establish an acquire synchronization.
+        for object in execution.objects.iter_mut() {
+            let atomic = match object.atomic_mut() {
+                Some(atomic) => atomic,
+                None => continue,
+            };
+
+            // Iterate all the stores
+            for store in &mut atomic.history.stores {
+                if !store.first_seen.is_seen_by_current(&execution.threads) {
+                    continue;
+                }
+
+                store.sync.sync_load(&mut execution.threads, order);
+            }
+        }
+
+        execution.threads.active_causality_inc();
+    });
+}
+
+impl State {
+    pub(super) fn last_dependent_accesses<'a>(
+        &'a self,
+        action: Action,
+    ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
+        match action {
+            Action::Load => Box::new(self.last_store.iter()),
+            Action::Store => Box::new(self.last_load.iter()),
+            Action::Rmw => Box::new({ self.last_load.iter().chain(self.last_store.iter()) }),
+            _ => unreachable!(),
+        }
+    }
+
+    pub(super) fn set_last_access(&mut self, action: Action, access: Access) {
+        match action {
+            Action::Load => self.last_load = Some(access),
+            Action::Store => self.last_store = Some(access),
+            Action::Rmw => {
+                self.last_load = Some(access.clone());
+                self.last_store = Some(access);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn load(&mut self, path: &mut Path, threads: &mut thread::Set, order: Ordering) -> usize {
         // Pick a store that satisfies causality and specified ordering.
-        let index = self.pick_store(path, threads, order);
-        self.stores[index].first_seen.touch(threads);
-        self.stores[index].sync.sync_load(threads, order);
+        let index = self.history.pick_store(path, threads, order);
+
+        self.history.stores[index].first_seen.touch(threads);
+        self.history.stores[index].sync.sync_load(threads, order);
         index
     }
 
-    pub fn store(&mut self, threads: &mut thread::Set, order: Ordering) {
+    fn store(&mut self, threads: &mut thread::Set, order: Ordering) {
         let mut store = Store {
             sync: Synchronize::new(threads.max()),
             first_seen: FirstSeen::new(threads),
@@ -60,10 +178,10 @@ impl History {
         };
 
         store.sync.sync_store(threads, order);
-        self.stores.push(store);
+        self.history.stores.push(store);
     }
 
-    pub fn rmw<F, E>(
+    fn rmw<F, E>(
         &mut self,
         f: F,
         threads: &mut thread::Set,
@@ -73,29 +191,40 @@ impl History {
     where
         F: FnOnce(usize) -> Result<(), E>,
     {
-        let index = self.stores.len() - 1;
-        self.stores[index].first_seen.touch(&threads);
+        let index = self.history.stores.len() - 1;
+        self.history.stores[index].first_seen.touch(threads);
 
         if let Err(e) = f(index) {
-            self.stores[index].sync.sync_load(threads, failure);
+            self.history.stores[index].sync.sync_load(threads, failure);
             return Err(e);
         }
 
-        self.stores[index].sync.sync_load(threads, success);
+        self.history.stores[index].sync.sync_load(threads, success);
 
         let mut new = Store {
             // Clone the previous sync in order to form a release sequence.
-            sync: self.stores[index].sync.clone(),
+            sync: self.history.stores[index].sync.clone(),
             first_seen: FirstSeen::new(threads),
             seq_cst: is_seq_cst(success),
         };
 
         new.sync.sync_store(threads, success);
-        self.stores.push(new);
+        self.history.stores.push(new);
 
         Ok(index)
     }
 
+    fn happens_before(&self, vv: &VersionVec) {
+        assert!({
+            self.history
+                .stores
+                .iter()
+                .all(|store| vv >= store.sync.version_vec())
+        });
+    }
+}
+
+impl History {
     fn pick_store(
         &mut self,
         path: &mut rt::Path,
@@ -125,7 +254,7 @@ impl History {
                     first = false;
 
                     in_causality |= is_seq_cst(order) && store.seq_cst;
-                    in_causality |= store.first_seen.is_seen_by(&threads);
+                    in_causality |= store.first_seen.is_seen_by_current(&threads);
 
                     !ret
                 })
@@ -154,7 +283,7 @@ impl FirstSeen {
         }
     }
 
-    fn is_seen_by(&self, threads: &thread::Set) -> bool {
+    fn is_seen_by_current(&self, threads: &thread::Set) -> bool {
         for (thread_id, version) in threads.active().causality.versions(threads.execution_id()) {
             let seen = self
                 .0

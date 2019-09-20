@@ -1,6 +1,7 @@
 #![allow(deprecated)]
 
-use crate::rt::{thread, Execution, FnBox};
+use crate::rt::{thread, Execution};
+
 use generator::{self, Generator, Gn};
 use scoped_tls::scoped_thread_local;
 use std::cell::RefCell;
@@ -13,10 +14,10 @@ pub struct Scheduler {
 
     next_thread: usize,
 
-    queued_spawn: VecDeque<Box<dyn FnBox>>,
+    queued_spawn: VecDeque<Box<dyn FnOnce()>>,
 }
 
-type Thread = Generator<'static, Option<Box<dyn FnBox>>, ()>;
+type Thread = Generator<'static, Option<Box<dyn FnOnce()>>, ()>;
 
 scoped_thread_local! {
     static STATE: RefCell<State<'_>>
@@ -24,7 +25,7 @@ scoped_thread_local! {
 
 struct State<'a> {
     execution: &'a mut Execution,
-    queued_spawn: &'a mut VecDeque<Box<dyn FnBox>>,
+    queued_spawn: &'a mut VecDeque<Box<dyn FnOnce()>>,
 }
 
 impl Scheduler {
@@ -52,7 +53,7 @@ impl Scheduler {
         generator::yield_with(());
     }
 
-    pub fn spawn(f: Box<dyn FnBox>) {
+    pub fn spawn(f: Box<dyn FnOnce()>) {
         STATE.with(|state| {
             state.borrow_mut().queued_spawn.push_back(f);
         });
@@ -112,9 +113,9 @@ fn spawn_threads(n: usize) -> Vec<Thread> {
         .map(|_| {
             let mut g = Gn::new(move || {
                 loop {
-                    let f: Option<Box<dyn FnBox>> = generator::yield_(()).unwrap();
+                    let f: Option<Box<dyn FnOnce()>> = generator::yield_(()).unwrap();
                     generator::yield_with(());
-                    f.unwrap().call();
+                    f.unwrap()();
                 }
 
                 // done!();

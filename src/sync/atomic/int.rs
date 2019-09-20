@@ -54,7 +54,7 @@ macro_rules! atomic_int {
                 self.0.compare_and_swap(current, new, order)
             }
 
-            /// Stores a value into the atomic integer if the current value is the same as the `current` value.
+            /// Stores a value into the atomic if the current value is the same as the `current` value.
             pub fn compare_exchange(
                 &self,
                 current: $atomic_type,
@@ -63,6 +63,17 @@ macro_rules! atomic_int {
                 failure: Ordering,
             ) -> Result<$atomic_type, $atomic_type> {
                 self.0.compare_exchange(current, new, success, failure)
+            }
+
+            /// Stores a value into the atomic if the current value is the same as the current value.
+            pub fn compare_exchange_weak(
+                &self,
+                current: $atomic_type,
+                new: $atomic_type,
+                success: Ordering,
+                failure: Ordering,
+            ) -> Result<$atomic_type, $atomic_type> {
+                self.compare_exchange(current, new, success, failure)
             }
 
             /// Adds to the current value, returning the previous value.
