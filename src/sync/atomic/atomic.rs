@@ -1,12 +1,11 @@
 use crate::rt;
-use crate::rt::object::{self, Object};
 
 use std::cell::RefCell;
 use std::sync::atomic::Ordering;
 
 #[derive(Debug)]
 pub struct Atomic<T> {
-    object: object::Id,
+    object: rt::Atomic,
     values: RefCell<Vec<T>>,
 }
 
@@ -15,37 +14,32 @@ where
     T: Copy + PartialEq,
 {
     pub fn new(value: T) -> Atomic<T> {
-        rt::execution(|execution| {
-            let object = execution.objects.insert(Object::atomic());
-            object.atomic_init(execution);
-
-            Atomic {
-                values: RefCell::new(vec![value]),
-                object,
-            }
-        })
+        Atomic {
+            object: rt::Atomic::new(),
+            values: RefCell::new(vec![value]),
+        }
     }
 
     pub fn get_mut(&mut self) -> &mut T {
-        self.object.atomic_get_mut();
+        self.object.get_mut();
         self.values.get_mut().last_mut().unwrap()
     }
 
     pub unsafe fn unsync_load(&self) -> T {
-        self.object.atomic_get_mut();
+        self.object.get_mut();
         *self.values.borrow().last().unwrap()
     }
 
     pub fn load(&self, order: Ordering) -> T {
         let object = self.object;
-        let index = self.object.atomic_load(order);
+        let index = self.object.load(order);
         assert!(object == self.object, "atomic instance changed mid schedule, most likely due to a bug in the algorithm being checked");
         self.values.borrow_mut()[index]
     }
 
     pub fn store(&self, value: T, order: Ordering) {
         let object = self.object;
-        self.object.atomic_store(order);
+        self.object.store(order);
         assert!(object == self.object, "atomic instance changed mid schedule, most likely due to a bug in the algorithm being checked");
         self.values.borrow_mut().push(value);
     }
@@ -65,7 +59,7 @@ where
         F: FnOnce(T) -> Result<T, E>,
     {
         let object = self.object;
-        let index = self.object.atomic_rmw(
+        let index = self.object.rmw(
             |index| {
                 let v = f(self.values.borrow()[index]);
                 match v {

@@ -1,8 +1,8 @@
-use crate::rt::{Access, Atomic, Execution};
+use crate::rt::{Access, Execution};
+use crate::rt::atomic;
 
 use std::marker::PhantomData;
 use std::ops;
-use std::sync::atomic::Ordering;
 
 #[derive(Debug)]
 pub struct Object {
@@ -31,7 +31,7 @@ pub struct Operation {
 
 #[derive(Debug)]
 enum Kind {
-    Atomic(Atomic),
+    Atomic(atomic::State),
     Mutex(Option<Access>),
     Condvar(Option<Access>),
     Thread(Option<Access>),
@@ -53,13 +53,7 @@ pub(crate) enum Action {
 }
 
 impl Object {
-    pub(crate) fn atomic() -> Object {
-        Object {
-            kind: Kind::Atomic(Atomic::default()),
-        }
-    }
-
-    fn atomic_mut(&mut self) -> &mut Atomic {
+    pub(super) fn atomic_mut(&mut self) -> &mut atomic::State {
         match self.kind {
             Kind::Atomic(ref mut v) => v,
             _ => panic!(),
@@ -88,6 +82,12 @@ impl Object {
 impl Set {
     pub(crate) fn new() -> Set {
         Set { objects: vec![] }
+    }
+
+    pub(super) fn insert_atomic(&mut self, state: atomic::State) -> Id {
+        self.insert(Object {
+            kind: Kind::Atomic(state),
+        })
     }
 
     pub(crate) fn insert(&mut self, object: Object) -> Id {
@@ -149,67 +149,21 @@ impl Id {
         self.id
     }
 
-    pub(crate) fn atomic_init(self, execution: &mut Execution) {
-        execution.objects[self]
-            .atomic_mut()
-            .initialize(&mut execution.threads);
-    }
-
-    pub(crate) fn atomic_load(self, order: Ordering) -> usize {
+    pub(crate) fn branch_load(self) {
         super::branch(|execution| {
             self.set_action(execution, Action::Load);
         });
-
-        super::synchronize(|execution| {
-            execution.objects[self]
-                .atomic_mut()
-                .load(&mut execution.path, &mut execution.threads, order)
-        })
     }
 
-    pub(crate) fn atomic_store(self, order: Ordering) {
+    pub(crate) fn branch_store(self) {
         super::branch(|execution| {
             self.set_action(execution, Action::Store);
         });
-
-        super::synchronize(|execution| {
-            execution.objects[self]
-                .atomic_mut()
-                .store(&mut execution.threads, order)
-        })
     }
 
-    pub(crate) fn atomic_rmw<F, E>(self, f: F, success: Ordering, failure: Ordering) -> Result<usize, E>
-    where
-        F: FnOnce(usize) -> Result<(), E>,
-    {
+    pub(crate) fn branch_rmw(self) {
         super::branch(|execution| {
             self.set_action(execution, Action::Rmw);
-        });
-
-        super::synchronize(|execution| {
-            execution.objects[self]
-                .atomic_mut()
-                .rmw(
-                    f,
-                    &mut execution.threads,
-                    success,
-                    failure,
-                )
-        })
-    }
-
-    /// Assert that the entire atomic history happens before the current thread.
-    /// This is required to safely call `get_mut()`.
-    pub(crate) fn atomic_get_mut(self) {
-        super::branch(|execution| {
-            self.set_action(execution, Action::Rmw);
-        });
-
-        super::execution(|execution| {
-            execution.objects[self]
-                .atomic_mut()
-                .happens_before(&execution.threads.active().causality);
         });
     }
 

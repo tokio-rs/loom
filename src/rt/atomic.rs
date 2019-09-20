@@ -1,9 +1,14 @@
-use crate::rt::{self, thread, Access, Action, Path, Synchronize, VersionVec};
+use crate::rt::{self, object, thread, Access, Action, Path, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) struct Atomic {
+    object_id: object::Id,
+}
+
+#[derive(Debug, Default)]
+pub(super) struct State {
     last_load: Option<Access>,
     last_store: Option<Access>,
     history: History,
@@ -30,15 +35,102 @@ struct Store {
 struct FirstSeen(Vec<Option<usize>>);
 
 impl Atomic {
-    pub(crate) fn initialize(&mut self, threads: &mut thread::Set) {
-        self.history.stores.push(Store {
-            sync: Synchronize::new(threads.max()),
-            first_seen: FirstSeen::new(threads),
-            seq_cst: false,
-        });
+    pub(crate) fn new() -> Atomic {
+        rt::execution(|execution| {
+            let mut state = State::default();
+
+            // All atomics are initialized with a value, which brings the causality
+            // of the thread initializing the atomic.
+            state.history.stores.push(Store {
+                sync: Synchronize::new(execution.threads.max()),
+                first_seen: FirstSeen::new(&mut execution.threads),
+                seq_cst: false,
+            });
+
+            let object_id = execution.objects.insert_atomic(state);
+
+            Atomic { object_id }
+        })
     }
 
-    pub(crate) fn load(
+    pub(crate) fn load(self, order: Ordering) -> usize {
+        self.object_id.branch_load();
+
+        super::synchronize(|execution| {
+            execution.objects[self.object_id]
+                .atomic_mut()
+                .load(&mut execution.path, &mut execution.threads, order)
+        })
+    }
+
+    pub(crate) fn store(self, order: Ordering) {
+        self.object_id.branch_store();
+
+        super::synchronize(|execution| {
+            execution.objects[self.object_id]
+                .atomic_mut()
+                .store(&mut execution.threads, order)
+        })
+    }
+
+    pub(crate) fn rmw<F, E>(self, f: F, success: Ordering, failure: Ordering) -> Result<usize, E>
+    where
+        F: FnOnce(usize) -> Result<(), E>,
+    {
+        self.object_id.branch_rmw();
+
+        super::synchronize(|execution| {
+            execution.objects[self.object_id]
+                .atomic_mut()
+                .rmw(
+                    f,
+                    &mut execution.threads,
+                    success,
+                    failure,
+                )
+        })
+    }
+
+    /// Assert that the entire atomic history happens before the current thread.
+    /// This is required to safely call `get_mut()`.
+    pub(crate) fn get_mut(self) {
+        // TODO: Is this needed?
+        self.object_id.branch_rmw();
+
+        super::execution(|execution| {
+            execution.objects[self.object_id]
+                .atomic_mut()
+                .happens_before(&execution.threads.active().causality);
+        });
+    }
+}
+
+impl State {
+    pub(super) fn last_dependent_accesses<'a>(
+        &'a self,
+        action: Action,
+    ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
+        match action {
+            Action::Load => Box::new(self.last_store.iter()),
+            Action::Store => Box::new(self.last_load.iter()),
+            Action::Rmw => Box::new({ self.last_load.iter().chain(self.last_store.iter()) }),
+            _ => unreachable!(),
+        }
+    }
+
+    pub(super) fn set_last_access(&mut self, action: Action, access: Access) {
+        match action {
+            Action::Load => self.last_load = Some(access),
+            Action::Store => self.last_store = Some(access),
+            Action::Rmw => {
+                self.last_load = Some(access.clone());
+                self.last_store = Some(access);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn load(
         &mut self,
         path: &mut Path,
         threads: &mut thread::Set,
@@ -55,7 +147,7 @@ impl Atomic {
         index
     }
 
-    pub(crate) fn store(&mut self, threads: &mut thread::Set, order: Ordering) {
+    fn store(&mut self, threads: &mut thread::Set, order: Ordering) {
         let mut store = Store {
             sync: Synchronize::new(threads.max()),
             first_seen: FirstSeen::new(threads),
@@ -66,7 +158,7 @@ impl Atomic {
         self.history.stores.push(store);
     }
 
-    pub(crate) fn rmw<F, E>(
+    fn rmw<F, E>(
         &mut self,
         f: F,
         threads: &mut thread::Set,
@@ -99,36 +191,12 @@ impl Atomic {
         Ok(index)
     }
 
-    pub(crate) fn happens_before(&self, vv: &VersionVec) {
+    fn happens_before(&self, vv: &VersionVec) {
         assert!({
             self.history.stores
                 .iter()
                 .all(|store| vv >= store.sync.version_vec())
         });
-    }
-
-    pub(crate) fn last_dependent_accesses<'a>(
-        &'a self,
-        action: Action,
-    ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
-        match action {
-            Action::Load => Box::new(self.last_store.iter()),
-            Action::Store => Box::new(self.last_load.iter()),
-            Action::Rmw => Box::new({ self.last_load.iter().chain(self.last_store.iter()) }),
-            _ => unreachable!(),
-        }
-    }
-
-    pub(crate) fn set_last_access(&mut self, action: Action, access: Access) {
-        match action {
-            Action::Load => self.last_load = Some(access),
-            Action::Store => self.last_store = Some(access),
-            Action::Rmw => {
-                self.last_load = Some(access.clone());
-                self.last_store = Some(access);
-            }
-            _ => unreachable!(),
-        }
     }
 }
 
