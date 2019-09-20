@@ -1,9 +1,16 @@
-use crate::rt::{self, thread, Synchronize, VersionVec};
+use crate::rt::{self, thread, Access, Action, Path, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering;
 
 #[derive(Debug, Default)]
-pub struct History {
+pub(crate) struct Atomic {
+    last_load: Option<Access>,
+    last_store: Option<Access>,
+    history: History,
+}
+
+#[derive(Debug, Default)]
+struct History {
     stores: Vec<Store>,
 }
 
@@ -22,37 +29,33 @@ struct Store {
 #[derive(Debug)]
 struct FirstSeen(Vec<Option<usize>>);
 
-impl History {
-    pub fn init(&mut self, threads: &mut thread::Set) {
-        self.stores.push(Store {
+impl Atomic {
+    pub(crate) fn initialize(&mut self, threads: &mut thread::Set) {
+        self.history.stores.push(Store {
             sync: Synchronize::new(threads.max()),
             first_seen: FirstSeen::new(threads),
             seq_cst: false,
         });
     }
 
-    pub fn happens_before(&self, vv: &VersionVec) {
-        assert!({
-            self.stores
-                .iter()
-                .all(|store| vv >= store.sync.version_vec())
-        });
-    }
-
-    pub fn load(
+    pub(crate) fn load(
         &mut self,
-        path: &mut rt::Path,
+        path: &mut Path,
         threads: &mut thread::Set,
         order: Ordering,
     ) -> usize {
         // Pick a store that satisfies causality and specified ordering.
-        let index = self.pick_store(path, threads, order);
-        self.stores[index].first_seen.touch(threads);
-        self.stores[index].sync.sync_load(threads, order);
+        let index = self.history.pick_store(
+            path,
+            threads,
+            order);
+
+        self.history.stores[index].first_seen.touch(threads);
+        self.history.stores[index].sync.sync_load(threads, order);
         index
     }
 
-    pub fn store(&mut self, threads: &mut thread::Set, order: Ordering) {
+    pub(crate) fn store(&mut self, threads: &mut thread::Set, order: Ordering) {
         let mut store = Store {
             sync: Synchronize::new(threads.max()),
             first_seen: FirstSeen::new(threads),
@@ -60,10 +63,10 @@ impl History {
         };
 
         store.sync.sync_store(threads, order);
-        self.stores.push(store);
+        self.history.stores.push(store);
     }
 
-    pub fn rmw<F, E>(
+    pub(crate) fn rmw<F, E>(
         &mut self,
         f: F,
         threads: &mut thread::Set,
@@ -73,29 +76,63 @@ impl History {
     where
         F: FnOnce(usize) -> Result<(), E>,
     {
-        let index = self.stores.len() - 1;
-        self.stores[index].first_seen.touch(&threads);
+        let index = self.history.stores.len() - 1;
+        self.history.stores[index].first_seen.touch(threads);
 
         if let Err(e) = f(index) {
-            self.stores[index].sync.sync_load(threads, failure);
+            self.history.stores[index].sync.sync_load(threads, failure);
             return Err(e);
         }
 
-        self.stores[index].sync.sync_load(threads, success);
+        self.history.stores[index].sync.sync_load(threads, success);
 
         let mut new = Store {
             // Clone the previous sync in order to form a release sequence.
-            sync: self.stores[index].sync.clone(),
+            sync: self.history.stores[index].sync.clone(),
             first_seen: FirstSeen::new(threads),
             seq_cst: is_seq_cst(success),
         };
 
         new.sync.sync_store(threads, success);
-        self.stores.push(new);
+        self.history.stores.push(new);
 
         Ok(index)
     }
 
+    pub(crate) fn happens_before(&self, vv: &VersionVec) {
+        assert!({
+            self.history.stores
+                .iter()
+                .all(|store| vv >= store.sync.version_vec())
+        });
+    }
+
+    pub(crate) fn last_dependent_accesses<'a>(
+        &'a self,
+        action: Action,
+    ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
+        match action {
+            Action::Load => Box::new(self.last_store.iter()),
+            Action::Store => Box::new(self.last_load.iter()),
+            Action::Rmw => Box::new({ self.last_load.iter().chain(self.last_store.iter()) }),
+            _ => unreachable!(),
+        }
+    }
+
+    pub(crate) fn set_last_access(&mut self, action: Action, access: Access) {
+        match action {
+            Action::Load => self.last_load = Some(access),
+            Action::Store => self.last_store = Some(access),
+            Action::Rmw => {
+                self.last_load = Some(access.clone());
+                self.last_store = Some(access);
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl History {
     fn pick_store(
         &mut self,
         path: &mut rt::Path,

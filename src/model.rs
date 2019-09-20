@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const DEFAULT_MAX_THREADS: usize = 4;
-const DEFAULT_MAX_MEMORY: usize = 4096 << 14;
 const DEFAULT_MAX_BRANCHES: usize = 1_000;
 
 /// Configure a model
@@ -14,9 +13,6 @@ const DEFAULT_MAX_BRANCHES: usize = 1_000;
 pub struct Builder {
     /// Max number of threads to check as part of the execution. This should be set as low as possible.
     pub max_threads: usize,
-
-    /// Maximum amount of memory that can be consumed by the associated metadata.
-    pub max_memory: usize,
 
     /// Maximum number of thread switches per permutation.
     pub max_branches: usize,
@@ -103,7 +99,6 @@ impl Builder {
 
         Builder {
             max_threads: DEFAULT_MAX_THREADS,
-            max_memory: DEFAULT_MAX_MEMORY,
             max_branches,
             max_duration,
             max_permutations,
@@ -128,7 +123,6 @@ impl Builder {
     {
         let mut execution = Execution::new(
             self.max_threads,
-            self.max_memory,
             self.max_branches,
             self.preemption_bound,
         );

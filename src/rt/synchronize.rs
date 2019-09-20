@@ -2,6 +2,12 @@ use crate::rt::{thread, VersionVec};
 
 use std::sync::atomic::Ordering::{self, *};
 
+/// A synchronization point between two threads.
+///
+/// Threads synchronize with this point using any of the available orderings. On
+/// loads, the thread's causality is updated using the synchronization point's
+/// stored causality. On stores, the synchronization point's causality is
+/// updated with the threads.
 #[derive(Debug, Clone)]
 pub(crate) struct Synchronize {
     happens_before: VersionVec,
