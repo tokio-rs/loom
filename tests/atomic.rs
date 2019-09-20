@@ -4,7 +4,7 @@ use loom::sync::atomic::AtomicUsize;
 use loom::thread;
 
 use std::cell::UnsafeCell;
-use std::sync::atomic::Ordering::{Acquire, AcqRel, Release, SeqCst};
+use std::sync::atomic::Ordering::{AcqRel, Acquire, Release, SeqCst};
 use std::sync::Arc;
 
 #[test]

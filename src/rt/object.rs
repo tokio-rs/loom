@@ -1,5 +1,5 @@
-use crate::rt::{Access, Execution};
 use crate::rt::atomic;
+use crate::rt::{Access, Execution};
 
 use std::marker::PhantomData;
 use std::ops;

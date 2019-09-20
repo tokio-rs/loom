@@ -1,10 +1,10 @@
 #![deny(warnings, rust_2018_idioms)]
 
-use loom::sync::CausalCell;
 use loom::sync::atomic::{fence, AtomicUsize};
+use loom::sync::CausalCell;
 use loom::thread;
 
-use std::sync::atomic::Ordering::{Acquire, Release, Relaxed};
+use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
 use std::sync::Arc;
 
 #[test]

@@ -2,7 +2,7 @@ mod access;
 use self::access::Access;
 
 mod atomic;
-pub(crate) use self::atomic::{Atomic, fence};
+pub(crate) use self::atomic::{fence, Atomic};
 
 mod execution;
 pub(crate) use self::execution::Execution;
@@ -25,7 +25,6 @@ pub(crate) mod thread;
 
 mod vv;
 pub(crate) use self::vv::VersionVec;
-
 
 pub fn spawn<F>(f: F)
 where

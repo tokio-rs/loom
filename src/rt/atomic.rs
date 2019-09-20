@@ -83,15 +83,12 @@ impl Atomic {
         self.object_id.branch_rmw();
 
         super::synchronize(|execution| {
-            execution.objects[self.object_id]
-                .atomic_mut()
-                .unwrap()
-                .rmw(
-                    f,
-                    &mut execution.threads,
-                    success,
-                    failure,
-                )
+            execution.objects[self.object_id].atomic_mut().unwrap().rmw(
+                f,
+                &mut execution.threads,
+                success,
+                failure,
+            )
         })
     }
 
@@ -111,7 +108,10 @@ impl Atomic {
 }
 
 pub(crate) fn fence(order: Ordering) {
-    assert_eq!(order, Acquire, "only Acquire fences are currently supported");
+    assert_eq!(
+        order, Acquire,
+        "only Acquire fences are currently supported"
+    );
 
     rt::execution(|execution| {
         // Find all stores for all atomic objects and, if they have been read by
@@ -161,17 +161,9 @@ impl State {
         }
     }
 
-    fn load(
-        &mut self,
-        path: &mut Path,
-        threads: &mut thread::Set,
-        order: Ordering,
-    ) -> usize {
+    fn load(&mut self, path: &mut Path, threads: &mut thread::Set, order: Ordering) -> usize {
         // Pick a store that satisfies causality and specified ordering.
-        let index = self.history.pick_store(
-            path,
-            threads,
-            order);
+        let index = self.history.pick_store(path, threads, order);
 
         self.history.stores[index].first_seen.touch(threads);
         self.history.stores[index].sync.sync_load(threads, order);
@@ -224,7 +216,8 @@ impl State {
 
     fn happens_before(&self, vv: &VersionVec) {
         assert!({
-            self.history.stores
+            self.history
+                .stores
                 .iter()
                 .all(|store| vv >= store.sync.version_vec())
         });
