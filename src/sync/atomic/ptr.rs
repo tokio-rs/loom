@@ -47,6 +47,17 @@ impl<T> AtomicPtr<T> {
     ) -> Result<*mut T, *mut T> {
         self.0.compare_exchange(current, new, success, failure)
     }
+
+    /// Stores a value into the atomic if the current value is the same as the current value.
+    pub fn compare_exchange_weak(
+        &self,
+        current: *mut T,
+        new: *mut T,
+        success: Ordering,
+        failure: Ordering,
+    ) -> Result<*mut T, *mut T> {
+        self.compare_exchange(current, new, success, failure)
+    }
 }
 
 impl<T> Default for AtomicPtr<T> {
