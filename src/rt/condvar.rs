@@ -1,0 +1,96 @@
+use crate::rt::object::{self, Object};
+use crate::rt::{self, thread, Access, Mutex};
+
+use std::collections::VecDeque;
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub(crate) struct Condvar {
+    obj: Object,
+}
+
+#[derive(Debug)]
+pub(super) struct State {
+    /// Tracks access to the mutex
+    last_access: Option<Access>,
+
+    /// Threads waiting on the condvar
+    waiters: VecDeque<thread::Id>,
+}
+
+impl Condvar {
+    /// Create a new condition variable object
+    pub(crate) fn new() -> Condvar {
+        super::execution(|execution| {
+            let obj = execution.objects.insert_condvar(State {
+                last_access: None,
+                waiters: VecDeque::new(),
+            });
+
+            Condvar { obj }
+        })
+    }
+
+    /// Blocks the current thread until this condition variable receives a notification.
+    pub(crate) fn wait(&self, mutex: &Mutex) {
+        self.obj.branch();
+
+        rt::execution(|execution| {
+            let state = self.get_state(&mut execution.objects);
+
+            // Track the current thread as a waiter
+            state.waiters.push_back(execution.threads.active_id());
+        });
+
+        // Release the lock
+        mutex.release_lock();
+
+        // Disable the current thread
+        rt::park();
+
+        // Acquire the lock again
+        mutex.acquire_lock();
+    }
+
+    /// Wakes up one blocked thread on this condvar.
+    pub(crate) fn notify_one(&self) {
+        self.obj.branch();
+
+        rt::execution(|execution| {
+            let state = self.get_state(&mut execution.objects);
+
+            // Notify the first waiter
+            let thread = state.waiters.pop_front();
+
+            if let Some(thread) = thread {
+                execution.threads.unpark(thread);
+            }
+        })
+    }
+
+    /// Wakes up all blocked threads on this condvar.
+    pub(crate) fn notify_all(&self) {
+        self.obj.branch();
+
+        rt::execution(|execution| {
+            let state = self.get_state(&mut execution.objects);
+
+            for thread in state.waiters.drain(..) {
+                execution.threads.unpark(thread);
+            }
+        })
+    }
+
+    fn get_state<'a>(&self, store: &'a mut object::Store) -> &'a mut State {
+        self.obj.condvar_mut(store).unwrap()
+    }
+}
+
+impl State {
+    pub(super) fn last_dependent_accesses<'a>(&'a self) -> Box<dyn Iterator<Item = &Access> + 'a> {
+        Box::new(self.last_access.iter())
+    }
+
+    pub(super) fn set_last_access(&mut self, access: Access) {
+        self.last_access = Some(access);
+    }
+}

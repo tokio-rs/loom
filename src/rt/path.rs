@@ -10,9 +10,6 @@ use std::collections::VecDeque;
 pub struct Path {
     preemption_bound: Option<usize>,
 
-    /// Path taken
-    branches: Vec<Branch>,
-
     /// Current execution's position in the branch index.
     ///
     /// When the execution starts, this is zero, but `branches` might not be
@@ -21,6 +18,13 @@ pub struct Path {
     /// In order to perform an exhaustive search, the execution is seeded with a
     /// set of branches.
     pos: usize,
+
+    /// Sequence of all decisions in a loom execution that can be permuted.
+    ///
+    /// This vec tracks the branch kind and index into one of the vecs below.
+    /// Each branch kind is tracked separately to make backtracking algorithms
+    /// simpler.
+    branches: Vec<Branch>,
 
     /// Tracks threads to be scheduled
     schedules: Vec<Schedule>,

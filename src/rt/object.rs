@@ -1,40 +1,38 @@
-use crate::rt::atomic;
+use crate::rt::{atomic, condvar, mutex, notify};
 use crate::rt::{Access, Execution};
 
 use std::marker::PhantomData;
-use std::ops;
 
-#[derive(Debug)]
-pub struct Object {
-    /// Object kind
-    kind: Kind,
-}
-
-#[derive(Debug)]
-pub struct Set {
-    objects: Vec<Object>,
-}
-
-// TODO: rename handle or ref?
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct Id {
+pub struct Object {
+    /// Entry in the store
     id: usize,
+
+    /// Prevent handle from moving to other threads
     _p: PhantomData<::std::rc::Rc<()>>,
+}
+
+/// Stores objects
+#[derive(Debug)]
+pub struct Store {
+    entries: Vec<Entry>,
+}
+
+/// Entry in the object store. Enumerates the different kinds of objects that
+/// can be stored.
+#[derive(Debug)]
+enum Entry {
+    Atomic(atomic::State),
+    Mutex(mutex::State),
+    Condvar(condvar::State),
+    Notify(notify::State),
 }
 
 // TODO: mov to separate file
 #[derive(Debug, Copy, Clone)]
 pub struct Operation {
-    object_id: Id,
+    obj: Object,
     action: Action,
-}
-
-#[derive(Debug)]
-enum Kind {
-    Atomic(atomic::State),
-    Mutex(Option<Access>),
-    Condvar(Option<Access>),
-    Thread(Option<Access>),
 }
 
 // TODO: mov to separate file
@@ -53,106 +51,106 @@ pub(crate) enum Action {
 }
 
 impl Object {
-    pub(super) fn atomic_mut(&mut self) -> Option<&mut atomic::State> {
-        match self.kind {
-            Kind::Atomic(ref mut v) => Some(v),
+    pub(super) fn atomic_mut(self, store: &mut Store) -> Option<&mut atomic::State> {
+        match &mut store.entries[self.id] {
+            Entry::Atomic(v) => Some(v),
             _ => None,
         }
     }
 
-    pub(crate) fn mutex() -> Object {
-        Object {
-            kind: Kind::Mutex(None),
+    pub(super) fn condvar_mut(self, store: &mut Store) -> Option<&mut condvar::State> {
+        match &mut store.entries[self.id] {
+            Entry::Condvar(v) => Some(v),
+            _ => None,
         }
     }
 
-    pub(crate) fn condvar() -> Object {
-        Object {
-            kind: Kind::Condvar(None),
+    pub(super) fn mutex_mut(self, store: &mut Store) -> Option<&mut mutex::State> {
+        match &mut store.entries[self.id] {
+            Entry::Mutex(v) => Some(v),
+            _ => None,
         }
     }
 
-    pub(crate) fn thread() -> Object {
-        Object {
-            kind: Kind::Thread(None),
+    pub(super) fn notify_mut(self, store: &mut Store) -> Option<&mut notify::State> {
+        match &mut store.entries[self.id] {
+            Entry::Notify(v) => Some(v),
+            _ => None,
         }
     }
 }
 
-impl Set {
-    pub(crate) fn new() -> Set {
-        Set { objects: vec![] }
+impl Store {
+    /// Create a new, empty, object store
+    pub(crate) fn new() -> Store {
+        Store { entries: vec![] }
     }
 
-    pub(super) fn insert_atomic(&mut self, state: atomic::State) -> Id {
-        self.insert(Object {
-            kind: Kind::Atomic(state),
+    /// Insert a new atomic object into the store.
+    pub(super) fn insert_atomic(&mut self, state: atomic::State) -> Object {
+        self.insert(Entry::Atomic(state))
+    }
+
+    /// Iterate all atomic objects
+    pub(super) fn atomics_mut(&mut self) -> impl Iterator<Item = &mut atomic::State> {
+        self.entries.iter_mut().filter_map(|entry| match entry {
+            Entry::Atomic(entry) => Some(entry),
+            _ => None,
         })
     }
 
-    pub(crate) fn insert(&mut self, object: Object) -> Id {
-        let id = self.objects.len();
-        self.objects.push(object);
+    /// Insert a new mutex object into the store.
+    pub(super) fn insert_mutex(&mut self, state: mutex::State) -> Object {
+        self.insert(Entry::Mutex(state))
+    }
 
-        Id::from_usize(id)
+    /// Insert a new condition variable object into the store
+    pub(super) fn insert_condvar(&mut self, state: condvar::State) -> Object {
+        self.insert(Entry::Condvar(state))
+    }
+
+    /// Inserts a new notify object into the store
+    pub(super) fn insert_notify(&mut self, state: notify::State) -> Object {
+        self.insert(Entry::Notify(state))
+    }
+
+    fn insert(&mut self, entry: Entry) -> Object {
+        let id = self.entries.len();
+        self.entries.push(entry);
+
+        Object {
+            id,
+            _p: PhantomData,
+        }
     }
 
     pub(crate) fn last_dependent_accesses<'a>(
         &'a self,
         operation: Operation,
     ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
-        match self.objects[operation.object_id.as_usize()].kind {
-            Kind::Atomic(ref obj) => obj.last_dependent_accesses(operation.action),
-            Kind::Mutex(ref obj) => Box::new(obj.iter()),
-            Kind::Condvar(ref obj) => Box::new(obj.iter()),
-            Kind::Thread(ref obj) => Box::new(obj.iter()),
+        match &self.entries[operation.obj.id] {
+            Entry::Atomic(entry) => entry.last_dependent_accesses(operation.action),
+            Entry::Mutex(entry) => entry.last_dependent_accesses(),
+            Entry::Condvar(entry) => entry.last_dependent_accesses(),
+            Entry::Notify(entry) => entry.last_dependent_accesses(),
         }
     }
 
     pub(crate) fn set_last_access(&mut self, operation: Operation, access: Access) {
-        match self.objects[operation.object_id.as_usize()].kind {
-            Kind::Atomic(ref mut obj) => obj.set_last_access(operation.action, access),
-            Kind::Mutex(ref mut obj) => *obj = Some(access),
-            Kind::Condvar(ref mut obj) => *obj = Some(access),
-            Kind::Thread(ref mut obj) => *obj = Some(access),
+        match &mut self.entries[operation.obj.id] {
+            Entry::Atomic(entry) => entry.set_last_access(operation.action, access),
+            Entry::Mutex(entry) => entry.set_last_access(access),
+            Entry::Condvar(entry) => entry.set_last_access(access),
+            Entry::Notify(entry) => entry.set_last_access(access),
         }
     }
 
     pub(crate) fn clear(&mut self) {
-        self.objects.clear();
-    }
-
-    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut Object> {
-        self.objects.iter_mut()
+        self.entries.clear();
     }
 }
 
-impl ops::Index<Id> for Set {
-    type Output = Object;
-
-    fn index(&self, index: Id) -> &Self::Output {
-        self.objects.index(index.id)
-    }
-}
-
-impl ops::IndexMut<Id> for Set {
-    fn index_mut(&mut self, index: Id) -> &mut Self::Output {
-        self.objects.index_mut(index.id)
-    }
-}
-
-impl Id {
-    pub(crate) fn from_usize(id: usize) -> Id {
-        Id {
-            id,
-            _p: PhantomData,
-        }
-    }
-
-    pub(crate) fn as_usize(self) -> usize {
-        self.id
-    }
-
+impl Object {
     pub(crate) fn branch_load(self) {
         super::branch(|execution| {
             self.set_action(execution, Action::Load);
@@ -171,6 +169,7 @@ impl Id {
         });
     }
 
+    // TODO: rename `branch_disable`
     pub(crate) fn branch_acquire(self, is_locked: bool) {
         super::branch(|execution| {
             self.set_action(execution, Action::Opaque);
@@ -188,38 +187,13 @@ impl Id {
         })
     }
 
-    pub(crate) fn branch_park(self, seq_cst: bool) {
-        super::branch(|execution| {
-            self.set_action(execution, Action::Opaque);
-
-            if seq_cst {
-                execution.threads.seq_cst();
-            }
-        })
-    }
-
-    pub(crate) fn branch_unpark(self, seq_cst: bool) {
-        super::branch(|execution| {
-            self.set_action(execution, Action::Opaque);
-
-            if seq_cst {
-                execution.threads.seq_cst();
-            }
-        })
-    }
-
-    fn set_action(self, execution: &mut Execution, action: Action) {
-        execution.threads.active_mut().operation = Some(Operation {
-            object_id: self,
-            action,
-        });
+    pub(super) fn set_action(self, execution: &mut Execution, action: Action) {
+        execution.threads.active_mut().operation = Some(Operation { obj: self, action });
     }
 }
 
 impl Operation {
-    pub(crate) fn object_id(&self) -> Id {
-        self.object_id
+    pub(crate) fn object(&self) -> Object {
+        self.obj
     }
 }
-
-impl Kind {}

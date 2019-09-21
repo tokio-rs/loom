@@ -11,7 +11,8 @@ pub struct Execution {
 
     pub threads: thread::Set,
 
-    pub objects: object::Set,
+    /// All loom aware objects part of this execution run.
+    pub objects: object::Store,
 
     /// Maximum number of concurrent threads
     pub max_threads: usize,
@@ -36,24 +37,17 @@ impl Execution {
         preemption_bound: Option<usize>,
     ) -> Execution {
         let id = Id::new();
-        let mut threads = thread::Set::new(id, max_threads);
-
-        // Create the root thread
-        threads.new_thread();
+        let threads = thread::Set::new(id, max_threads);
 
         Execution {
             id,
             path: Path::new(max_branches, preemption_bound),
             threads,
-            objects: object::Set::new(),
+            objects: object::Store::new(),
             max_threads,
             max_history: 7,
             log: false,
         }
-    }
-
-    pub fn id(&self) -> Id {
-        self.id
     }
 
     /// Create state to track a new thread
@@ -74,20 +68,6 @@ impl Execution {
         thread_id
     }
 
-    pub fn unpark_thread(&mut self, id: thread::Id) {
-        if id == self.threads.active_id() {
-            return;
-        }
-
-        // Synchronize memory
-        let (active, th) = self.threads.active2_mut(id);
-        th.causality.join(&active.causality);
-
-        if th.is_blocked() || th.is_yield() {
-            th.set_runnable();
-        }
-    }
-
     /// Resets the execution state for the next execution run
     pub fn step(self) -> Option<Self> {
         let id = Id::new();
@@ -106,7 +86,6 @@ impl Execution {
         }
 
         threads.clear(id);
-        threads.new_thread();
 
         Some(Execution {
             id,

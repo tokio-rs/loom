@@ -4,13 +4,20 @@ use self::access::Access;
 mod atomic;
 pub(crate) use self::atomic::{fence, Atomic};
 
+mod condvar;
+pub(crate) use self::condvar::Condvar;
+
 mod execution;
 pub(crate) use self::execution::Execution;
+
+mod notify;
+pub(crate) use self::notify::Notify;
 
 pub(crate) mod object;
 use self::object::Action;
 
-pub(crate) mod oneshot;
+mod mutex;
+pub(crate) use self::mutex::Mutex;
 
 mod path;
 pub(crate) use self::path::Path;

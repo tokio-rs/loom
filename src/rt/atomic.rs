@@ -1,11 +1,12 @@
-use crate::rt::{self, object, thread, Access, Action, Path, Synchronize, VersionVec};
+use crate::rt::object::Object;
+use crate::rt::{self, thread, Access, Action, Path, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering;
 use std::sync::atomic::Ordering::Acquire;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) struct Atomic {
-    object_id: object::Id,
+    obj: Object,
 }
 
 #[derive(Debug, Default)]
@@ -48,29 +49,30 @@ impl Atomic {
                 seq_cst: false,
             });
 
-            let object_id = execution.objects.insert_atomic(state);
+            let obj = execution.objects.insert_atomic(state);
 
-            Atomic { object_id }
+            Atomic { obj }
         })
     }
 
     pub(crate) fn load(self, order: Ordering) -> usize {
-        self.object_id.branch_load();
+        self.obj.branch_load();
 
         super::synchronize(|execution| {
-            execution.objects[self.object_id]
-                .atomic_mut()
-                .unwrap()
-                .load(&mut execution.path, &mut execution.threads, order)
+            self.obj.atomic_mut(&mut execution.objects).unwrap().load(
+                &mut execution.path,
+                &mut execution.threads,
+                order,
+            )
         })
     }
 
     pub(crate) fn store(self, order: Ordering) {
-        self.object_id.branch_store();
+        self.obj.branch_store();
 
         super::synchronize(|execution| {
-            execution.objects[self.object_id]
-                .atomic_mut()
+            self.obj
+                .atomic_mut(&mut execution.objects)
                 .unwrap()
                 .store(&mut execution.threads, order)
         })
@@ -80,10 +82,10 @@ impl Atomic {
     where
         F: FnOnce(usize) -> Result<(), E>,
     {
-        self.object_id.branch_rmw();
+        self.obj.branch_rmw();
 
         super::synchronize(|execution| {
-            execution.objects[self.object_id].atomic_mut().unwrap().rmw(
+            self.obj.atomic_mut(&mut execution.objects).unwrap().rmw(
                 f,
                 &mut execution.threads,
                 success,
@@ -96,11 +98,11 @@ impl Atomic {
     /// This is required to safely call `get_mut()`.
     pub(crate) fn get_mut(self) {
         // TODO: Is this needed?
-        self.object_id.branch_rmw();
+        self.obj.branch_rmw();
 
         super::execution(|execution| {
-            execution.objects[self.object_id]
-                .atomic_mut()
+            self.obj
+                .atomic_mut(&mut execution.objects)
                 .unwrap()
                 .happens_before(&execution.threads.active().causality);
         });
@@ -116,14 +118,9 @@ pub(crate) fn fence(order: Ordering) {
     rt::execution(|execution| {
         // Find all stores for all atomic objects and, if they have been read by
         // the current thread, establish an acquire synchronization.
-        for object in execution.objects.iter_mut() {
-            let atomic = match object.atomic_mut() {
-                Some(atomic) => atomic,
-                None => continue,
-            };
-
+        for state in execution.objects.atomics_mut() {
             // Iterate all the stores
-            for store in &mut atomic.history.stores {
+            for store in &mut state.history.stores {
                 if !store.first_seen.is_seen_by_current(&execution.threads) {
                     continue;
                 }

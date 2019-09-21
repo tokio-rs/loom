@@ -1,16 +1,12 @@
 use super::{LockResult, MutexGuard};
-use crate::rt::object::{self, Object};
-use crate::rt::{self, thread};
+use crate::rt;
 
-use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::time::Duration;
 
 /// Mock implementation of `std::sync::Condvar`.
 #[derive(Debug)]
 pub struct Condvar {
-    object: object::Id,
-    waiters: RefCell<VecDeque<thread::Id>>,
+    object: rt::Condvar,
 }
 
 /// A type indicating whether a timed wait on a condition variable returned due
@@ -21,23 +17,22 @@ pub struct WaitTimeoutResult(bool);
 impl Condvar {
     /// Creates a new condition variable which is ready to be waited on and notified.
     pub fn new() -> Condvar {
-        rt::execution(|execution| Condvar {
-            object: execution.objects.insert(Object::condvar()),
-            waiters: RefCell::new(VecDeque::new()),
-        })
+        Condvar {
+            object: rt::Condvar::new(),
+        }
     }
 
     /// Blocks the current thread until this condition variable receives a notification.
     pub fn wait<'a, T>(&self, mut guard: MutexGuard<'a, T>) -> LockResult<MutexGuard<'a, T>> {
-        self.object.branch();
+        // Release the RefCell borrow guard allowing another thread to lock the
+        // data
+        guard.unborrow();
 
-        self.waiters.borrow_mut().push_back(thread::Id::current());
+        // Wait until notified
+        self.object.wait(guard.rt());
 
-        guard.release();
-
-        rt::park();
-
-        guard.acquire();
+        // Borrow the mutex guarded data again
+        guard.reborrow();
 
         Ok(guard)
     }
@@ -54,24 +49,11 @@ impl Condvar {
 
     /// Wakes up one blocked thread on this condvar.
     pub fn notify_one(&self) {
-        self.object.branch();
-
-        let th = self.waiters.borrow_mut().pop_front();
-
-        if let Some(th) = th {
-            th.unpark();
-        }
+        self.object.notify_one();
     }
 
     /// Wakes up all blocked threads on this condvar.
     pub fn notify_all(&self) {
-        self.object.branch();
-
-        // Grab a mut lock for sanity of `th.unpark()`...
-        let mut waiters = self.waiters.borrow_mut();
-
-        while let Some(th) = waiters.pop_front() {
-            th.unpark();
-        }
+        self.object.notify_all();
     }
 }
