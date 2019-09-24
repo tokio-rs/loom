@@ -32,13 +32,11 @@ where
             Poll::Pending => {}
         }
 
-        /*
         // Simulate spurious wakeups by running again
         match f.as_mut().poll(&mut cx) {
             Poll::Ready(val) => return val,
             Poll::Pending => {}
         }
-        */
 
         notify.notify.wait();
     }

@@ -1,5 +1,7 @@
 use crate::rt::object::{self, Object};
-use crate::rt::{self, Access};
+use crate::rt::{self, Access, Synchronize};
+
+use std::sync::atomic::Ordering::{Acquire, Release};
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Notify {
@@ -16,6 +18,9 @@ pub(super) struct State {
 
     /// Tracks access to the notify object
     last_access: Option<Access>,
+
+    /// Causality transfers between threads
+    synchronize: Synchronize,
 }
 
 impl Notify {
@@ -25,6 +30,7 @@ impl Notify {
                 seq_cst,
                 notified: false,
                 last_access: None,
+                synchronize: Synchronize::new(execution.max_threads),
             });
 
             Notify { obj }
@@ -35,11 +41,17 @@ impl Notify {
         self.obj.branch();
 
         rt::execution(|execution| {
-            if self.get_state(&mut execution.objects).seq_cst {
-                execution.threads.seq_cst();
-            }
+            {
+                let state = self.get_state(&mut execution.objects);
 
-            self.get_state(&mut execution.objects).notified = true;
+                state.synchronize.sync_store(&mut execution.threads, Release);
+
+                if state.seq_cst {
+                    execution.threads.seq_cst();
+                }
+
+                state.notified = true;
+            }
 
             let (active, inactive) = execution.threads.split_active();
 
@@ -71,6 +83,8 @@ impl Notify {
             let state = self.get_state(&mut execution.objects);
 
             assert!(state.notified);
+
+            state.synchronize.sync_load(&mut execution.threads, Acquire);
 
             if state.seq_cst {
                 // Establish sequential consistency between locks

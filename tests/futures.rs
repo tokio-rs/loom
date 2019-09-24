@@ -5,6 +5,7 @@ use loom::future::{block_on, AtomicWaker};
 use loom::sync::atomic::AtomicUsize;
 use loom::thread;
 
+use futures_util::future::poll_fn;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::Ordering::Relaxed;
@@ -57,4 +58,47 @@ fn valid() {
 
         block_on(fut);
     });
+}
+
+// Tests futures spuriously poll as this is a very common pattern
+#[test]
+fn spurious_poll() {
+    use loom::sync::atomic::AtomicBool;
+    use loom::sync::atomic::Ordering::{Acquire, Release};
+
+    let poll_thrice = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let actual = poll_thrice.clone();
+
+    loom::model(move || {
+        let gate = Arc::new(AtomicBool::new(false));
+        let mut cnt = 0;
+
+        let num_poll = block_on(poll_fn(|cx| {
+            if cnt == 0 {
+                let gate = gate.clone();
+                let waker = cx.waker().clone();
+
+                thread::spawn(move || {
+                    gate.store(true, Release);
+                    waker.wake();
+                });
+            }
+
+            cnt += 1;
+
+            if gate.load(Acquire) {
+                Poll::Ready(cnt)
+            } else {
+                Poll::Pending
+            }
+        }));
+
+        if num_poll == 3 {
+            poll_thrice.store(true, Release);
+        }
+
+        assert!(num_poll > 0 && num_poll <= 3, "actual = {}", num_poll);
+    });
+
+    assert!(actual.load(Acquire));
 }
