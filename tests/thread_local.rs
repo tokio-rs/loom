@@ -50,37 +50,57 @@ fn nested_with() {
 #[test]
 fn drop() {
     static DROPS: AtomicUsize = AtomicUsize::new(0);
-    #[allow(dead_code)]
-    struct CountDrops(&'static AtomicUsize);
+
+    struct CountDrops {
+        drops: &'static AtomicUsize,
+        dummy: bool,
+    }
 
     impl Drop for CountDrops {
         fn drop(&mut self) {
-            self.0.fetch_add(1, Ordering::Release);
+            self.drops.fetch_add(1, Ordering::Release);
+        }
+    }
+
+    impl CountDrops {
+        fn new(drops: &'static AtomicUsize) -> Self {
+            Self { drops, dummy: true }
         }
     }
 
     loom::thread_local! {
-        static DROPPED_LOCAL: CountDrops = CountDrops(&DROPS);
+        static DROPPED_LOCAL: CountDrops = CountDrops::new(&DROPS);
     }
 
     loom::model(|| {
         assert_eq!(DROPS.load(Ordering::Acquire), 0);
 
-        thread::spawn(|| assert_eq!(DROPS.load(Ordering::Acquire), 0))
-            .join()
-            .unwrap();
+        thread::spawn(|| {
+            // force access to the thread local so that it's initialized.
+            DROPPED_LOCAL.with(|local| assert!(local.dummy));
+            assert_eq!(DROPS.load(Ordering::Acquire), 0);
+        })
+        .join()
+        .unwrap();
 
         // When the first spawned thread completed, its copy of the thread local
         // should have been dropped.
         assert_eq!(DROPS.load(Ordering::Acquire), 1);
 
-        thread::spawn(|| assert_eq!(DROPS.load(Ordering::Acquire), 1))
-            .join()
-            .unwrap();
+        thread::spawn(|| {
+            // force access to the thread local so that it's initialized.
+            DROPPED_LOCAL.with(|local| assert!(local.dummy));
+            assert_eq!(DROPS.load(Ordering::Acquire), 1);
+        })
+        .join()
+        .unwrap();
 
         // When the second spawned thread completed, its copy of the thread local
         // should have been dropped as well.
         assert_eq!(DROPS.load(Ordering::Acquire), 2);
+
+        // force access to the thread local so that it's initialized.
+        DROPPED_LOCAL.with(|local| assert!(local.dummy));
     });
 
     // Finally, when the model's "main thread" completes, its copy of the local

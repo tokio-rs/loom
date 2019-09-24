@@ -27,7 +27,7 @@ pub struct Thread {
     /// Number of times the thread yielded
     pub yield_count: usize,
 
-    locals: HashMap<LocalKeyId, Box<dyn Any>>,
+    locals: HashMap<LocalKeyId, LocalValue>,
 }
 
 #[derive(Debug)]
@@ -64,6 +64,8 @@ pub enum State {
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone)]
 struct LocalKeyId(usize);
+
+struct LocalValue(Option<Box<dyn Any>>);
 
 impl Thread {
     fn new(id: Id, max_threads: usize) -> Thread {
@@ -124,6 +126,10 @@ impl Thread {
 
     pub fn set_terminated(&mut self) {
         self.state = State::Terminated;
+        // run the Drop impls of any mock thread-locals created by this thread.
+        for (_, local) in &mut self.locals {
+            local.0.take();
+        }
     }
 
     pub(crate) fn unpark(&mut self, unparker: &Thread) {
@@ -301,16 +307,15 @@ impl Set {
         (&mut active[0], iter)
     }
 
-    pub(crate) fn local<T: 'static>(&mut self, key: &'static crate::thread::LocalKey<T>) -> &T {
+    pub(crate) fn local<T: 'static>(
+        &mut self,
+        key: &'static crate::thread::LocalKey<T>,
+    ) -> Result<&T, AccessError> {
         self.active_mut()
             .locals
             .entry(LocalKeyId::new(key))
-            .or_insert_with(|| {
-                let new = (key.init)();
-                Box::new(new)
-            })
-            .downcast_ref::<T>()
-            .expect("local value must downcast to expected type")
+            .or_insert_with(|| LocalValue::new(key.init))
+            .get()
     }
 }
 
@@ -353,5 +358,38 @@ impl fmt::Debug for Id {
 impl LocalKeyId {
     fn new<T>(key: &'static crate::thread::LocalKey<T>) -> Self {
         Self(key as *const _ as usize)
+    }
+}
+
+impl LocalValue {
+    fn new<T: 'static>(init: fn() -> T) -> Self {
+        Self(Some(Box::new(init())))
+    }
+
+    fn get<T: 'static>(&self) -> Result<&T, AccessError> {
+        self.0
+            .as_ref()
+            .ok_or(AccessError { _private: () })
+            .map(|val| {
+                val.downcast_ref::<T>()
+                    .expect("local value must downcast to expected type")
+            })
+    }
+}
+
+/// An error returned by [`LocalKey::try_with`](struct.LocalKey.html#method.try_with).
+pub struct AccessError {
+    _private: (),
+}
+
+impl fmt::Debug for AccessError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AccessError").finish()
+    }
+}
+
+impl fmt::Display for AccessError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt("already destroyed", f)
     }
 }
