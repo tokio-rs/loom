@@ -149,3 +149,38 @@ if_futures! {
 pub fn __debug_enabled() -> bool {
     rt::execution(|e| e.log)
 }
+
+/// Mock version of `std::thread_local!`.
+// This is defined *after* all other code in `loom`, since we use
+// `scoped_thread_local!` internally, which uses the `std::thread_local!` macro
+// without namespacing it. Defining this after all other `loom` modules
+// prevents internal code from accidentally using the mock thread local instead
+// of the real one.
+#[macro_export]
+macro_rules! thread_local {
+    // empty (base case for the recursion)
+    () => {};
+
+    // process multiple declarations
+    ($(#[$attr:meta])* $vis:vis static $name:ident: $t:ty = $init:expr; $($rest:tt)*) => (
+        $crate::__thread_local_inner!($(#[$attr])* $vis $name, $t, $init);
+        $crate::thread_local!($($rest)*);
+    );
+
+    // handle a single declaration
+    ($(#[$attr:meta])* $vis:vis static $name:ident: $t:ty = $init:expr) => (
+        $crate::__thread_local_inner!($(#[$attr])* $vis $name, $t, $init);
+    );
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __thread_local_inner {
+    ($(#[$attr:meta])* $vis:vis $name:ident, $t:ty, $init:expr) => {
+        $(#[$attr])* $vis const $name: $crate::thread::LocalKey<$t> =
+            $crate::thread::LocalKey {
+                init: (|| { $init }) as fn() -> $t,
+                _p: std::marker::PhantomData,
+            };
+    };
+}

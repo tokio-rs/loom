@@ -2,9 +2,7 @@ use crate::rt::execution;
 use crate::rt::object::Operation;
 use crate::rt::vv::VersionVec;
 
-use std::{fmt, ops};
-
-#[derive(Debug)]
+use std::{any::Any, collections::HashMap, fmt, ops};
 pub struct Thread {
     pub id: Id,
 
@@ -28,6 +26,8 @@ pub struct Thread {
 
     /// Number of times the thread yielded
     pub yield_count: usize,
+
+    locals: HashMap<LocalKeyId, Box<dyn Any>>,
 }
 
 #[derive(Debug)]
@@ -62,6 +62,9 @@ pub enum State {
     Terminated,
 }
 
+#[derive(Eq, PartialEq, Hash, Copy, Clone)]
+struct LocalKeyId(usize);
+
 impl Thread {
     fn new(id: Id, max_threads: usize) -> Thread {
         Thread {
@@ -73,6 +76,7 @@ impl Thread {
             dpor_vv: VersionVec::new(max_threads),
             last_yield: None,
             yield_count: 0,
+            locals: HashMap::new(),
         }
     }
 
@@ -128,6 +132,24 @@ impl Thread {
         if self.is_blocked() || self.is_yield() {
             self.set_runnable();
         }
+    }
+}
+
+impl fmt::Debug for Thread {
+    // Manual debug impl is necessary because thread locals are represented as
+    // `dyn Any`, which does not implement `Debug`.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Thread")
+            .field("id", &self.id)
+            .field("state", &self.state)
+            .field("critical", &self.critical)
+            .field("operation", &self.operation)
+            .field("causality", &self.causality)
+            .field("dpor_vv", &self.dpor_vv)
+            .field("last_yield", &self.last_yield)
+            .field("yield_count", &self.yield_count)
+            .field("locals", &format_args!("[..locals..]"))
+            .finish()
     }
 }
 
@@ -278,6 +300,21 @@ impl Set {
 
         (&mut active[0], iter)
     }
+
+    pub(crate) fn local<'a, T: 'static>(
+        &'a mut self,
+        key: &'static crate::thread::LocalKey<T>,
+    ) -> &T {
+        self.active_mut()
+            .locals
+            .entry(LocalKeyId::new(key))
+            .or_insert_with(|| {
+                let new = (key.init)();
+                Box::new(new)
+            })
+            .downcast_ref::<T>()
+            .expect("local value must downcast to expected type")
+    }
 }
 
 impl ops::Index<Id> for Set {
@@ -313,5 +350,11 @@ impl fmt::Display for Id {
 impl fmt::Debug for Id {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "Id({})", self.id)
+    }
+}
+
+impl LocalKeyId {
+    fn new<T>(key: &'static crate::thread::LocalKey<T>) -> Self {
+        Self(key as *const _ as usize)
     }
 }
