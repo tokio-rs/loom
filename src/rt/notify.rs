@@ -44,7 +44,9 @@ impl Notify {
             {
                 let state = self.get_state(&mut execution.objects);
 
-                state.synchronize.sync_store(&mut execution.threads, Release);
+                state
+                    .synchronize
+                    .sync_store(&mut execution.threads, Release);
 
                 if state.seq_cst {
                     execution.threads.seq_cst();
