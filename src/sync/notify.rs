@@ -1,7 +1,7 @@
 use crate::rt;
 
-use std::cell::Cell;
-use std::rc::Rc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering::SeqCst;
 
 /// Implements the park / unpark pattern directly using Loom's internal
 /// primitives.
@@ -14,7 +14,7 @@ pub struct Notify {
     object: rt::Notify,
 
     /// Enforces the single waiter invariant
-    waiting: Rc<Cell<bool>>,
+    waiting: AtomicBool,
 }
 
 impl Notify {
@@ -22,7 +22,7 @@ impl Notify {
     pub fn new() -> Notify {
         Notify {
             object: rt::Notify::new(false),
-            waiting: Rc::new(Cell::new(false)),
+            waiting: AtomicBool::new(false),
         }
     }
 
@@ -33,13 +33,10 @@ impl Notify {
 
     /// Wait for a notification
     pub fn wait(&self) {
-        assert!(
-            !self.waiting.get(),
-            "only a single thread may wait on `Notify`"
-        );
+        let actual = self.waiting.compare_and_swap(false, true, SeqCst);
+        assert!(!actual, "only a single thread may wait on `Notify`");
 
-        self.waiting.set(true);
         self.object.wait();
-        self.waiting.set(false);
+        self.waiting.store(false, SeqCst);
     }
 }

@@ -1,12 +1,15 @@
 use crate::rt;
 
-use std::cell::RefCell;
 use std::sync::atomic::Ordering;
+use std::sync::Mutex;
 
 #[derive(Debug)]
 pub struct Atomic<T> {
+    /// Atomic object
     object: rt::Atomic,
-    values: RefCell<Vec<T>>,
+
+    /// All stores to the atomic
+    values: Mutex<Vec<T>>,
 }
 
 impl<T> Atomic<T>
@@ -16,32 +19,32 @@ where
     pub fn new(value: T) -> Atomic<T> {
         Atomic {
             object: rt::Atomic::new(),
-            values: RefCell::new(vec![value]),
+            values: Mutex::new(vec![value]),
         }
     }
 
     pub fn get_mut(&mut self) -> &mut T {
         self.object.get_mut();
-        self.values.get_mut().last_mut().unwrap()
+        self.values.get_mut().unwrap().last_mut().unwrap()
     }
 
     pub unsafe fn unsync_load(&self) -> T {
         self.object.get_mut();
-        *self.values.borrow().last().unwrap()
+        *self.values.lock().unwrap().last().unwrap()
     }
 
     pub fn load(&self, order: Ordering) -> T {
         let object = self.object;
         let index = self.object.load(order);
         assert!(object == self.object, "atomic instance changed mid schedule, most likely due to a bug in the algorithm being checked");
-        self.values.borrow_mut()[index]
+        self.values.lock().unwrap()[index]
     }
 
     pub fn store(&self, value: T, order: Ordering) {
         let object = self.object;
         self.object.store(order);
         assert!(object == self.object, "atomic instance changed mid schedule, most likely due to a bug in the algorithm being checked");
-        self.values.borrow_mut().push(value);
+        self.values.lock().unwrap().push(value);
     }
 
     /// Read-modify-write
@@ -61,10 +64,10 @@ where
         let object = self.object;
         let index = self.object.rmw(
             |index| {
-                let v = f(self.values.borrow()[index]);
+                let v = f(self.values.lock().unwrap()[index]);
                 match v {
                     Ok(next) => {
-                        self.values.borrow_mut().push(next);
+                        self.values.lock().unwrap().push(next);
                         Ok(())
                     }
                     Err(e) => Err(e),
@@ -76,7 +79,7 @@ where
 
         assert!(object == self.object, "atomic instance changed mid schedule, most likely due to a bug in the algorithm being checked");
 
-        Ok(self.values.borrow()[index])
+        Ok(self.values.lock().unwrap()[index])
     }
 
     pub fn swap(&self, val: T, order: Ordering) -> T {

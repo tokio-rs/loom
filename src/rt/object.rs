@@ -1,20 +1,22 @@
-use crate::rt::{atomic, condvar, mutex, notify};
+use crate::rt::{atomic, condvar, execution, mutex, notify};
 use crate::rt::{Access, Execution};
-
-use std::marker::PhantomData;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Object {
-    /// Entry in the store
-    id: usize,
+    /// Index in the store
+    index: usize,
 
-    /// Prevent handle from moving to other threads
-    _p: PhantomData<::std::rc::Rc<()>>,
+    /// Execution the object is part of
+    execution_id: execution::Id,
 }
 
 /// Stores objects
 #[derive(Debug)]
 pub struct Store {
+    /// Execution this store is part of
+    execution_id: execution::Id,
+
+    /// Stored state for all objects.
     entries: Vec<Entry>,
 }
 
@@ -52,28 +54,36 @@ pub(crate) enum Action {
 
 impl Object {
     pub(super) fn atomic_mut(self, store: &mut Store) -> Option<&mut atomic::State> {
-        match &mut store.entries[self.id] {
+        assert_eq!(self.execution_id, store.execution_id);
+
+        match &mut store.entries[self.index] {
             Entry::Atomic(v) => Some(v),
             _ => None,
         }
     }
 
     pub(super) fn condvar_mut(self, store: &mut Store) -> Option<&mut condvar::State> {
-        match &mut store.entries[self.id] {
+        assert_eq!(self.execution_id, store.execution_id);
+
+        match &mut store.entries[self.index] {
             Entry::Condvar(v) => Some(v),
             _ => None,
         }
     }
 
     pub(super) fn mutex_mut(self, store: &mut Store) -> Option<&mut mutex::State> {
-        match &mut store.entries[self.id] {
+        assert_eq!(self.execution_id, store.execution_id);
+
+        match &mut store.entries[self.index] {
             Entry::Mutex(v) => Some(v),
             _ => None,
         }
     }
 
     pub(super) fn notify_mut(self, store: &mut Store) -> Option<&mut notify::State> {
-        match &mut store.entries[self.id] {
+        assert_eq!(self.execution_id, store.execution_id);
+
+        match &mut store.entries[self.index] {
             Entry::Notify(v) => Some(v),
             _ => None,
         }
@@ -82,8 +92,11 @@ impl Object {
 
 impl Store {
     /// Create a new, empty, object store
-    pub(crate) fn new() -> Store {
-        Store { entries: vec![] }
+    pub(crate) fn new(execution_id: execution::Id) -> Store {
+        Store {
+            execution_id,
+            entries: vec![],
+        }
     }
 
     /// Insert a new atomic object into the store.
@@ -115,12 +128,12 @@ impl Store {
     }
 
     fn insert(&mut self, entry: Entry) -> Object {
-        let id = self.entries.len();
+        let index = self.entries.len();
         self.entries.push(entry);
 
         Object {
-            id,
-            _p: PhantomData,
+            index,
+            execution_id: self.execution_id,
         }
     }
 
@@ -128,7 +141,7 @@ impl Store {
         &'a self,
         operation: Operation,
     ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
-        match &self.entries[operation.obj.id] {
+        match &self.entries[operation.obj.index] {
             Entry::Atomic(entry) => entry.last_dependent_accesses(operation.action),
             Entry::Mutex(entry) => entry.last_dependent_accesses(),
             Entry::Condvar(entry) => entry.last_dependent_accesses(),
@@ -137,7 +150,7 @@ impl Store {
     }
 
     pub(crate) fn set_last_access(&mut self, operation: Operation, access: Access) {
-        match &mut self.entries[operation.obj.id] {
+        match &mut self.entries[operation.obj.index] {
             Entry::Atomic(entry) => entry.set_last_access(operation.action, access),
             Entry::Mutex(entry) => entry.set_last_access(access),
             Entry::Condvar(entry) => entry.set_last_access(access),
