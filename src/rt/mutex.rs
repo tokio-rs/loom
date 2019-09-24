@@ -13,7 +13,8 @@ pub(super) struct State {
     /// If the mutex should establish sequential consistency.
     seq_cst: bool,
 
-    /// `true` when the mutex is currently in the locked state.
+    /// `Some` when the mutex is in the locked state. The `thread::Id`
+    /// references the thread that currently holds the mutex.
     lock: Option<thread::Id>,
 
     /// Tracks access to the mutex
