@@ -301,10 +301,7 @@ impl Set {
         (&mut active[0], iter)
     }
 
-    pub(crate) fn local<'a, T: 'static>(
-        &'a mut self,
-        key: &'static crate::thread::LocalKey<T>,
-    ) -> &T {
+    pub(crate) fn local<T: 'static>(&mut self, key: &'static crate::thread::LocalKey<T>) -> &T {
         self.active_mut()
             .locals
             .entry(LocalKeyId::new(key))
