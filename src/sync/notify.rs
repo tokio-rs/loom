@@ -33,7 +33,10 @@ impl Notify {
 
     /// Wait for a notification
     pub fn wait(&self) {
-        assert!(!self.waiting.get(), "only a single thread may wait on `Notify`");
+        assert!(
+            !self.waiting.get(),
+            "only a single thread may wait on `Notify`"
+        );
 
         self.waiting.set(true);
         self.object.wait();
