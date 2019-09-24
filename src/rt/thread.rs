@@ -23,12 +23,6 @@ pub struct Thread {
     /// Tracks DPOR relations
     pub dpor_vv: VersionVec,
 
-    /// Tracks if a Future's `Waker` has been called
-    pub notified: bool,
-
-    /// Tracks if a Future parked because it returned `Poll::Pending`
-    pub pending: bool,
-
     /// Version at which the thread last yielded
     pub last_yield: Option<usize>,
 
@@ -77,8 +71,6 @@ impl Thread {
             operation: None,
             causality: VersionVec::new(max_threads),
             dpor_vv: VersionVec::new(max_threads),
-            notified: false,
-            pending: false,
             last_yield: None,
             yield_count: 0,
         }
@@ -129,6 +121,14 @@ impl Thread {
     pub fn set_terminated(&mut self) {
         self.state = State::Terminated;
     }
+
+    pub(crate) fn unpark(&mut self, unparker: &Thread) {
+        self.causality.join(&unparker.causality);
+
+        if self.is_blocked() || self.is_yield() {
+            self.set_runnable();
+        }
+    }
 }
 
 impl Set {
@@ -136,10 +136,15 @@ impl Set {
     ///
     /// The set may contain up to `max_threads` threads.
     pub fn new(execution_id: execution::Id, max_threads: usize) -> Set {
+        let mut threads = Vec::with_capacity(max_threads);
+
+        // Push initial thread
+        threads.push(Thread::new(Id::new(execution_id, 0), max_threads));
+
         Set {
             execution_id,
-            threads: Vec::with_capacity(max_threads),
-            active: None,
+            threads,
+            active: Some(0),
             seq_cst_causality: VersionVec::new(max_threads),
         }
     }
@@ -159,10 +164,6 @@ impl Set {
         // Push the thread onto the stack
         self.threads
             .push(Thread::new(Id::new(self.execution_id, id), max_threads));
-
-        if self.active.is_none() {
-            self.active = Some(id);
-        }
 
         Id::new(self.execution_id, id)
     }
@@ -217,6 +218,16 @@ impl Set {
         self.active().causality[id]
     }
 
+    pub(crate) fn unpark(&mut self, id: Id) {
+        if id == self.active_id() {
+            return;
+        }
+
+        // Synchronize memory
+        let (active, th) = self.active2_mut(id);
+        th.unpark(&active);
+    }
+
     /// Insert a point of sequential consistency
     pub fn seq_cst(&mut self) {
         self.threads[self.active.unwrap()]
@@ -227,9 +238,14 @@ impl Set {
     }
 
     pub fn clear(&mut self, execution_id: execution::Id) {
-        self.execution_id = execution_id;
         self.threads.clear();
-        self.active = None;
+        self.threads.push(Thread::new(
+            Id::new(execution_id, 0),
+            self.threads.capacity(),
+        ));
+
+        self.execution_id = execution_id;
+        self.active = Some(0);
         self.seq_cst_causality = VersionVec::new(self.max());
     }
 
@@ -249,6 +265,18 @@ impl Set {
                 .enumerate()
                 .map(move |(id, thread)| (Id::new(execution_id, id), thread))
         })
+    }
+
+    /// Split the set of threads into the active thread and an iterator of all
+    /// other threads.
+    pub fn split_active(&mut self) -> (&mut Thread, impl Iterator<Item = &mut Thread>) {
+        let active = self.active.unwrap();
+        let (one, two) = self.threads.split_at_mut(active);
+        let (active, two) = two.split_at_mut(1);
+
+        let iter = one.iter_mut().chain(two.iter_mut());
+
+        (&mut active[0], iter)
     }
 }
 
@@ -273,51 +301,6 @@ impl Id {
 
     pub fn as_usize(self) -> usize {
         self.id
-    }
-
-    pub fn current() -> Id {
-        super::execution(|execution| execution.threads.active_id())
-    }
-
-    pub fn unpark(self) {
-        super::execution(|execution| {
-            assert_eq!(execution.id(), self.execution_id);
-            execution.unpark_thread(self);
-        });
-    }
-
-    #[cfg(feature = "futures")]
-    pub fn future_notify(self) {
-        let yield_now = super::execution(|execution| {
-            assert_eq!(execution.id(), self.execution_id);
-
-            execution.threads[self].notified = true;
-
-            if self == execution.threads.active_id() {
-                let num_runnable = execution
-                    .threads
-                    .iter()
-                    .filter(|(_, th)| th.is_runnable())
-                    .count();
-
-                num_runnable > 1
-            } else {
-                // Only unpark the future's executor thread if it parked because
-                // the future returned `Poll::Pending`. Otherwise, we would
-                // accidentally wake up the thread even though it actually parked
-                // from e.g. waiting on a locked mutex. Instead, since we have
-                // set the `notified` flag, the future will immediately poll
-                // again after it finally returns `Poll::Pending`.
-                if execution.threads[self].pending {
-                    execution.unpark_thread(self);
-                }
-                false
-            }
-        });
-
-        if yield_now {
-            super::yield_now();
-        }
     }
 }
 

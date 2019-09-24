@@ -1,16 +1,14 @@
-use crate::rt::object::{self, Object};
-use crate::rt::{self, thread};
+use crate::rt;
 
-use std::cell::{Cell, RefCell, RefMut};
+use std::cell::{RefCell, RefMut};
 use std::ops;
 use std::sync::LockResult;
 
 /// Mock implementation of `std::sync::Mutex`.
 #[derive(Debug)]
 pub struct Mutex<T> {
+    object: rt::Mutex,
     data: RefCell<T>,
-    lock: Cell<Option<thread::Id>>,
-    object: object::Id,
 }
 
 /// Mock implementation of `std::sync::MutexGuard`.
@@ -23,93 +21,36 @@ pub struct MutexGuard<'a, T> {
 impl<T> Mutex<T> {
     /// Creates a new mutex in an unlocked state ready for use.
     pub fn new(data: T) -> Mutex<T> {
-        rt::execution(|execution| Mutex {
+        Mutex {
             data: RefCell::new(data),
-            lock: Cell::new(None),
-            object: execution.objects.insert(Object::mutex()),
-        })
+            object: rt::Mutex::new(true),
+        }
     }
 }
 
 impl<T> Mutex<T> {
     /// Acquires a mutex, blocking the current thread until it is able to do so.
     pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {
-        self.acquire();
+        self.object.acquire_lock();
 
         Ok(MutexGuard {
             lock: self,
             data: Some(self.data.borrow_mut()),
         })
     }
-
-    pub(crate) fn acquire(&self) {
-        self.object.branch_acquire(self.is_locked());
-
-        rt::execution(|execution| {
-            execution.threads.seq_cst();
-
-            let thread_id = execution.threads.active_id();
-
-            // Block all threads attempting to acquire the mutex
-            for (id, thread) in execution.threads.iter_mut() {
-                if id == thread_id {
-                    continue;
-                }
-
-                let object_id = thread
-                    .operation
-                    .as_ref()
-                    .map(|operation| operation.object_id());
-
-                if object_id == Some(self.object) {
-                    thread.set_blocked();
-                }
-            }
-
-            // Set the lock to the current thread
-            self.lock.set(Some(thread_id));
-        });
-    }
-
-    pub(crate) fn release(&self) {
-        self.lock.set(None);
-
-        rt::execution(|execution| {
-            execution.threads.seq_cst();
-
-            let thread_id = execution.threads.active_id();
-
-            for (id, thread) in execution.threads.iter_mut() {
-                if id == thread_id {
-                    continue;
-                }
-
-                let object_id = thread
-                    .operation
-                    .as_ref()
-                    .map(|operation| operation.object_id());
-
-                if object_id == Some(self.object) {
-                    thread.set_runnable();
-                }
-            }
-        });
-    }
-
-    fn is_locked(&self) -> bool {
-        self.lock.get().is_some()
-    }
 }
 
 impl<'a, T: 'a> MutexGuard<'a, T> {
-    pub(crate) fn release(&mut self) {
+    pub(super) fn unborrow(&mut self) {
         self.data = None;
-        self.lock.release();
     }
 
-    pub(crate) fn acquire(&mut self) {
-        self.lock.acquire();
+    pub(super) fn reborrow(&mut self) {
         self.data = Some(self.lock.data.borrow_mut());
+    }
+
+    pub(super) fn rt(&self) -> &rt::Mutex {
+        &self.lock.object
     }
 }
 
@@ -129,6 +70,7 @@ impl<'a, T> ops::DerefMut for MutexGuard<'a, T> {
 
 impl<'a, T: 'a> Drop for MutexGuard<'a, T> {
     fn drop(&mut self) {
-        self.release();
+        self.data = None;
+        self.lock.object.release_lock();
     }
 }

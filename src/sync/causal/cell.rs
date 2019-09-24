@@ -38,8 +38,10 @@ impl<T> CausalCell<T> {
     where
         F: FnOnce(*const T) -> R,
     {
-        self.check();
-        self.with_unchecked(f)
+        rt::critical(|| {
+            self.check();
+            self.with_unchecked(f)
+        })
     }
 
     /// Get a mutable pointer to the wrapped value.
@@ -52,8 +54,10 @@ impl<T> CausalCell<T> {
     where
         F: FnOnce(*mut T) -> R,
     {
-        self.check_mut();
-        self.with_mut_unchecked(f)
+        rt::critical(|| {
+            self.check_mut();
+            self.with_mut_unchecked(f)
+        })
     }
 
     /// Get an immutable pointer to the wrapped value.
@@ -61,7 +65,7 @@ impl<T> CausalCell<T> {
     where
         F: FnOnce(*const T) -> R,
     {
-        rt::critical(|| f(self.data.get()))
+        f(self.data.get())
     }
 
     /// Get a mutable pointer to the wrapped value.
@@ -69,7 +73,7 @@ impl<T> CausalCell<T> {
     where
         F: FnOnce(*mut T) -> R,
     {
-        rt::critical(|| f(self.data.get()))
+        f(self.data.get())
     }
 
     /// Check that the current thread can make an immutable access without
