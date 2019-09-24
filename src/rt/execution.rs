@@ -43,7 +43,7 @@ impl Execution {
             id,
             path: Path::new(max_branches, preemption_bound),
             threads,
-            objects: object::Store::new(),
+            objects: object::Store::new(id),
             max_threads,
             max_history: 7,
             log: false,
