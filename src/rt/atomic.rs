@@ -115,7 +115,7 @@ pub(crate) fn fence(order: Ordering) {
         "only Acquire fences are currently supported"
     );
 
-    rt::execution(|execution| {
+    rt::synchronize(|execution| {
         // Find all stores for all atomic objects and, if they have been read by
         // the current thread, establish an acquire synchronization.
         for state in execution.objects.atomics_mut() {
@@ -128,8 +128,6 @@ pub(crate) fn fence(order: Ordering) {
                 store.sync.sync_load(&mut execution.threads, order);
             }
         }
-
-        execution.threads.active_causality_inc();
     });
 }
 
