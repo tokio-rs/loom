@@ -140,10 +140,7 @@ impl<T> CausalCell<T> {
                     "Causality violation: \
                      Concurrent mutable access and immutable access(es): \
                      cell.with: v={:?}; mut v: {:?}; thread[{}]={:?}",
-                    immut_access_version,
-                    mut_access_version,
-                    thread_id,
-                    thread_causality
+                    immut_access_version, mut_access_version, thread_id, thread_causality
                 );
 
                 return Err(msg);
@@ -184,10 +181,7 @@ impl<T> CausalCell<T> {
                     "Causality violation: \
                      Concurrent mutable accesses: \
                      cell.with_mut: v={:?}; mut v={:?}; thread[{}]={:?}",
-                    immut_access_version,
-                    mut_access_version,
-                    thread_id,
-                    thread_causality,
+                    immut_access_version, mut_access_version, thread_id, thread_causality,
                 );
 
                 return Err(msg);
@@ -201,10 +195,7 @@ impl<T> CausalCell<T> {
                     "Causality violation: \
                      Concurrent mutable access and immutable access(es): \
                      cell.with_mut: v={:?}; mut v={:?}; thread[{}]={:?}",
-                    immut_access_version,
-                    mut_access_version,
-                    thread_id,
-                    thread_causality,
+                    immut_access_version, mut_access_version, thread_id, thread_causality,
                 );
 
                 return Err(msg);
