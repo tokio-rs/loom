@@ -2,9 +2,7 @@ use crate::rt::execution;
 use crate::rt::object::Operation;
 use crate::rt::vv::VersionVec;
 
-use std::{fmt, ops};
-
-#[derive(Debug)]
+use std::{any::Any, collections::HashMap, fmt, ops};
 pub struct Thread {
     pub id: Id,
 
@@ -28,6 +26,8 @@ pub struct Thread {
 
     /// Number of times the thread yielded
     pub yield_count: usize,
+
+    locals: HashMap<LocalKeyId, LocalValue>,
 }
 
 #[derive(Debug)]
@@ -62,6 +62,11 @@ pub enum State {
     Terminated,
 }
 
+#[derive(Eq, PartialEq, Hash, Copy, Clone)]
+struct LocalKeyId(usize);
+
+struct LocalValue(Option<Box<dyn Any>>);
+
 impl Thread {
     fn new(id: Id, max_threads: usize) -> Thread {
         Thread {
@@ -73,6 +78,7 @@ impl Thread {
             dpor_vv: VersionVec::new(max_threads),
             last_yield: None,
             yield_count: 0,
+            locals: HashMap::new(),
         }
     }
 
@@ -120,6 +126,10 @@ impl Thread {
 
     pub fn set_terminated(&mut self) {
         self.state = State::Terminated;
+        // run the Drop impls of any mock thread-locals created by this thread.
+        for (_, local) in &mut self.locals {
+            local.0.take();
+        }
     }
 
     pub(crate) fn unpark(&mut self, unparker: &Thread) {
@@ -128,6 +138,24 @@ impl Thread {
         if self.is_blocked() || self.is_yield() {
             self.set_runnable();
         }
+    }
+}
+
+impl fmt::Debug for Thread {
+    // Manual debug impl is necessary because thread locals are represented as
+    // `dyn Any`, which does not implement `Debug`.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Thread")
+            .field("id", &self.id)
+            .field("state", &self.state)
+            .field("critical", &self.critical)
+            .field("operation", &self.operation)
+            .field("causality", &self.causality)
+            .field("dpor_vv", &self.dpor_vv)
+            .field("last_yield", &self.last_yield)
+            .field("yield_count", &self.yield_count)
+            .field("locals", &format_args!("[..locals..]"))
+            .finish()
     }
 }
 
@@ -278,6 +306,17 @@ impl Set {
 
         (&mut active[0], iter)
     }
+
+    pub(crate) fn local<T: 'static>(
+        &mut self,
+        key: &'static crate::thread::LocalKey<T>,
+    ) -> Result<&T, AccessError> {
+        self.active_mut()
+            .locals
+            .entry(LocalKeyId::new(key))
+            .or_insert_with(|| LocalValue::new(key.init))
+            .get()
+    }
 }
 
 impl ops::Index<Id> for Set {
@@ -313,5 +352,44 @@ impl fmt::Display for Id {
 impl fmt::Debug for Id {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "Id({})", self.id)
+    }
+}
+
+impl LocalKeyId {
+    fn new<T>(key: &'static crate::thread::LocalKey<T>) -> Self {
+        Self(key as *const _ as usize)
+    }
+}
+
+impl LocalValue {
+    fn new<T: 'static>(init: fn() -> T) -> Self {
+        Self(Some(Box::new(init())))
+    }
+
+    fn get<T: 'static>(&self) -> Result<&T, AccessError> {
+        self.0
+            .as_ref()
+            .ok_or(AccessError { _private: () })
+            .map(|val| {
+                val.downcast_ref::<T>()
+                    .expect("local value must downcast to expected type")
+            })
+    }
+}
+
+/// An error returned by [`LocalKey::try_with`](struct.LocalKey.html#method.try_with).
+pub struct AccessError {
+    _private: (),
+}
+
+impl fmt::Debug for AccessError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AccessError").finish()
+    }
+}
+
+impl fmt::Display for AccessError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt("already destroyed", f)
     }
 }
