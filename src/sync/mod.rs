@@ -8,7 +8,7 @@ mod mutex;
 mod notify;
 
 pub use self::arc::Arc;
-pub use self::causal::CausalCell;
+pub use self::causal::{CausalCell, CausalCheck};
 pub use self::condvar::{Condvar, WaitTimeoutResult};
 pub use self::mutex::{Mutex, MutexGuard};
 pub use self::notify::Notify;
