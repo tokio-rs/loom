@@ -124,7 +124,7 @@ impl<T> CausalCell<T> {
         self.check2().unwrap()
     }
 
-    fn check2_mut(&self) -> Result<(), String> {
+    fn check2(&self) -> Result<(), String> {
         rt::execution(|execution| {
             let mut immut_access_version = self.immut_access_version.borrow_mut();
             let mut_access_version = self.mut_access_version.borrow();
@@ -165,7 +165,7 @@ impl<T> CausalCell<T> {
         self.check2_mut().unwrap();
     }
 
-    fn check2(&self) -> Result<(), String> {
+    fn check2_mut(&self) -> Result<(), String> {
         rt::execution(|execution| {
             let immut_access_version = self.immut_access_version.borrow();
             let mut mut_access_version = self.mut_access_version.borrow_mut();
