@@ -135,7 +135,9 @@ impl<T> CausalCell<T> {
             // Check that there is no concurrent mutable access, i.e., the last
             // mutable access must happen-before this immutable access.
 
-            if *mut_access_version > *thread_causality {
+            // Negating the comparison as version vectors are not totally
+            // ordered.
+            if !(*mut_access_version <= *thread_causality) {
                 let msg = format!(
                     "Causality violation: \
                      Concurrent mutable access and immutable access(es): \
@@ -176,7 +178,9 @@ impl<T> CausalCell<T> {
             // Check that there is no concurrent mutable access, i.e., the last
             // mutable access must happen-before this mutable access.
 
-            if *mut_access_version > *thread_causality {
+            // Negating the comparison as version vectors are not totally
+            // ordered.
+            if !(*mut_access_version <= *thread_causality) {
                 let msg = format!(
                     "Causality violation: \
                      Concurrent mutable accesses: \
@@ -189,8 +193,10 @@ impl<T> CausalCell<T> {
 
             // Check that there are no concurrent immutable accesss, i.e., every
             // immutable access must happen-before this mutable access.
-
-            if *immut_access_version > *thread_causality {
+            //
+            // Negating the comparison as version vectors are not totally
+            // ordered.
+            if !(*immut_access_version <= *thread_causality) {
                 let msg = format!(
                     "Causality violation: \
                      Concurrent mutable access and immutable access(es): \
