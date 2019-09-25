@@ -1,3 +1,16 @@
+# 0.2.6 (September 25, 2019)
+
+### Changed
+- `futures::block_on` polls spuriously (#59).
+- mocked types match `std` for `Send` and `Sync` (#61).
+
+### Added
+- `fetch_xor` for atomic numbers (#54).
+- initial `atomic::fence` support (#57).
+- `Notify` primitive for writing external mocked types (#60).
+- `thread_local!` macro that works with loom threads (#62).
+- API for deferring `CausalCell` causality checks (#62).
+
 # 0.2.5 (September 4, 2019)
 
 ### Added

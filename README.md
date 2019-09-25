@@ -14,7 +14,7 @@ To use `loom`, first add this to your `Cargo.toml`:
 
 ```toml
 [dev-dependencies]
-loom = "0.2.5"
+loom = "0.2.6"
 ```
 
 Next, create a test file and add a test:
