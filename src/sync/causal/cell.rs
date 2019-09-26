@@ -1,6 +1,8 @@
 use crate::rt::{self, VersionVec};
 
-use std::cell::{RefCell, UnsafeCell};
+use std::cell::UnsafeCell;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 /// CausalCell ensures access to the inner value are valid under the Rust memory
 /// model.
@@ -8,17 +10,44 @@ use std::cell::{RefCell, UnsafeCell};
 pub struct CausalCell<T> {
     data: UnsafeCell<T>,
 
-    // The transitive closure of all immutable accessses of `data`.
-    immut_access_version: RefCell<VersionVec>,
-
-    // The last mutable access of `data`.
-    mut_access_version: RefCell<VersionVec>,
+    /// Causality associated with the cell
+    state: Arc<Mutex<State>>,
 }
 
 /// Deferred causal cell check
 #[derive(Debug)]
 #[must_use]
-pub struct CausalCheck(Result<(), String>);
+pub struct CausalCheck {
+    deferred: Vec<(Arc<Mutex<State>>, usize)>,
+}
+
+#[derive(Debug)]
+struct State {
+    causality: Causality,
+    deferred: HashMap<usize, Deferred>,
+    next_index: usize,
+}
+
+#[derive(Debug)]
+struct Deferred {
+    /// True if a mutable access
+    is_mut: bool,
+
+    /// Thread causality at the point the access happened.
+    thread_causality: VersionVec,
+
+    /// Result
+    result: Result<(), String>,
+}
+
+#[derive(Debug, Clone)]
+struct Causality {
+    // The transitive closure of all immutable accessses of `data`.
+    immut_access_version: VersionVec,
+
+    // The last mutable access of `data`.
+    mut_access_version: VersionVec,
+}
 
 impl<T> CausalCell<T> {
     /// Construct a new instance of `CausalCell` which will wrap the specified
@@ -28,8 +57,14 @@ impl<T> CausalCell<T> {
 
         CausalCell {
             data: UnsafeCell::new(data),
-            immut_access_version: RefCell::new(v.clone()),
-            mut_access_version: RefCell::new(v),
+            state: Arc::new(Mutex::new(State {
+                causality: Causality {
+                    immut_access_version: v.clone(),
+                    mut_access_version: v,
+                },
+                deferred: HashMap::new(),
+                next_index: 0,
+            })),
         }
     }
 
@@ -61,8 +96,30 @@ impl<T> CausalCell<T> {
         F: FnOnce(*const T) -> R,
     {
         rt::critical(|| {
-            let res = self.check2();
-            (self.with_unchecked(f), CausalCheck(res))
+            rt::execution(|execution| {
+                let thread_causality = &execution.threads.active().causality;
+
+                let mut state = self.state.lock().unwrap();
+                let index = state.next_index;
+                let result = state.causality.check(thread_causality);
+
+                state.deferred.insert(
+                    index,
+                    Deferred {
+                        is_mut: false,
+                        thread_causality: thread_causality.clone(),
+                        result,
+                    },
+                );
+
+                state.next_index += 1;
+
+                let check = CausalCheck {
+                    deferred: vec![(self.state.clone(), index)],
+                };
+
+                (self.with_unchecked(f), check)
+            })
         })
     }
 
@@ -93,8 +150,30 @@ impl<T> CausalCell<T> {
         F: FnOnce(*mut T) -> R,
     {
         rt::critical(|| {
-            let res = self.check2_mut();
-            (self.with_mut_unchecked(f), CausalCheck(res))
+            rt::execution(|execution| {
+                let thread_causality = &execution.threads.active().causality;
+
+                let mut state = self.state.lock().unwrap();
+                let index = state.next_index;
+                let result = state.causality.check_mut(thread_causality);
+
+                state.deferred.insert(
+                    index,
+                    Deferred {
+                        is_mut: true,
+                        thread_causality: thread_causality.clone(),
+                        result,
+                    },
+                );
+
+                state.next_index += 1;
+
+                let check = CausalCheck {
+                    deferred: vec![(self.state.clone(), index)],
+                };
+
+                (self.with_mut_unchecked(f), check)
+            })
         })
     }
 
@@ -121,40 +200,16 @@ impl<T> CausalCell<T> {
     /// access with this immutable access, while allowing many concurrent
     /// immutable accesses.
     pub fn check(&self) {
-        self.check2().unwrap()
-    }
-
-    fn check2(&self) -> Result<(), String> {
         rt::execution(|execution| {
-            let mut immut_access_version = self.immut_access_version.borrow_mut();
-            let mut_access_version = self.mut_access_version.borrow();
-
-            let thread_id = execution.threads.active_id();
             let thread_causality = &execution.threads.active().causality;
+            let mut state = self.state.lock().unwrap();
 
-            // Check that there is no concurrent mutable access, i.e., the last
-            // mutable access must happen-before this immutable access.
+            state.causality.check(thread_causality).unwrap();
+            state.causality.immut_access_version.join(thread_causality);
 
-            // Negating the comparison as version vectors are not totally
-            // ordered.
-            if !(*mut_access_version <= *thread_causality) {
-                let msg = format!(
-                    "Causality violation: \
-                     Concurrent mutable access and immutable access(es): \
-                     cell.with: v={:?}; mut v: {:?}; thread[{}]={:?}",
-                    immut_access_version, mut_access_version, thread_id, thread_causality
-                );
-
-                return Err(msg);
+            for deferred in state.deferred.values_mut() {
+                deferred.check(thread_causality);
             }
-
-            // Join in the vector clock time of this immutable access.
-            //
-            // In this case, `immut_access_version` is the transitive closure of
-            // all concurrent immutable access versions.
-
-            immut_access_version.join(thread_causality);
-            Ok(())
         })
     }
 
@@ -164,77 +219,158 @@ impl<T> CausalCell<T> {
     /// Specifically, this function checks that there is no concurrent mutable
     /// access and no concurrent immutable access(es) with this mutable access.
     pub fn check_mut(&self) {
-        self.check2_mut().unwrap();
-    }
-
-    fn check2_mut(&self) -> Result<(), String> {
         rt::execution(|execution| {
-            let immut_access_version = self.immut_access_version.borrow();
-            let mut mut_access_version = self.mut_access_version.borrow_mut();
-
-            let thread_id = execution.threads.active_id();
             let thread_causality = &execution.threads.active().causality;
+            let mut state = self.state.lock().unwrap();
 
-            // Check that there is no concurrent mutable access, i.e., the last
-            // mutable access must happen-before this mutable access.
+            state.causality.check_mut(thread_causality).unwrap();
+            state.causality.mut_access_version.join(thread_causality);
 
-            // Negating the comparison as version vectors are not totally
-            // ordered.
-            if !(*mut_access_version <= *thread_causality) {
-                let msg = format!(
-                    "Causality violation: \
-                     Concurrent mutable accesses: \
-                     cell.with_mut: v={:?}; mut v={:?}; thread[{}]={:?}",
-                    immut_access_version, mut_access_version, thread_id, thread_causality,
-                );
-
-                return Err(msg);
+            for deferred in state.deferred.values_mut() {
+                deferred.check_mut(thread_causality);
             }
-
-            // Check that there are no concurrent immutable accesss, i.e., every
-            // immutable access must happen-before this mutable access.
-            //
-            // Negating the comparison as version vectors are not totally
-            // ordered.
-            if !(*immut_access_version <= *thread_causality) {
-                let msg = format!(
-                    "Causality violation: \
-                     Concurrent mutable access and immutable access(es): \
-                     cell.with_mut: v={:?}; mut v={:?}; thread[{}]={:?}",
-                    immut_access_version, mut_access_version, thread_id, thread_causality,
-                );
-
-                return Err(msg);
-            }
-
-            // Record the vector clock time of this mutable access.
-            //
-            // Note that the first assertion:
-            // `mut_access_version <= thread_causality` implies
-            // `mut_access_version.join(thread_causality) == thread_causality`.
-
-            mut_access_version.copy_from(thread_causality);
-            Ok(())
         })
     }
 }
 
 impl CausalCheck {
     /// Panic if the CausaalCell access was invalid.
-    pub fn check(self) {
-        self.0.unwrap();
+    pub fn check(mut self) {
+        for (state, index) in self.deferred.drain(..) {
+            let mut state = state.lock().unwrap();
+            let deferred = state.deferred.remove(&index).unwrap();
+
+            // panic if the check failed
+            deferred.result.unwrap();
+
+            if deferred.is_mut {
+                state
+                    .causality
+                    .mut_access_version
+                    .join(&deferred.thread_causality);
+            } else {
+                state
+                    .causality
+                    .immut_access_version
+                    .join(&deferred.thread_causality);
+            }
+
+            // Validate all remaining deferred checks
+            for other in state.deferred.values_mut() {
+                if deferred.is_mut {
+                    other.check_mut(&deferred.thread_causality);
+                } else {
+                    other.check(&deferred.thread_causality);
+                }
+            }
+        }
     }
 
     /// Merge this check with another check
     pub fn join(&mut self, other: CausalCheck) {
-        if self.0.is_ok() {
-            self.0 = other.0;
-        }
+        self.deferred.extend(other.deferred.into_iter());
     }
 }
 
 impl Default for CausalCheck {
     fn default() -> CausalCheck {
-        CausalCheck(Ok(()))
+        CausalCheck { deferred: vec![] }
+    }
+}
+
+impl Causality {
+    fn check(&self, thread_causality: &VersionVec) -> Result<(), String> {
+        // Check that there is no concurrent mutable access, i.e., the last
+        // mutable access must happen-before this immutable access.
+
+        // Negating the comparison as version vectors are not totally
+        // ordered.
+        if !(self.mut_access_version <= *thread_causality) {
+            let msg = format!(
+                "Causality violation: \
+                 Concurrent mutable access and immutable access(es): \
+                 cell.with: v={:?}; mut v: {:?}; thread={:?}",
+                self.immut_access_version, self.mut_access_version, thread_causality
+            );
+
+            return Err(msg);
+        }
+
+        Ok(())
+    }
+
+    fn check_mut(&self, thread_causality: &VersionVec) -> Result<(), String> {
+        // Check that there is no concurrent mutable access, i.e., the last
+        // mutable access must happen-before this mutable access.
+
+        // Negating the comparison as version vectors are not totally
+        // ordered.
+        if !(self.mut_access_version <= *thread_causality) {
+            let msg = format!(
+                "Causality violation: \
+                 Concurrent mutable accesses: \
+                 cell.with_mut: v={:?}; mut v={:?}; thread={:?}",
+                self.immut_access_version, self.mut_access_version, thread_causality,
+            );
+
+            return Err(msg);
+        }
+
+        // Check that there are no concurrent immutable accesss, i.e., every
+        // immutable access must happen-before this mutable access.
+        //
+        // Negating the comparison as version vectors are not totally
+        // ordered.
+        if !(self.immut_access_version <= *thread_causality) {
+            let msg = format!(
+                "Causality violation: \
+                 Concurrent mutable access and immutable access(es): \
+                 cell.with_mut: v={:?}; mut v={:?}; thread={:?}",
+                self.immut_access_version, self.mut_access_version, thread_causality,
+            );
+
+            return Err(msg);
+        }
+
+        Ok(())
+    }
+}
+
+impl Deferred {
+    fn check(&mut self, thread_causality: &VersionVec) {
+        if self.result.is_err() {
+            return;
+        }
+
+        if !self.is_mut {
+            // Concurrent reads are fine
+            return;
+        }
+
+        // Mutable access w/ immutable access must not be concurrent
+        if self
+            .thread_causality
+            .partial_cmp(thread_causality)
+            .is_none()
+        {
+            // TODO: message
+            self.result = Err("boom".to_string());
+        }
+    }
+
+    fn check_mut(&mut self, thread_causality: &VersionVec) {
+        if self.result.is_err() {
+            return;
+        }
+
+        // Mutable access w/ immutable access must not be concurrent
+        if self
+            .thread_causality
+            .partial_cmp(thread_causality)
+            .is_none()
+        {
+            // TODO: message
+            self.result = Err("boom".to_string());
+        }
     }
 }
