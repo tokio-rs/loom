@@ -1,3 +1,10 @@
+# 0.2.7 (September 26, 2019)
+
+### Fixed
+- `CausalCell` state was updated even when a deferred check was abandoned (#65).
+- Add `yield_now` in `AtomicWaker` when entering a potential spin lock due to
+  task yielding (#66).
+
 # 0.2.6 (September 25, 2019)
 
 ### Changed
