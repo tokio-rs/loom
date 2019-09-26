@@ -133,6 +133,12 @@ macro_rules! debug {
     };
 }
 
+macro_rules! dbg {
+    ($($t:tt)*) => {
+        $($t)*
+    };
+}
+
 pub mod model;
 mod rt;
 pub mod sync;
