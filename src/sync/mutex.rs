@@ -74,3 +74,6 @@ impl<'a, T: 'a> Drop for MutexGuard<'a, T> {
         self.lock.object.release_lock();
     }
 }
+
+unsafe impl<T: Send> Send for Mutex<T> {}
+unsafe impl<T: Send> Sync for Mutex<T> {}
