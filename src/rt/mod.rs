@@ -111,9 +111,11 @@ where
 
     impl Drop for Reset {
         fn drop(&mut self) {
-            execution(|execution| {
-                execution.unset_critical();
-            });
+            if !std::thread::panicking() {
+                execution(|execution| {
+                    execution.unset_critical();
+                });
+            }
         }
     }
 
