@@ -6,7 +6,7 @@ use loom::sync::atomic::AtomicUsize;
 use loom::sync::CausalCell;
 use loom::thread;
 
-use std::sync::atomic::Ordering::{Acquire, Release};
+use std::sync::atomic::Ordering::{Acquire, Release, SeqCst};
 use std::sync::Arc;
 
 #[test]
@@ -315,5 +315,157 @@ fn causal_cell_ok_3() {
         th1.join().unwrap();
 
         assert_eq!(2, y.inc());
+    });
+}
+
+// The test shows an algorithm that panics if defer is not used.
+#[test]
+#[should_panic]
+fn should_defer() {
+    use std::mem::MaybeUninit;
+
+    loom::model(|| {
+        let s1 = Arc::new((CausalCell::new(MaybeUninit::new(0)), AtomicUsize::new(0)));
+        let s2 = s1.clone();
+
+        let th = thread::spawn(move || {
+            s2.1.store(1, SeqCst);
+            s2.0.with_mut(|ptr| unsafe { *(*ptr).as_mut_ptr() = 1 });
+        });
+
+        let mem = s1.0.with(|ptr| unsafe { *ptr });
+
+        if 0 == s1.1.load(SeqCst) {
+            assert_eq!(unsafe { *mem.as_ptr() }, 0);
+        }
+
+        th.join().unwrap();
+    });
+}
+
+// Works w/ defer
+#[test]
+fn defer_success() {
+    use std::mem::MaybeUninit;
+
+    loom::model(|| {
+        let s1 = Arc::new((CausalCell::new(MaybeUninit::new(0)), AtomicUsize::new(0)));
+        let s2 = s1.clone();
+
+        let th = thread::spawn(move || {
+            s2.1.store(1, SeqCst);
+            s2.0.with_mut(|ptr| unsafe { *(*ptr).as_mut_ptr() = 1 });
+        });
+
+        let (mem, check) = s1.0.with_deferred(|ptr| unsafe { *ptr });
+
+        if 0 == s1.1.load(SeqCst) {
+            assert_eq!(unsafe { *mem.as_ptr() }, 0);
+            check.check();
+        }
+
+        th.join().unwrap();
+    });
+}
+
+// Incorrect call to defer panics
+#[test]
+#[should_panic]
+fn defer_fail() {
+    use std::mem::MaybeUninit;
+
+    loom::model(|| {
+        let s1 = Arc::new((CausalCell::new(MaybeUninit::new(0)), AtomicUsize::new(0)));
+        let s2 = s1.clone();
+
+        let th = thread::spawn(move || {
+            s2.1.store(1, SeqCst);
+            s2.0.with_mut(|ptr| unsafe { *(*ptr).as_mut_ptr() = 1 });
+        });
+
+        let (mem, check) = s1.0.with_deferred(|ptr| unsafe { *ptr });
+
+        if 0 == s1.1.load(SeqCst) {
+            assert_eq!(unsafe { *mem.as_ptr() }, 0);
+        } else {
+            check.check();
+        }
+
+        th.join().unwrap();
+    });
+}
+
+#[test]
+fn batch_defer_success() {
+    use loom::sync::CausalCheck;
+    use std::mem::MaybeUninit;
+
+    loom::model(|| {
+        let state = (0..2)
+            .map(|_| (CausalCell::new(MaybeUninit::new(0)), AtomicUsize::new(0)))
+            .collect::<Vec<_>>();
+
+        let s1 = Arc::new(state);
+        let s2 = s1.clone();
+
+        let th = thread::spawn(move || {
+            s2[0].1.store(1, SeqCst);
+            s2[0].0.with_mut(|ptr| unsafe { *(*ptr).as_mut_ptr() = 1 });
+        });
+
+        let mut check = CausalCheck::default();
+
+        let (mem0, c) = s1[0].0.with_deferred(|ptr| unsafe { *ptr });
+        check.join(c);
+
+        let (mem1, c) = s1[0].0.with_deferred(|ptr| unsafe { *ptr });
+        check.join(c);
+
+        if 0 != s1[0].1.load(SeqCst) {
+            return;
+        }
+
+        check.check();
+
+        assert_eq!(unsafe { *mem0.as_ptr() }, 0);
+        assert_eq!(unsafe { *mem1.as_ptr() }, 0);
+
+        th.join().unwrap();
+    });
+}
+
+#[test]
+#[should_panic]
+fn batch_defer_fail() {
+    use loom::sync::CausalCheck;
+    use std::mem::MaybeUninit;
+
+    loom::model(|| {
+        let state = (0..2)
+            .map(|_| (CausalCell::new(MaybeUninit::new(0)), AtomicUsize::new(0)))
+            .collect::<Vec<_>>();
+
+        let s1 = Arc::new(state);
+        let s2 = s1.clone();
+
+        let th = thread::spawn(move || {
+            s2[0].1.store(1, SeqCst);
+            s2[0].0.with_mut(|ptr| unsafe { *(*ptr).as_mut_ptr() = 1 });
+        });
+
+        let mut check = CausalCheck::default();
+
+        let (mem0, c) = s1[0].0.with_deferred(|ptr| unsafe { *ptr });
+        check.join(c);
+
+        let (mem1, c) = s1[0].0.with_deferred(|ptr| unsafe { *ptr });
+        check.join(c);
+
+        check.check();
+
+        assert_eq!(unsafe { *mem0.as_ptr() }, 0);
+        assert_eq!(unsafe { *mem1.as_ptr() }, 0);
+
+        th.join().unwrap();
     });
 }
