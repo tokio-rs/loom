@@ -353,8 +353,10 @@ impl Deferred {
             .partial_cmp(thread_causality)
             .is_none()
         {
-            // TODO: message
-            self.result = Err("boom".to_string());
+            self.result = Err(
+                "Causality violation: concurrent mutable access and immutable access(es)"
+                    .to_string(),
+            );
         }
     }
 
@@ -369,8 +371,7 @@ impl Deferred {
             .partial_cmp(thread_causality)
             .is_none()
         {
-            // TODO: message
-            self.result = Err("boom".to_string());
+            self.result = Err("Causality violation: concurrent mutable accesses".to_string());
         }
     }
 }
