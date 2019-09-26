@@ -155,7 +155,6 @@ impl Scheduler {
 
                     // panicking, find an active thread to terminate it
                     for (idx, th) in state.shared.threads.iter().enumerate() {
-
                         if idx == state.id {
                             continue;
                         }
@@ -183,10 +182,7 @@ impl Scheduler {
             }
 
             // Notify the thread
-            state
-                .shared
-                .active_thread
-                .store(active_id, Release);
+            state.shared.active_thread.store(active_id, Release);
             drop(state.shared.threads[active_id].lock().unwrap());
             state.shared.condvars[active_id].notify_one();
 
