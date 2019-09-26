@@ -6,57 +6,45 @@ use loom::sync::atomic::AtomicUsize;
 use loom::thread;
 
 use futures_util::future::poll_fn;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Poll;
 
-struct MyFuture {
-    state: Arc<State>,
-}
-
-struct State {
+struct Chan {
     num: AtomicUsize,
-    waker: AtomicWaker,
-}
-
-impl Future for MyFuture {
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
-        self.as_mut()
-            .get_mut()
-            .state
-            .waker
-            .register_by_ref(cx.waker());
-
-        if 1 == self.as_mut().get_mut().state.num.load(Relaxed) {
-            Poll::Ready(())
-        } else {
-            Poll::Pending
-        }
-    }
+    task: AtomicWaker,
 }
 
 #[test]
-fn valid() {
+fn atomic_waker_valid() {
+    use std::task::Poll::*;
+
+    const NUM_NOTIFY: usize = 2;
+
     loom::model(|| {
-        let fut = MyFuture {
-            state: Arc::new(State {
-                num: AtomicUsize::new(0),
-                waker: AtomicWaker::new(),
-            }),
-        };
-
-        let state = fut.state.clone();
-
-        thread::spawn(move || {
-            state.num.store(1, Relaxed);
-            state.waker.wake();
+        let chan = Arc::new(Chan {
+            num: AtomicUsize::new(0),
+            task: AtomicWaker::new(),
         });
 
-        block_on(fut);
+        for _ in 0..NUM_NOTIFY {
+            let chan = chan.clone();
+
+            thread::spawn(move || {
+                chan.num.fetch_add(1, Relaxed);
+                chan.task.wake();
+            });
+        }
+
+        block_on(poll_fn(move |cx| {
+            chan.task.register_by_ref(cx.waker());
+
+            if NUM_NOTIFY == chan.num.load(Relaxed) {
+                return Ready(());
+            }
+
+            Pending
+        }));
     });
 }
 

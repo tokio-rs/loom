@@ -1,4 +1,5 @@
 use crate::rt;
+use crate::thread;
 
 use std::cell::RefCell;
 use std::task::Waker;
@@ -21,13 +22,15 @@ impl AtomicWaker {
 
     /// Registers the current task to be notified on calls to `wake`.
     pub fn register(&self, waker: Waker) {
-        if !self.object.try_acquire_lock() {
+        if dbg!(!self.object.try_acquire_lock()) {
             waker.wake();
+            // yield the task and try again... this is a spin lock.
+            thread::yield_now();
             return;
         }
 
         *self.waker.borrow_mut() = Some(waker);
-        self.object.release_lock();
+        dbg!(self.object.release_lock());
     }
 
     /// Registers the current task to be woken without consuming the value.
@@ -37,13 +40,13 @@ impl AtomicWaker {
 
     /// Notifies the task that last called `register`.
     pub fn wake(&self) {
-        self.object.acquire_lock();
+        dbg!(self.object.acquire_lock());
 
         if let Some(waker) = self.waker.borrow_mut().take() {
-            waker.wake();
+            dbg!(waker.wake());
         }
 
-        self.object.release_lock();
+        dbg!(self.object.release_lock());
     }
 }
 
