@@ -1,3 +1,8 @@
+# 0.2.8 (September 30, 2019)
+
+### Chore
+- Update futures-util dependency version (#70).
+
 # 0.2.7 (September 26, 2019)
 
 ### Fixed
