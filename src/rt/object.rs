@@ -1,4 +1,4 @@
-use crate::rt::{atomic, condvar, execution, mutex, notify};
+use crate::rt::{arc, atomic, condvar, execution, mutex, notify};
 use crate::rt::{Access, Execution};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -24,6 +24,7 @@ pub struct Store {
 /// can be stored.
 #[derive(Debug)]
 enum Entry {
+    Arc(arc::State),
     Atomic(atomic::State),
     Mutex(mutex::State),
     Condvar(condvar::State),
@@ -32,27 +33,34 @@ enum Entry {
 
 // TODO: mov to separate file
 #[derive(Debug, Copy, Clone)]
-pub struct Operation {
+pub(super) struct Operation {
     obj: Object,
     action: Action,
 }
 
-// TODO: mov to separate file
+// TODO: move to separate file
 #[derive(Debug, Copy, Clone)]
-pub(crate) enum Action {
-    /// Atomic load
-    Load,
+pub(super) enum Action {
+    /// Action on an Arc object
+    Arc(arc::Action),
 
-    /// Atomic store
-    Store,
+    /// Action on an atomic object
+    Atomic(atomic::Action),
 
-    /// Atomic read-modify-write
-    Rmw,
-
+    /// Generic action with no specialized dependencies on access.
     Opaque,
 }
 
 impl Object {
+    pub(super) fn arc_mut(self, store: &mut Store) -> &mut arc::State {
+        assert_eq!(self.execution_id, store.execution_id);
+
+        match &mut store.entries[self.index] {
+            Entry::Arc(v) => v,
+            _ => panic!(),
+        }
+    }
+
     pub(super) fn atomic_mut(self, store: &mut Store) -> Option<&mut atomic::State> {
         assert_eq!(self.execution_id, store.execution_id);
 
@@ -92,11 +100,16 @@ impl Object {
 
 impl Store {
     /// Create a new, empty, object store
-    pub(crate) fn new(execution_id: execution::Id) -> Store {
+    pub(super) fn new(execution_id: execution::Id) -> Store {
         Store {
             execution_id,
             entries: vec![],
         }
+    }
+
+    /// Insert a new arc object into the store.
+    pub(super) fn insert_arc(&mut self, state: arc::State) -> Object {
+        self.insert(Entry::Arc(state))
     }
 
     /// Insert a new atomic object into the store.
@@ -137,21 +150,23 @@ impl Store {
         }
     }
 
-    pub(crate) fn last_dependent_accesses<'a>(
+    pub(super) fn last_dependent_accesses<'a>(
         &'a self,
         operation: Operation,
     ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
         match &self.entries[operation.obj.index] {
-            Entry::Atomic(entry) => entry.last_dependent_accesses(operation.action),
+            Entry::Arc(entry) => entry.last_dependent_accesses(operation.action.into()),
+            Entry::Atomic(entry) => entry.last_dependent_accesses(operation.action.into()),
             Entry::Mutex(entry) => entry.last_dependent_accesses(),
             Entry::Condvar(entry) => entry.last_dependent_accesses(),
             Entry::Notify(entry) => entry.last_dependent_accesses(),
         }
     }
 
-    pub(crate) fn set_last_access(&mut self, operation: Operation, access: Access) {
+    pub(super) fn set_last_access(&mut self, operation: Operation, access: Access) {
         match &mut self.entries[operation.obj.index] {
-            Entry::Atomic(entry) => entry.set_last_access(operation.action, access),
+            Entry::Arc(entry) => entry.set_last_access(operation.action.into(), access),
+            Entry::Atomic(entry) => entry.set_last_access(operation.action.into(), access),
             Entry::Mutex(entry) => entry.set_last_access(access),
             Entry::Condvar(entry) => entry.set_last_access(access),
             Entry::Notify(entry) => entry.set_last_access(access),
@@ -161,29 +176,21 @@ impl Store {
     pub(crate) fn clear(&mut self) {
         self.entries.clear();
     }
+
+    /// Panics if any leaks were detected
+    pub(crate) fn check_for_leaks(&self) {
+        for entry in &self.entries[..] {
+            match entry {
+                Entry::Arc(entry) => entry.check_for_leaks(),
+                _ => {}
+            }
+        }
+    }
 }
 
 impl Object {
-    pub(crate) fn branch_load(self) {
-        super::branch(|execution| {
-            self.set_action(execution, Action::Load);
-        });
-    }
-
-    pub(crate) fn branch_store(self) {
-        super::branch(|execution| {
-            self.set_action(execution, Action::Store);
-        });
-    }
-
-    pub(crate) fn branch_rmw(self) {
-        super::branch(|execution| {
-            self.set_action(execution, Action::Rmw);
-        });
-    }
-
     // TODO: rename `branch_disable`
-    pub(crate) fn branch_acquire(self, is_locked: bool) {
+    pub(super) fn branch_acquire(self, is_locked: bool) {
         super::branch(|execution| {
             self.set_action(execution, Action::Opaque);
 
@@ -194,19 +201,53 @@ impl Object {
         })
     }
 
-    pub(crate) fn branch(self) {
+    pub(super) fn branch<T: Into<Action>>(self, action: T) {
         super::branch(|execution| {
-            self.set_action(execution, Action::Opaque);
+            self.set_action(execution, action.into());
         })
     }
 
-    pub(super) fn set_action(self, execution: &mut Execution, action: Action) {
+    pub(super) fn branch_opaque(self) {
+        self.branch(Action::Opaque)
+    }
+
+    fn set_action(self, execution: &mut Execution, action: Action) {
         execution.threads.active_mut().operation = Some(Operation { obj: self, action });
     }
 }
 
 impl Operation {
-    pub(crate) fn object(&self) -> Object {
+    pub(super) fn object(&self) -> Object {
         self.obj
+    }
+}
+
+impl Into<arc::Action> for Action {
+    fn into(self) -> arc::Action {
+        match self {
+            Action::Arc(action) => action,
+            _ => unimplemented!(),
+        }
+    }
+}
+
+impl Into<atomic::Action> for Action {
+    fn into(self) -> atomic::Action {
+        match self {
+            Action::Atomic(action) => action,
+            _ => unimplemented!(),
+        }
+    }
+}
+
+impl Into<Action> for arc::Action {
+    fn into(self) -> Action {
+        Action::Arc(self)
+    }
+}
+
+impl Into<Action> for atomic::Action {
+    fn into(self) -> Action {
+        Action::Atomic(self)
     }
 }

@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 /// An execution path
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
-pub struct Path {
+pub(crate) struct Path {
     preemption_bound: Option<usize>,
 
     /// Current execution's position in the branch index.
@@ -45,19 +45,19 @@ enum Branch {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
-pub struct Schedule {
-    pub preemptions: usize,
+pub(crate) struct Schedule {
+    pub(crate) preemptions: usize,
 
-    pub initial_active: Option<usize>,
+    pub(crate) initial_active: Option<usize>,
 
-    pub threads: Vec<Thread>,
+    pub(crate) threads: Vec<Thread>,
 
     init_threads: Vec<Thread>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
-pub enum Thread {
+pub(crate) enum Thread {
     /// The thread is currently disabled
     Disabled,
 
@@ -79,7 +79,7 @@ pub enum Thread {
 
 impl Path {
     /// New Path
-    pub fn new(max_branches: usize, preemption_bound: Option<usize>) -> Path {
+    pub(crate) fn new(max_branches: usize, preemption_bound: Option<usize>) -> Path {
         Path {
             preemption_bound,
             branches: vec![],
@@ -90,12 +90,12 @@ impl Path {
         }
     }
 
-    pub fn pos(&self) -> usize {
+    pub(crate) fn pos(&self) -> usize {
         self.pos
     }
 
     /// Returns the atomic write to read
-    pub fn branch_write<I>(&mut self, seed: I) -> usize
+    pub(crate) fn branch_write<I>(&mut self, seed: I) -> usize
     where
         I: Iterator<Item = usize>,
     {
@@ -126,7 +126,7 @@ impl Path {
     }
 
     /// Returns the thread identifier to schedule
-    pub fn branch_thread<I>(&mut self, execution_id: execution::Id, seed: I) -> Option<thread::Id>
+    pub(crate) fn branch_thread<I>(&mut self, execution_id: execution::Id, seed: I) -> Option<thread::Id>
     where
         I: Iterator<Item = Thread>,
     {
@@ -207,7 +207,7 @@ impl Path {
             .map(|(i, _)| thread::Id::new(execution_id, i))
     }
 
-    pub fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
+    pub(crate) fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
         let index = match self.branches[point] {
             Branch::Schedule(index) => index,
             _ => panic!(),
@@ -234,7 +234,7 @@ impl Path {
     }
 
     /// Returns `false` if there are no more paths to explore
-    pub fn step(&mut self) -> bool {
+    pub(crate) fn step(&mut self) -> bool {
         use self::Branch::*;
 
         self.pos = 0;

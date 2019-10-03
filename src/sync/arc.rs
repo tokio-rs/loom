@@ -1,14 +1,11 @@
-use super::atomic::AtomicUsize;
+use crate::rt;
 
 use std::ops;
-use std::rc::Rc;
-
-use std::sync::atomic::Ordering::*;
 
 /// Mock implementation of `std::sync::Arc`.
 #[derive(Debug)]
 pub struct Arc<T> {
-    inner: Rc<Inner<T>>,
+    inner: std::sync::Arc<Inner<T>>,
 }
 
 #[derive(Debug)]
@@ -16,30 +13,30 @@ struct Inner<T> {
     // This must be the first field to make into_raw / from_raw work
     value: T,
 
-    /// Used to track causality
-    ref_cnt: AtomicUsize,
+    obj: rt::Arc,
 }
 
 impl<T> Arc<T> {
     /// Constructs a new `Arc<T>`.
     pub fn new(value: T) -> Arc<T> {
         Arc {
-            inner: Rc::new(Inner {
+            inner: std::sync::Arc::new(Inner {
                 value,
-                ref_cnt: AtomicUsize::new(1),
+                obj: rt::Arc::new(),
             }),
         }
     }
 
     /// Gets the number of strong (`Arc`) pointers to this value.
-    pub fn strong_count(this: &Self) -> usize {
-        this.inner.ref_cnt.load(SeqCst)
+    pub fn strong_count(_this: &Self) -> usize {
+        unimplemented!("no tests checking this? DELETED!")
+        // this.inner.ref_cnt.load(SeqCst)
     }
 
     /// Returns `true` if the two `Arc`s point to the same value (not
     /// just values that compare as equal).
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
-        Rc::ptr_eq(&this.inner, &other.inner)
+        std::sync::Arc::ptr_eq(&this.inner, &other.inner)
     }
 
     /// Consumes the `Arc`, returning the wrapped pointer.
@@ -53,7 +50,7 @@ impl<T> Arc<T> {
 
     /// Constructs an `Arc` from a raw pointer.
     pub unsafe fn from_raw(ptr: *const T) -> Self {
-        let inner = Rc::from_raw(ptr as *const Inner<T>);
+        let inner = std::sync::Arc::from_raw(ptr as *const Inner<T>);
         Arc { inner }
     }
 }
@@ -68,7 +65,7 @@ impl<T> ops::Deref for Arc<T> {
 
 impl<T> Clone for Arc<T> {
     fn clone(&self) -> Arc<T> {
-        self.inner.ref_cnt.fetch_add(1, Relaxed);
+        self.inner.obj.ref_inc();
 
         Arc {
             inner: self.inner.clone(),
@@ -78,7 +75,9 @@ impl<T> Clone for Arc<T> {
 
 impl<T> Drop for Arc<T> {
     fn drop(&mut self) {
-        self.inner.ref_cnt.fetch_sub(1, AcqRel);
+        if self.inner.obj.ref_dec() {
+            assert_eq!(1, std::sync::Arc::strong_count(&self.inner), "something odd is going on");
+        }
     }
 }
 

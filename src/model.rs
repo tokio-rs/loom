@@ -171,6 +171,8 @@ impl Builder {
                 rt::thread_done();
             });
 
+            execution.check_for_leaks();
+
             if let Some(next) = execution.step() {
                 execution = next;
             } else {

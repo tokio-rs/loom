@@ -1,5 +1,5 @@
 use crate::rt::object::Object;
-use crate::rt::{self, thread, Access, Action, Path, Synchronize, VersionVec};
+use crate::rt::{self, thread, Access, Path, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering;
 use std::sync::atomic::Ordering::Acquire;
@@ -14,6 +14,18 @@ pub(super) struct State {
     last_load: Option<Access>,
     last_store: Option<Access>,
     history: History,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub(super) enum Action {
+    /// Atomic load
+    Load,
+
+    /// Atomic store
+    Store,
+
+    /// Atomic read-modify-write
+    Rmw,
 }
 
 #[derive(Debug, Default)]
@@ -56,7 +68,7 @@ impl Atomic {
     }
 
     pub(crate) fn load(self, order: Ordering) -> usize {
-        self.obj.branch_load();
+        self.obj.branch(Action::Load);
 
         super::synchronize(|execution| {
             self.obj.atomic_mut(&mut execution.objects).unwrap().load(
@@ -68,7 +80,7 @@ impl Atomic {
     }
 
     pub(crate) fn store(self, order: Ordering) {
-        self.obj.branch_store();
+        self.obj.branch(Action::Store);
 
         super::synchronize(|execution| {
             self.obj
@@ -82,7 +94,7 @@ impl Atomic {
     where
         F: FnOnce(usize) -> Result<(), E>,
     {
-        self.obj.branch_rmw();
+        self.obj.branch(Action::Rmw);
 
         super::synchronize(|execution| {
             self.obj.atomic_mut(&mut execution.objects).unwrap().rmw(
@@ -98,7 +110,7 @@ impl Atomic {
     /// This is required to safely call `get_mut()`.
     pub(crate) fn get_mut(self) {
         // TODO: Is this needed?
-        self.obj.branch_rmw();
+        self.obj.branch(Action::Rmw);
 
         super::execution(|execution| {
             self.obj
@@ -140,7 +152,6 @@ impl State {
             Action::Load => Box::new(self.last_store.iter()),
             Action::Store => Box::new(self.last_load.iter()),
             Action::Rmw => Box::new({ self.last_load.iter().chain(self.last_store.iter()) }),
-            _ => unreachable!(),
         }
     }
 
@@ -152,7 +163,6 @@ impl State {
                 self.last_load = Some(access.clone());
                 self.last_store = Some(access);
             }
-            _ => unreachable!(),
         }
     }
 

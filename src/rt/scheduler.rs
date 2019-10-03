@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt;
 
-pub struct Scheduler {
+pub(crate) struct Scheduler {
     /// Threads
     threads: Vec<Thread>,
 
@@ -30,7 +30,7 @@ struct State<'a> {
 
 impl Scheduler {
     /// Create an execution
-    pub fn new(capacity: usize) -> Scheduler {
+    pub(crate) fn new(capacity: usize) -> Scheduler {
         let threads = spawn_threads(capacity);
 
         Scheduler {
@@ -41,7 +41,7 @@ impl Scheduler {
     }
 
     /// Access the execution
-    pub fn with_execution<F, R>(f: F) -> R
+    pub(crate) fn with_execution<F, R>(f: F) -> R
     where
         F: FnOnce(&mut Execution) -> R,
     {
@@ -49,17 +49,17 @@ impl Scheduler {
     }
 
     /// Perform a context switch
-    pub fn switch() {
+    pub(crate) fn switch() {
         generator::yield_with(());
     }
 
-    pub fn spawn(f: Box<dyn FnOnce()>) {
+    pub(crate) fn spawn(f: Box<dyn FnOnce()>) {
         STATE.with(|state| {
             state.borrow_mut().queued_spawn.push_back(f);
         });
     }
 
-    pub fn run<F>(&mut self, execution: &mut Execution, f: F)
+    pub(crate) fn run<F>(&mut self, execution: &mut Execution, f: F)
     where
         F: FnOnce() + Send + 'static,
     {

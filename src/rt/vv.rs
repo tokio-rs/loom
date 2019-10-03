@@ -7,12 +7,12 @@ use std::ops;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
-pub struct VersionVec {
+pub(crate) struct VersionVec {
     versions: Box<[usize]>,
 }
 
 impl VersionVec {
-    pub fn new(max_threads: usize) -> VersionVec {
+    pub(crate) fn new(max_threads: usize) -> VersionVec {
         assert!(max_threads > 0, "max_threads = {:?}", max_threads);
 
         VersionVec {
@@ -20,7 +20,7 @@ impl VersionVec {
         }
     }
 
-    pub fn versions<'a>(
+    pub(crate) fn versions<'a>(
         &'a self,
         execution_id: execution::Id,
     ) -> impl Iterator<Item = (thread::Id, usize)> + 'a {
@@ -30,15 +30,15 @@ impl VersionVec {
             .map(move |(thread_id, &version)| (thread::Id::new(execution_id, thread_id), version))
     }
 
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.versions.len()
     }
 
-    pub fn inc(&mut self, id: thread::Id) {
+    pub(crate) fn inc(&mut self, id: thread::Id) {
         self.versions[id.as_usize()] += 1;
     }
 
-    pub fn join(&mut self, other: &VersionVec) {
+    pub(crate) fn join(&mut self, other: &VersionVec) {
         assert_eq!(self.versions.len(), other.versions.len());
 
         for (i, &version) in other.versions.iter().enumerate() {

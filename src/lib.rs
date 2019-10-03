@@ -139,6 +139,7 @@ macro_rules! dbg {
     };
 }
 
+pub mod cell;
 pub mod model;
 mod rt;
 pub mod sync;

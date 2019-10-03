@@ -38,7 +38,7 @@ impl Notify {
     }
 
     pub(crate) fn notify(self) {
-        self.obj.branch();
+        self.obj.branch_opaque();
 
         rt::execution(|execution| {
             {
@@ -74,7 +74,7 @@ impl Notify {
         let notified = rt::execution(|execution| self.get_state(&mut execution.objects).notified);
 
         if notified {
-            self.obj.branch();
+            self.obj.branch_opaque();
         } else {
             // This should become branch_disable
             self.obj.branch_acquire(true)
