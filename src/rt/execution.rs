@@ -1,5 +1,7 @@
 use crate::rt::{object, thread, Access, Path};
+use crate::rt::alloc::Allocation;
 
+use std::collections::HashMap;
 use std::fmt;
 
 pub(crate) struct Execution {
@@ -13,6 +15,9 @@ pub(crate) struct Execution {
 
     /// All loom aware objects part of this execution run.
     pub(super) objects: object::Store,
+
+    /// Maps raw allocations to LeakTrack objects
+    pub(super) raw_allocations: HashMap<usize, Allocation>,
 
     /// Maximum number of concurrent threads
     pub(super) max_threads: usize,
@@ -44,6 +49,7 @@ impl Execution {
             path: Path::new(max_branches, preemption_bound),
             threads,
             objects: object::Store::new(id),
+            raw_allocations: HashMap::new(),
             max_threads,
             max_history: 7,
             log: false,
@@ -76,10 +82,12 @@ impl Execution {
         let log = self.log;
         let mut path = self.path;
         let mut objects = self.objects;
+        let mut raw_allocations = self.raw_allocations;
 
         let mut threads = self.threads;
 
         objects.clear();
+        raw_allocations.clear();
 
         if !path.step() {
             return None;
@@ -92,6 +100,7 @@ impl Execution {
             path,
             threads,
             objects,
+            raw_allocations,
             max_threads,
             max_history,
             log,

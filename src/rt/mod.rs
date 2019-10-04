@@ -1,6 +1,9 @@
 mod access;
 use self::access::Access;
 
+mod alloc;
+pub(crate) use self::alloc::{alloc, dealloc, Allocation};
+
 mod arc;
 pub(crate) use self::arc::Arc;
 

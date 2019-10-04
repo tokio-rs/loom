@@ -1,4 +1,4 @@
-use crate::rt::{arc, atomic, condvar, execution, mutex, notify};
+use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify};
 use crate::rt::{Access, Execution};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -24,6 +24,7 @@ pub struct Store {
 /// can be stored.
 #[derive(Debug)]
 enum Entry {
+    Alloc(alloc::State),
     Arc(arc::State),
     Atomic(atomic::State),
     Mutex(mutex::State),
@@ -52,6 +53,15 @@ pub(super) enum Action {
 }
 
 impl Object {
+    pub(super) fn alloc(self, store: &mut Store) -> &mut alloc::State {
+        assert_eq!(self.execution_id, store.execution_id);
+
+        match &mut store.entries[self.index] {
+            Entry::Alloc(v) => v,
+            _ => panic!(),
+        }
+    }
+
     pub(super) fn arc_mut(self, store: &mut Store) -> &mut arc::State {
         assert_eq!(self.execution_id, store.execution_id);
 
@@ -107,6 +117,11 @@ impl Store {
         }
     }
 
+    /// Insert a new leak tracker
+    pub(super) fn insert_alloc(&mut self, state: alloc::State) -> Object {
+        self.insert(Entry::Alloc(state))
+    }
+
     /// Insert a new arc object into the store.
     pub(super) fn insert_arc(&mut self, state: arc::State) -> Object {
         self.insert(Entry::Arc(state))
@@ -155,6 +170,7 @@ impl Store {
         operation: Operation,
     ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
         match &self.entries[operation.obj.index] {
+            Entry::Alloc(_) => panic!("allocations are not branchable operations"),
             Entry::Arc(entry) => entry.last_dependent_accesses(operation.action.into()),
             Entry::Atomic(entry) => entry.last_dependent_accesses(operation.action.into()),
             Entry::Mutex(entry) => entry.last_dependent_accesses(),
@@ -165,6 +181,7 @@ impl Store {
 
     pub(super) fn set_last_access(&mut self, operation: Operation, access: Access) {
         match &mut self.entries[operation.obj.index] {
+            Entry::Alloc(_) => panic!("allocations are not branchable operations"),
             Entry::Arc(entry) => entry.set_last_access(operation.action.into(), access),
             Entry::Atomic(entry) => entry.set_last_access(operation.action.into(), access),
             Entry::Mutex(entry) => entry.set_last_access(access),
@@ -181,6 +198,7 @@ impl Store {
     pub(crate) fn check_for_leaks(&self) {
         for entry in &self.entries[..] {
             match entry {
+                Entry::Alloc(entry) => entry.check_for_leaks(),
                 Entry::Arc(entry) => entry.check_for_leaks(),
                 _ => {}
             }
