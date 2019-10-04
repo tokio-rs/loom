@@ -13,6 +13,9 @@ pub(super) struct State {
     /// If true, spurious notifications are possible
     spurious: bool,
 
+    /// True if the notify woke up spuriously last time
+    did_spur: bool,
+
     /// When true, notification is sequentiall consistent.
     seq_cst: bool,
 
@@ -31,6 +34,7 @@ impl Notify {
         super::execution(|execution| {
             let obj = execution.objects.insert_notify(State {
                 spurious,
+                did_spur: false,
                 seq_cst,
                 notified: false,
                 last_access: None,
@@ -78,11 +82,15 @@ impl Notify {
         let (notified, spurious) = rt::execution(|execution| {
             let state = self.get_state(&mut execution.objects);
 
-            let spurious = if state.spurious {
+            let spurious = if state.spurious && !state.did_spur {
                 execution.path.branch_spurious()
             } else {
                 false
             };
+
+            if spurious {
+                state.did_spur = true;
+            }
 
             (state.notified, spurious)
         });
