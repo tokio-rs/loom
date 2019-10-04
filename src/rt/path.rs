@@ -32,6 +32,9 @@ pub(crate) struct Path {
     /// Atomic writes
     writes: Vec<VecDeque<usize>>,
 
+    /// Tracks spurious notifications
+    spurious: Vec<VecDeque<bool>>,
+
     /// Maximum number of branches to explore
     max_branches: usize,
 }
@@ -41,6 +44,7 @@ pub(crate) struct Path {
 enum Branch {
     Schedule(usize),
     Write(usize),
+    Spurious(usize),
 }
 
 #[derive(Debug)]
@@ -86,6 +90,7 @@ impl Path {
             pos: 0,
             schedules: vec![],
             writes: vec![],
+            spurious: vec![],
             max_branches,
         }
     }
@@ -123,6 +128,33 @@ impl Path {
         self.pos += 1;
 
         self.writes[i][0]
+    }
+
+    /// Branch on spurious notifications
+    pub(crate) fn branch_spurious(&mut self) -> bool {
+        use self::Branch::Spurious;
+
+        assert!(
+            self.branches.len() < self.max_branches,
+            "actual = {}",
+            self.branches.len()
+        );
+
+        if self.pos == self.branches.len() {
+            let i = self.spurious.len();
+
+            let spurious: VecDeque<_> = vec![false, true].into();
+            self.spurious.push(spurious);
+            self.branches.push(Branch::Spurious(i));
+        }
+
+        let i = match self.branches[self.pos] {
+            Spurious(i) => i,
+            _ => panic!("path entry {} is not a spurious wait", self.pos),
+        };
+
+        self.pos += 1;
+        self.spurious[i][0]
     }
 
     /// Returns the thread identifier to schedule
@@ -271,6 +303,15 @@ impl Path {
                     if self.writes[i].is_empty() {
                         self.branches.pop();
                         self.writes.pop();
+                        continue;
+                    }
+                }
+                &Spurious(i) => {
+                    self.spurious[i].pop_front();
+
+                    if self.spurious[i].is_empty() {
+                        self.branches.pop();
+                        self.spurious.pop();
                         continue;
                     }
                 }

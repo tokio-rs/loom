@@ -10,6 +10,9 @@ pub(crate) struct Notify {
 
 #[derive(Debug)]
 pub(super) struct State {
+    /// If true, spurious notifications are possible
+    spurious: bool,
+
     /// When true, notification is sequentiall consistent.
     seq_cst: bool,
 
@@ -24,9 +27,10 @@ pub(super) struct State {
 }
 
 impl Notify {
-    pub(crate) fn new(seq_cst: bool) -> Notify {
+    pub(crate) fn new(seq_cst: bool, spurious: bool) -> Notify {
         super::execution(|execution| {
             let obj = execution.objects.insert_notify(State {
+                spurious,
                 seq_cst,
                 notified: false,
                 last_access: None,
@@ -71,7 +75,22 @@ impl Notify {
     }
 
     pub(crate) fn wait(self) {
-        let notified = rt::execution(|execution| self.get_state(&mut execution.objects).notified);
+        let (notified, spurious) = rt::execution(|execution| {
+            let state = self.get_state(&mut execution.objects);
+
+            let spurious = if state.spurious {
+                execution.path.branch_spurious()
+            } else {
+                false
+            };
+
+            (state.notified, spurious)
+        });
+
+        if spurious {
+            rt::yield_now();
+            return;
+        }
 
         if notified {
             self.obj.branch_opaque();

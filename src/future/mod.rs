@@ -19,7 +19,7 @@ where
 {
     pin_mut!(f);
 
-    let notify = Arc::new(rt::Notify::new(false));
+    let notify = Arc::new(rt::Notify::new(false, true));
 
     let mut waker = unsafe {
         mem::ManuallyDrop::new(Waker::from_raw(RawWaker::new(&*notify as *const _ as *const (), waker_vtable())))
@@ -28,12 +28,6 @@ where
     let mut cx = Context::from_waker(&mut waker);
 
     loop {
-        match f.as_mut().poll(&mut cx) {
-            Poll::Ready(val) => return val,
-            Poll::Pending => {}
-        }
-
-        // Simulate spurious wakeups by running again
         match f.as_mut().poll(&mut cx) {
             Poll::Ready(val) => return val,
             Poll::Pending => {}

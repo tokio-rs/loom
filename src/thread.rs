@@ -36,7 +36,7 @@ where
     T: 'static,
 {
     let result = Rc::new(RefCell::new(None));
-    let notify = rt::Notify::new(true);
+    let notify = rt::Notify::new(true, false);
 
     {
         let result = result.clone();
