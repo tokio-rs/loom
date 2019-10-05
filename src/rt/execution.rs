@@ -1,5 +1,5 @@
-use crate::rt::{object, thread, Access, Path};
 use crate::rt::alloc::Allocation;
+use crate::rt::{object, thread, Access, Path};
 
 use std::collections::HashMap;
 use std::fmt;

@@ -285,7 +285,9 @@ impl Set {
             .map(move |(id, thread)| (Id::new(execution_id, id), thread))
     }
 
-    pub(crate) fn iter_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = (Id, &'a mut Thread)> + 'a> {
+    pub(crate) fn iter_mut<'a>(
+        &'a mut self,
+    ) -> Box<dyn Iterator<Item = (Id, &'a mut Thread)> + 'a> {
         let execution_id = self.execution_id;
         Box::new({
             self.threads

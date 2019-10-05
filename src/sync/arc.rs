@@ -76,7 +76,11 @@ impl<T> Clone for Arc<T> {
 impl<T> Drop for Arc<T> {
     fn drop(&mut self) {
         if self.inner.obj.ref_dec() {
-            assert_eq!(1, std::sync::Arc::strong_count(&self.inner), "something odd is going on");
+            assert_eq!(
+                1,
+                std::sync::Arc::strong_count(&self.inner),
+                "something odd is going on"
+            );
         }
     }
 }

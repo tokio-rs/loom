@@ -35,7 +35,6 @@ pub(super) enum Action {
 
     /// Drop the Arc
     RefDec,
-
     /*
     /// Inspect internals (such as get ref count). This is done with SeqCst
     /// causality
@@ -79,7 +78,9 @@ impl Arc {
             state.ref_cnt -= 1;
 
             // SYnchronize the threads.
-            state.synchronize.sync_store(&mut execution.threads, Release);
+            state
+                .synchronize
+                .sync_store(&mut execution.threads, Release);
 
             if state.ref_cnt == 0 {
                 // Final ref count, the arc will be dropped. This requires

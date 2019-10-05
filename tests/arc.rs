@@ -1,9 +1,9 @@
 #![deny(warnings, rust_2018_idioms)]
 
 use loom::cell::CausalCell;
-use loom::sync::Arc;
 use loom::sync::atomic::AtomicBool;
 use loom::sync::atomic::Ordering::{Acquire, Release};
+use loom::sync::Arc;
 use loom::thread;
 
 struct State {
@@ -13,8 +13,8 @@ struct State {
 
 impl Drop for State {
     fn drop(&mut self) {
-        self.data.with(|ptr| {
-            unsafe { assert_eq!(1, *ptr); }
+        self.data.with(|ptr| unsafe {
+            assert_eq!(1, *ptr);
         });
     }
 }
@@ -35,8 +35,8 @@ fn basic_usage() {
 
         loop {
             if num.guard.load(Acquire) {
-                num.data.with(|ptr| {
-                    unsafe { assert_eq!(1, *ptr); }
+                num.data.with(|ptr| unsafe {
+                    assert_eq!(1, *ptr);
                 });
                 break;
             }

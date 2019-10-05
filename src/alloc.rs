@@ -22,7 +22,6 @@ pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
 pub struct Track<T> {
     value: T,
     obj: rt::Allocation,
-
 }
 
 impl<T> Track<T> {

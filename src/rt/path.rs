@@ -158,7 +158,11 @@ impl Path {
     }
 
     /// Returns the thread identifier to schedule
-    pub(crate) fn branch_thread<I>(&mut self, execution_id: execution::Id, seed: I) -> Option<thread::Id>
+    pub(crate) fn branch_thread<I>(
+        &mut self,
+        execution_id: execution::Id,
+        seed: I,
+    ) -> Option<thread::Id>
     where
         I: Iterator<Item = Thread>,
     {

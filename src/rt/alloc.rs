@@ -15,9 +15,7 @@ pub(super) struct State {
 /// Track a raw allocation
 pub(crate) fn alloc(ptr: *mut u8) {
     rt::execution(|execution| {
-        let obj = execution.objects.insert_alloc(State {
-            is_dropped: false,
-        });
+        let obj = execution.objects.insert_alloc(State { is_dropped: false });
 
         let allocation = Allocation { obj };
 
@@ -28,12 +26,13 @@ pub(crate) fn alloc(ptr: *mut u8) {
 
 /// Track a raw deallocation
 pub(crate) fn dealloc(ptr: *mut u8) {
-    let allocation = rt::execution(|execution| {
-        match execution.raw_allocations.remove(&(ptr as usize)) {
-            Some(allocation) => allocation,
-            None => panic!("pointer not tracked"),
-        }
-    });
+    let allocation =
+        rt::execution(
+            |execution| match execution.raw_allocations.remove(&(ptr as usize)) {
+                Some(allocation) => allocation,
+                None => panic!("pointer not tracked"),
+            },
+        );
 
     // Drop outside of the `rt::execution` block
     drop(allocation);
@@ -42,9 +41,7 @@ pub(crate) fn dealloc(ptr: *mut u8) {
 impl Allocation {
     pub(crate) fn new() -> Allocation {
         rt::execution(|execution| {
-            let obj = execution.objects.insert_alloc(State {
-                is_dropped: false,
-            });
+            let obj = execution.objects.insert_alloc(State { is_dropped: false });
 
             Allocation { obj }
         })
