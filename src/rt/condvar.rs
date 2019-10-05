@@ -32,7 +32,7 @@ impl Condvar {
 
     /// Blocks the current thread until this condition variable receives a notification.
     pub(crate) fn wait(&self, mutex: &Mutex) {
-        self.obj.branch();
+        self.obj.branch_opaque();
 
         rt::execution(|execution| {
             let state = self.get_state(&mut execution.objects);
@@ -53,7 +53,7 @@ impl Condvar {
 
     /// Wakes up one blocked thread on this condvar.
     pub(crate) fn notify_one(&self) {
-        self.obj.branch();
+        self.obj.branch_opaque();
 
         rt::execution(|execution| {
             let state = self.get_state(&mut execution.objects);
@@ -69,7 +69,7 @@ impl Condvar {
 
     /// Wakes up all blocked threads on this condvar.
     pub(crate) fn notify_all(&self) {
-        self.obj.branch();
+        self.obj.branch_opaque();
 
         rt::execution(|execution| {
             let state = self.get_state(&mut execution.objects);

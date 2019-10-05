@@ -45,7 +45,7 @@ impl Mutex {
 
     #[cfg(feature = "futures")]
     pub(crate) fn try_acquire_lock(&self) -> bool {
-        self.obj.branch();
+        self.obj.branch_opaque();
         self.post_acquire()
     }
 

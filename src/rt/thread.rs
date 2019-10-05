@@ -3,7 +3,7 @@ use crate::rt::object::Operation;
 use crate::rt::vv::VersionVec;
 
 use std::{any::Any, collections::HashMap, fmt, ops};
-pub struct Thread {
+pub(crate) struct Thread {
     pub id: Id,
 
     /// If the thread is runnable, blocked, or terminated.
@@ -13,7 +13,7 @@ pub struct Thread {
     pub critical: bool,
 
     /// The operation the thread is about to take
-    pub operation: Option<Operation>,
+    pub(super) operation: Option<Operation>,
 
     /// Tracks observed causality
     pub causality: VersionVec,
@@ -31,7 +31,7 @@ pub struct Thread {
 }
 
 #[derive(Debug)]
-pub struct Set {
+pub(crate) struct Set {
     /// Unique execution identifier
     execution_id: execution::Id,
 
@@ -49,13 +49,13 @@ pub struct Set {
 }
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone)]
-pub struct Id {
+pub(crate) struct Id {
     execution_id: execution::Id,
     id: usize,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum State {
+pub(crate) enum State {
     Runnable,
     Blocked,
     Yield,
@@ -82,49 +82,49 @@ impl Thread {
         }
     }
 
-    pub fn is_runnable(&self) -> bool {
+    pub(crate) fn is_runnable(&self) -> bool {
         match self.state {
             State::Runnable => true,
             _ => false,
         }
     }
 
-    pub fn set_runnable(&mut self) {
+    pub(crate) fn set_runnable(&mut self) {
         self.state = State::Runnable;
     }
 
-    pub fn set_blocked(&mut self) {
+    pub(crate) fn set_blocked(&mut self) {
         self.state = State::Blocked;
     }
 
-    pub fn is_blocked(&self) -> bool {
+    pub(crate) fn is_blocked(&self) -> bool {
         match self.state {
             State::Blocked => true,
             _ => false,
         }
     }
 
-    pub fn is_yield(&self) -> bool {
+    pub(crate) fn is_yield(&self) -> bool {
         match self.state {
             State::Yield => true,
             _ => false,
         }
     }
 
-    pub fn set_yield(&mut self) {
+    pub(crate) fn set_yield(&mut self) {
         self.state = State::Yield;
         self.last_yield = Some(self.causality[self.id]);
         self.yield_count += 1;
     }
 
-    pub fn is_terminated(&self) -> bool {
+    pub(crate) fn is_terminated(&self) -> bool {
         match self.state {
             State::Terminated => true,
             _ => false,
         }
     }
 
-    pub fn set_terminated(&mut self) {
+    pub(crate) fn set_terminated(&mut self) {
         self.state = State::Terminated;
         // run the Drop impls of any mock thread-locals created by this thread.
         for (_, local) in &mut self.locals {
@@ -163,7 +163,7 @@ impl Set {
     /// Create an empty thread set.
     ///
     /// The set may contain up to `max_threads` threads.
-    pub fn new(execution_id: execution::Id, max_threads: usize) -> Set {
+    pub(crate) fn new(execution_id: execution::Id, max_threads: usize) -> Set {
         let mut threads = Vec::with_capacity(max_threads);
 
         // Push initial thread
@@ -177,12 +177,12 @@ impl Set {
         }
     }
 
-    pub fn execution_id(&self) -> execution::Id {
+    pub(crate) fn execution_id(&self) -> execution::Id {
         self.execution_id
     }
 
     /// Create a new thread
-    pub fn new_thread(&mut self) -> Id {
+    pub(crate) fn new_thread(&mut self) -> Id {
         assert!(self.threads.len() < self.max());
 
         // Get the identifier for the thread about to be created
@@ -196,32 +196,32 @@ impl Set {
         Id::new(self.execution_id, id)
     }
 
-    pub fn max(&self) -> usize {
+    pub(crate) fn max(&self) -> usize {
         self.threads.capacity()
     }
 
-    pub fn is_active(&self) -> bool {
+    pub(crate) fn is_active(&self) -> bool {
         self.active.is_some()
     }
 
-    pub fn active_id(&self) -> Id {
+    pub(crate) fn active_id(&self) -> Id {
         Id::new(self.execution_id, self.active.unwrap())
     }
 
-    pub fn active(&self) -> &Thread {
+    pub(crate) fn active(&self) -> &Thread {
         &self.threads[self.active.unwrap()]
     }
 
-    pub fn set_active(&mut self, id: Option<Id>) {
+    pub(crate) fn set_active(&mut self, id: Option<Id>) {
         self.active = id.map(Id::as_usize);
     }
 
-    pub fn active_mut(&mut self) -> &mut Thread {
+    pub(crate) fn active_mut(&mut self) -> &mut Thread {
         &mut self.threads[self.active.unwrap()]
     }
 
     /// Get the active thread and second thread
-    pub fn active2_mut(&mut self, other: Id) -> (&mut Thread, &mut Thread) {
+    pub(crate) fn active2_mut(&mut self, other: Id) -> (&mut Thread, &mut Thread) {
         let active = self.active.unwrap();
         let other = other.id;
 
@@ -236,12 +236,12 @@ impl Set {
         }
     }
 
-    pub fn active_causality_inc(&mut self) {
+    pub(crate) fn active_causality_inc(&mut self) {
         let id = self.active_id();
         self.active_mut().causality.inc(id);
     }
 
-    pub fn active_atomic_version(&self) -> usize {
+    pub(crate) fn active_atomic_version(&self) -> usize {
         let id = self.active_id();
         self.active().causality[id]
     }
@@ -257,7 +257,7 @@ impl Set {
     }
 
     /// Insert a point of sequential consistency
-    pub fn seq_cst(&mut self) {
+    pub(crate) fn seq_cst(&mut self) {
         self.threads[self.active.unwrap()]
             .causality
             .join(&self.seq_cst_causality);
@@ -265,7 +265,7 @@ impl Set {
             .join(&self.threads[self.active.unwrap()].causality);
     }
 
-    pub fn clear(&mut self, execution_id: execution::Id) {
+    pub(crate) fn clear(&mut self, execution_id: execution::Id) {
         self.threads.clear();
         self.threads.push(Thread::new(
             Id::new(execution_id, 0),
@@ -277,7 +277,7 @@ impl Set {
         self.seq_cst_causality = VersionVec::new(self.max());
     }
 
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (Id, &'a Thread)> + 'a {
+    pub(crate) fn iter<'a>(&'a self) -> impl Iterator<Item = (Id, &'a Thread)> + 'a {
         let execution_id = self.execution_id;
         self.threads
             .iter()
@@ -285,7 +285,9 @@ impl Set {
             .map(move |(id, thread)| (Id::new(execution_id, id), thread))
     }
 
-    pub fn iter_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = (Id, &'a mut Thread)> + 'a> {
+    pub(crate) fn iter_mut<'a>(
+        &'a mut self,
+    ) -> Box<dyn Iterator<Item = (Id, &'a mut Thread)> + 'a> {
         let execution_id = self.execution_id;
         Box::new({
             self.threads
@@ -297,7 +299,7 @@ impl Set {
 
     /// Split the set of threads into the active thread and an iterator of all
     /// other threads.
-    pub fn split_active(&mut self) -> (&mut Thread, impl Iterator<Item = &mut Thread>) {
+    pub(crate) fn split_active(&mut self) -> (&mut Thread, impl Iterator<Item = &mut Thread>) {
         let active = self.active.unwrap();
         let (one, two) = self.threads.split_at_mut(active);
         let (active, two) = two.split_at_mut(1);
@@ -334,11 +336,11 @@ impl ops::IndexMut<Id> for Set {
 }
 
 impl Id {
-    pub fn new(execution_id: execution::Id, id: usize) -> Id {
+    pub(crate) fn new(execution_id: execution::Id, id: usize) -> Id {
         Id { execution_id, id }
     }
 
-    pub fn as_usize(self) -> usize {
+    pub(crate) fn as_usize(self) -> usize {
         self.id
     }
 }

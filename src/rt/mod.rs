@@ -1,6 +1,12 @@
 mod access;
 use self::access::Access;
 
+mod alloc;
+pub(crate) use self::alloc::{alloc, dealloc, Allocation};
+
+mod arc;
+pub(crate) use self::arc::Arc;
+
 mod atomic;
 pub(crate) use self::atomic::{fence, Atomic};
 
@@ -14,7 +20,6 @@ mod notify;
 pub(crate) use self::notify::Notify;
 
 pub(crate) mod object;
-use self::object::Action;
 
 mod mutex;
 pub(crate) use self::mutex::Mutex;

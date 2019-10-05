@@ -21,7 +21,7 @@ impl Notify {
     /// Create a new `Notify`.
     pub fn new() -> Notify {
         Notify {
-            object: rt::Notify::new(false),
+            object: rt::Notify::new(false, true),
             waiting: AtomicBool::new(false),
         }
     }

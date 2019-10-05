@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 /// An execution path
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
-pub struct Path {
+pub(crate) struct Path {
     preemption_bound: Option<usize>,
 
     /// Current execution's position in the branch index.
@@ -32,6 +32,9 @@ pub struct Path {
     /// Atomic writes
     writes: Vec<VecDeque<usize>>,
 
+    /// Tracks spurious notifications
+    spurious: Vec<VecDeque<bool>>,
+
     /// Maximum number of branches to explore
     max_branches: usize,
 }
@@ -41,23 +44,24 @@ pub struct Path {
 enum Branch {
     Schedule(usize),
     Write(usize),
+    Spurious(usize),
 }
 
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
-pub struct Schedule {
-    pub preemptions: usize,
+pub(crate) struct Schedule {
+    pub(crate) preemptions: usize,
 
-    pub initial_active: Option<usize>,
+    pub(crate) initial_active: Option<usize>,
 
-    pub threads: Vec<Thread>,
+    pub(crate) threads: Vec<Thread>,
 
     init_threads: Vec<Thread>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
-pub enum Thread {
+pub(crate) enum Thread {
     /// The thread is currently disabled
     Disabled,
 
@@ -79,23 +83,24 @@ pub enum Thread {
 
 impl Path {
     /// New Path
-    pub fn new(max_branches: usize, preemption_bound: Option<usize>) -> Path {
+    pub(crate) fn new(max_branches: usize, preemption_bound: Option<usize>) -> Path {
         Path {
             preemption_bound,
             branches: vec![],
             pos: 0,
             schedules: vec![],
             writes: vec![],
+            spurious: vec![],
             max_branches,
         }
     }
 
-    pub fn pos(&self) -> usize {
+    pub(crate) fn pos(&self) -> usize {
         self.pos
     }
 
     /// Returns the atomic write to read
-    pub fn branch_write<I>(&mut self, seed: I) -> usize
+    pub(crate) fn branch_write<I>(&mut self, seed: I) -> usize
     where
         I: Iterator<Item = usize>,
     {
@@ -125,8 +130,39 @@ impl Path {
         self.writes[i][0]
     }
 
+    /// Branch on spurious notifications
+    pub(crate) fn branch_spurious(&mut self) -> bool {
+        use self::Branch::Spurious;
+
+        assert!(
+            self.branches.len() < self.max_branches,
+            "actual = {}",
+            self.branches.len()
+        );
+
+        if self.pos == self.branches.len() {
+            let i = self.spurious.len();
+
+            let spurious: VecDeque<_> = vec![false, true].into();
+            self.spurious.push(spurious);
+            self.branches.push(Branch::Spurious(i));
+        }
+
+        let i = match self.branches[self.pos] {
+            Spurious(i) => i,
+            _ => panic!("path entry {} is not a spurious wait", self.pos),
+        };
+
+        self.pos += 1;
+        self.spurious[i][0]
+    }
+
     /// Returns the thread identifier to schedule
-    pub fn branch_thread<I>(&mut self, execution_id: execution::Id, seed: I) -> Option<thread::Id>
+    pub(crate) fn branch_thread<I>(
+        &mut self,
+        execution_id: execution::Id,
+        seed: I,
+    ) -> Option<thread::Id>
     where
         I: Iterator<Item = Thread>,
     {
@@ -207,7 +243,7 @@ impl Path {
             .map(|(i, _)| thread::Id::new(execution_id, i))
     }
 
-    pub fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
+    pub(crate) fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
         let index = match self.branches[point] {
             Branch::Schedule(index) => index,
             _ => panic!(),
@@ -234,7 +270,7 @@ impl Path {
     }
 
     /// Returns `false` if there are no more paths to explore
-    pub fn step(&mut self) -> bool {
+    pub(crate) fn step(&mut self) -> bool {
         use self::Branch::*;
 
         self.pos = 0;
@@ -271,6 +307,15 @@ impl Path {
                     if self.writes[i].is_empty() {
                         self.branches.pop();
                         self.writes.pop();
+                        continue;
+                    }
+                }
+                &Spurious(i) => {
+                    self.spurious[i].pop_front();
+
+                    if self.spurious[i].is_empty() {
+                        self.branches.pop();
+                        self.spurious.pop();
                         continue;
                     }
                 }

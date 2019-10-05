@@ -10,6 +10,12 @@ pub(crate) struct Notify {
 
 #[derive(Debug)]
 pub(super) struct State {
+    /// If true, spurious notifications are possible
+    spurious: bool,
+
+    /// True if the notify woke up spuriously last time
+    did_spur: bool,
+
     /// When true, notification is sequentiall consistent.
     seq_cst: bool,
 
@@ -24,9 +30,11 @@ pub(super) struct State {
 }
 
 impl Notify {
-    pub(crate) fn new(seq_cst: bool) -> Notify {
+    pub(crate) fn new(seq_cst: bool, spurious: bool) -> Notify {
         super::execution(|execution| {
             let obj = execution.objects.insert_notify(State {
+                spurious,
+                did_spur: false,
                 seq_cst,
                 notified: false,
                 last_access: None,
@@ -38,7 +46,7 @@ impl Notify {
     }
 
     pub(crate) fn notify(self) {
-        self.obj.branch();
+        self.obj.branch_opaque();
 
         rt::execution(|execution| {
             {
@@ -71,10 +79,29 @@ impl Notify {
     }
 
     pub(crate) fn wait(self) {
-        let notified = rt::execution(|execution| self.get_state(&mut execution.objects).notified);
+        let (notified, spurious) = rt::execution(|execution| {
+            let state = self.get_state(&mut execution.objects);
+
+            let spurious = if state.spurious && !state.did_spur {
+                execution.path.branch_spurious()
+            } else {
+                false
+            };
+
+            if spurious {
+                state.did_spur = true;
+            }
+
+            (state.notified, spurious)
+        });
+
+        if spurious {
+            rt::yield_now();
+            return;
+        }
 
         if notified {
-            self.obj.branch();
+            self.obj.branch_opaque();
         } else {
             // This should become branch_disable
             self.obj.branch_acquire(true)

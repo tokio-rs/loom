@@ -1,37 +1,42 @@
+use crate::rt::alloc::Allocation;
 use crate::rt::{object, thread, Access, Path};
 
+use std::collections::HashMap;
 use std::fmt;
 
-pub struct Execution {
+pub(crate) struct Execution {
     /// Uniquely identifies an execution
-    pub id: Id,
+    pub(super) id: Id,
 
     /// Execution path taken
-    pub path: Path,
+    pub(crate) path: Path,
 
-    pub threads: thread::Set,
+    pub(crate) threads: thread::Set,
 
     /// All loom aware objects part of this execution run.
-    pub objects: object::Store,
+    pub(super) objects: object::Store,
+
+    /// Maps raw allocations to LeakTrack objects
+    pub(super) raw_allocations: HashMap<usize, Allocation>,
 
     /// Maximum number of concurrent threads
-    pub max_threads: usize,
+    pub(super) max_threads: usize,
 
-    pub max_history: usize,
+    pub(super) max_history: usize,
 
     /// Log execution output to STDOUT
-    pub log: bool,
+    pub(crate) log: bool,
 }
 
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
-pub struct Id(usize);
+pub(crate) struct Id(usize);
 
 impl Execution {
     /// Create a new execution.
     ///
     /// This is only called at the start of a fuzz run. The same instance is
     /// reused across permutations.
-    pub fn new(
+    pub(crate) fn new(
         max_threads: usize,
         max_branches: usize,
         preemption_bound: Option<usize>,
@@ -44,6 +49,7 @@ impl Execution {
             path: Path::new(max_branches, preemption_bound),
             threads,
             objects: object::Store::new(id),
+            raw_allocations: HashMap::new(),
             max_threads,
             max_history: 7,
             log: false,
@@ -51,7 +57,7 @@ impl Execution {
     }
 
     /// Create state to track a new thread
-    pub fn new_thread(&mut self) -> thread::Id {
+    pub(crate) fn new_thread(&mut self) -> thread::Id {
         let thread_id = self.threads.new_thread();
         let active_id = self.threads.active_id();
 
@@ -69,17 +75,19 @@ impl Execution {
     }
 
     /// Resets the execution state for the next execution run
-    pub fn step(self) -> Option<Self> {
+    pub(crate) fn step(self) -> Option<Self> {
         let id = Id::new();
         let max_threads = self.max_threads;
         let max_history = self.max_history;
         let log = self.log;
         let mut path = self.path;
         let mut objects = self.objects;
+        let mut raw_allocations = self.raw_allocations;
 
         let mut threads = self.threads;
 
         objects.clear();
+        raw_allocations.clear();
 
         if !path.step() {
             return None;
@@ -92,6 +100,7 @@ impl Execution {
             path,
             threads,
             objects,
+            raw_allocations,
             max_threads,
             max_history,
             log,
@@ -99,7 +108,7 @@ impl Execution {
     }
 
     /// Returns `true` if a switch is required
-    pub fn schedule(&mut self) -> bool {
+    pub(crate) fn schedule(&mut self) -> bool {
         use crate::rt::path::Thread;
 
         // Implementation of the DPOR algorithm.
@@ -217,11 +226,16 @@ impl Execution {
         curr_thread != self.threads.active_id()
     }
 
-    pub fn set_critical(&mut self) {
+    /// Panics if any leaks were detected
+    pub(crate) fn check_for_leaks(&self) {
+        self.objects.check_for_leaks();
+    }
+
+    pub(crate) fn set_critical(&mut self) {
         self.threads.active_mut().critical = true;
     }
 
-    pub fn unset_critical(&mut self) {
+    pub(crate) fn unset_critical(&mut self) {
         self.threads.active_mut().critical = false;
     }
 }
@@ -236,7 +250,7 @@ impl fmt::Debug for Execution {
 }
 
 impl Id {
-    pub fn new() -> Id {
+    pub(crate) fn new() -> Id {
         use std::sync::atomic::AtomicUsize;
         use std::sync::atomic::Ordering::Relaxed;
 
