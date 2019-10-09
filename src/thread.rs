@@ -4,10 +4,12 @@ use crate::rt;
 pub use crate::rt::thread::AccessError;
 pub use crate::rt::yield_now;
 
+pub use std::thread::panicking;
+
 use std::cell::RefCell;
-use std::fmt;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use std::{fmt, io};
 
 /// Mock implementation of `std::thread::JoinHandle`.
 pub struct JoinHandle<T> {
@@ -28,6 +30,11 @@ pub struct LocalKey<T> {
     pub _p: PhantomData<fn(T)>,
 }
 
+/// Thread factory, which can be used in order to configure the properties of
+/// a new thread.
+#[derive(Debug)]
+pub struct Builder {}
+
 /// Mock implementation of `std::thread::spawn`.
 pub fn spawn<F, T>(f: F) -> JoinHandle<T>
 where
@@ -47,6 +54,36 @@ where
     }
 
     JoinHandle { result, notify }
+}
+
+impl Builder {
+    /// Generates the base configuration for spawning a thread, from which
+    /// configuration methods can be chained.
+    pub fn new() -> Builder {
+        Builder {}
+    }
+
+    /// Names the thread-to-be. Currently the name is used for identification
+    /// only in panic messages.
+    pub fn name(self, _name: String) -> Builder {
+        self
+    }
+
+    /// Sets the size of the stack (in bytes) for the new thread.
+    pub fn stack_size(self, _size: usize) -> Builder {
+        self
+    }
+
+    /// Spawns a new thread by taking ownership of the `Builder`, and returns an
+    /// `io::Result` to its `JoinHandle`.
+    pub fn spawn<F, T>(self, f: F) -> io::Result<JoinHandle<T>>
+    where
+        F: FnOnce() -> T,
+        F: Send + 'static,
+        T: Send + 'static,
+    {
+        Ok(spawn(f))
+    }
 }
 
 impl<T> JoinHandle<T> {
@@ -78,12 +115,35 @@ impl<T: 'static> LocalKey<T> {
     where
         F: FnOnce(&T) -> R,
     {
+        let value = match unsafe { self.get() } {
+            Some(v) => v?,
+            None => {
+                // Init the value out of the `rt::execution`
+                let value = (self.init)();
+
+                rt::execution(|execution| {
+                    execution.threads.local_init(self, value);
+                });
+
+                unsafe { self.get() }.expect("bug")?
+            }
+        };
+        Ok(f(value))
+    }
+
+    unsafe fn get(&'static self) -> Option<Result<&T, AccessError>> {
         unsafe fn transmute_lt<'a, 'b, T>(t: &'a T) -> &'b T {
             std::mem::transmute::<&'a T, &'b T>(t)
         }
 
-        let value = rt::execution(|execution| {
-            let local = execution.threads.local(self)?;
+        rt::execution(|execution| {
+            let res = execution.threads.local(self)?;
+
+            let local = match res {
+                Ok(l) => l,
+                Err(e) => return Some(Err(e)),
+            };
+
             // This is, sadly, necessary to allow nested `with` blocks to access
             // different thread locals. The borrow on the thread-local needs to
             // escape the lifetime of the borrow on `execution`, since
@@ -91,9 +151,8 @@ impl<T: 'static> LocalKey<T> {
             // cause a panic. This should be safe, as we know the function being
             // passed the thread local will not outlive the thread on which
             // it's executing, by construction --- it's just kind of unfortunate.
-            Ok(unsafe { transmute_lt(local) })
-        })?;
-        Ok(f(value))
+            Some(Ok(transmute_lt(local)))
+        })
     }
 }
 

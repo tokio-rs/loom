@@ -65,6 +65,26 @@ impl Arc {
         })
     }
 
+    /// Validate a `get_mut` call
+    pub(crate) fn get_mut(self) -> bool {
+        self.obj.branch(Action::RefDec);
+
+        rt::execution(|execution| {
+            let state = self.obj.arc_mut(&mut execution.objects);
+
+            assert!(state.ref_cnt >= 1, "Arc is released");
+
+            // Synchronize the threads
+            state.synchronize.sync_load(&mut execution.threads, Acquire);
+
+            if state.ref_cnt == 1 {
+                true
+            } else {
+                false
+            }
+        })
+    }
+
     /// Returns true if the memory should be dropped.
     pub(crate) fn ref_dec(self) -> bool {
         self.obj.branch(Action::RefDec);
@@ -77,7 +97,7 @@ impl Arc {
             // Decrement the ref count
             state.ref_cnt -= 1;
 
-            // SYnchronize the threads.
+            // Synchronize the threads.
             state
                 .synchronize
                 .sync_store(&mut execution.threads, Release);

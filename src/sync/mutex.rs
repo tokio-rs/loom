@@ -1,6 +1,5 @@
 use crate::rt;
 
-use std::cell::{RefCell, RefMut};
 use std::ops;
 use std::sync::LockResult;
 
@@ -8,21 +7,21 @@ use std::sync::LockResult;
 #[derive(Debug)]
 pub struct Mutex<T> {
     object: rt::Mutex,
-    data: RefCell<T>,
+    data: std::sync::Mutex<T>,
 }
 
 /// Mock implementation of `std::sync::MutexGuard`.
 #[derive(Debug)]
 pub struct MutexGuard<'a, T> {
     lock: &'a Mutex<T>,
-    data: Option<RefMut<'a, T>>,
+    data: Option<std::sync::MutexGuard<'a, T>>,
 }
 
 impl<T> Mutex<T> {
     /// Creates a new mutex in an unlocked state ready for use.
     pub fn new(data: T) -> Mutex<T> {
         Mutex {
-            data: RefCell::new(data),
+            data: std::sync::Mutex::new(data),
             object: rt::Mutex::new(true),
         }
     }
@@ -35,7 +34,7 @@ impl<T> Mutex<T> {
 
         Ok(MutexGuard {
             lock: self,
-            data: Some(self.data.borrow_mut()),
+            data: Some(self.data.lock().unwrap()),
         })
     }
 }
@@ -46,7 +45,7 @@ impl<'a, T: 'a> MutexGuard<'a, T> {
     }
 
     pub(super) fn reborrow(&mut self) {
-        self.data = Some(self.lock.data.borrow_mut());
+        self.data = Some(self.lock.data.lock().unwrap());
     }
 
     pub(super) fn rt(&self) -> &rt::Mutex {

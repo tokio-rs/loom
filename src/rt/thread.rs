@@ -27,7 +27,7 @@ pub(crate) struct Thread {
     /// Number of times the thread yielded
     pub yield_count: usize,
 
-    locals: HashMap<LocalKeyId, LocalValue>,
+    locals: LocalMap,
 }
 
 #[derive(Debug)]
@@ -61,6 +61,8 @@ pub(crate) enum State {
     Yield,
     Terminated,
 }
+
+type LocalMap = HashMap<LocalKeyId, LocalValue>;
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone)]
 struct LocalKeyId(usize);
@@ -126,10 +128,17 @@ impl Thread {
 
     pub(crate) fn set_terminated(&mut self) {
         self.state = State::Terminated;
+    }
+
+    pub(crate) fn drop_locals(&mut self) -> Box<dyn std::any::Any> {
+        let mut locals = Vec::with_capacity(self.locals.len());
+
         // run the Drop impls of any mock thread-locals created by this thread.
         for (_, local) in &mut self.locals {
-            local.0.take();
+            locals.push(local.0.take());
         }
+
+        Box::new(locals)
     }
 
     pub(crate) fn unpark(&mut self, unparker: &Thread) {
@@ -312,12 +321,23 @@ impl Set {
     pub(crate) fn local<T: 'static>(
         &mut self,
         key: &'static crate::thread::LocalKey<T>,
-    ) -> Result<&T, AccessError> {
+    ) -> Option<Result<&T, AccessError>> {
         self.active_mut()
             .locals
-            .entry(LocalKeyId::new(key))
-            .or_insert_with(|| LocalValue::new(key.init))
-            .get()
+            .get(&LocalKeyId::new(key))
+            .map(|local_value| local_value.get())
+    }
+
+    pub(crate) fn local_init<T: 'static>(
+        &mut self,
+        key: &'static crate::thread::LocalKey<T>,
+        value: T,
+    ) {
+        assert!(self
+            .active_mut()
+            .locals
+            .insert(LocalKeyId::new(key), LocalValue::new(value))
+            .is_none())
     }
 }
 
@@ -364,8 +384,8 @@ impl LocalKeyId {
 }
 
 impl LocalValue {
-    fn new<T: 'static>(init: fn() -> T) -> Self {
-        Self(Some(Box::new(init())))
+    fn new<T: 'static>(value: T) -> Self {
+        Self(Some(Box::new(value)))
     }
 
     fn get<T: 'static>(&self) -> Result<&T, AccessError> {
