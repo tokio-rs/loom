@@ -1,3 +1,13 @@
+# 0.2.9 (October 9, 2019)
+
+### Fixed
+- `thread_local` initialization & dropping with loom primitives.
+
+### Added
+- Basic leak checking (#73).
+- `Arc::get_mut`.
+- mocked `thread::Builder`.
+
 # 0.2.8 (September 30, 2019)
 
 ### Chore
