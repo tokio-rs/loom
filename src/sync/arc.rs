@@ -33,6 +33,17 @@ impl<T> Arc<T> {
         // this.inner.ref_cnt.load(SeqCst)
     }
 
+    /// Returns a mutable reference to the inner value, if there are
+    /// no other `Arc` or [`Weak`][weak] pointers to the same value.
+    pub fn get_mut(this: &mut Self) -> Option<&mut T> {
+        if this.inner.obj.get_mut() {
+            assert_eq!(1, std::sync::Arc::strong_count(&this.inner));
+            Some(&mut std::sync::Arc::get_mut(&mut this.inner).unwrap().value)
+        } else {
+            None
+        }
+    }
+
     /// Returns `true` if the two `Arc`s point to the same value (not
     /// just values that compare as equal).
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {

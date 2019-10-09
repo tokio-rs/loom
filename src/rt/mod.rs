@@ -139,9 +139,14 @@ where
 }
 
 pub fn thread_done() {
+    let locals = execution(|execution| execution.threads.active_mut().drop_locals());
+
+    // Drop outside of the execution context
+    drop(locals);
+
     execution(|execution| {
-        execution.threads.active_mut().set_terminated();
         execution.threads.active_mut().operation = None;
-        execution.schedule()
+        execution.threads.active_mut().set_terminated();
+        execution.schedule();
     });
 }
