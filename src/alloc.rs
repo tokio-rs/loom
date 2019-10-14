@@ -11,6 +11,13 @@ pub unsafe fn alloc(layout: Layout) -> *mut u8 {
     ptr
 }
 
+/// Allocate zero-initialized memory with the global allocator.
+pub unsafe fn alloc_zeroed(layout: Layout) -> *mut u8 {
+    let ptr = std::alloc::alloc_zeroed(layout);
+    rt::alloc(ptr);
+    ptr
+}
+
 /// Deallocate memory with the global allocator.
 pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
     rt::dealloc(ptr);
