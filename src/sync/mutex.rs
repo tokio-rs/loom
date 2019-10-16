@@ -1,7 +1,7 @@
 use crate::rt;
 
 use std::ops;
-use std::sync::LockResult;
+use std::sync::{LockResult, TryLockError, TryLockResult};
 
 /// Mock implementation of `std::sync::Mutex`.
 #[derive(Debug)]
@@ -36,6 +36,24 @@ impl<T> Mutex<T> {
             lock: self,
             data: Some(self.data.lock().unwrap()),
         })
+    }
+
+    /// Attempts to acquire this lock.
+    ///
+    /// If the lock could not be acquired at this time, then `Err` is returned.
+    /// Otherwise, an RAII guard is returned. The lock will be unlocked when the
+    /// guard is dropped.
+    ///
+    /// This function does not block.
+    pub fn try_lock(&self) -> TryLockResult<MutexGuard<'_, T>> {
+        if self.object.try_acquire_lock() {
+            Ok(MutexGuard {
+                lock: self,
+                data: Some(self.data.lock().unwrap()),
+            })
+        } else {
+            Err(TryLockError::WouldBlock)
+        }
     }
 }
 
