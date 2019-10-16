@@ -1,3 +1,9 @@
+# 0.2.10 (October 15, 2019)
+
+### Added
+- `alloc_zeroed` (#77).
+- `AtomicPtr::get_mut` (#80).
+
 # 0.2.9 (October 9, 2019)
 
 ### Fixed
