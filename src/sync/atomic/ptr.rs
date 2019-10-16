@@ -17,6 +17,11 @@ impl<T> AtomicPtr<T> {
         self.0.unsync_load()
     }
 
+    /// Get a mutable reference to the pointer.
+    pub fn get_mut(&mut self) -> &mut *mut T {
+        self.0.get_mut()
+    }
+
     /// Loads a value from the pointer.
     pub fn load(&self, order: Ordering) -> *mut T {
         self.0.load(order)
