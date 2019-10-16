@@ -43,7 +43,6 @@ impl Mutex {
         assert!(self.post_acquire(), "expected to be able to acquire lock");
     }
 
-    #[cfg(feature = "futures")]
     pub(crate) fn try_acquire_lock(&self) -> bool {
         self.obj.branch_opaque();
         self.post_acquire()
