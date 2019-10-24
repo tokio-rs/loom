@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/loom/0.2.10")]
+#![doc(html_root_url = "https://docs.rs/loom/0.2.11")]
 #![deny(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![cfg_attr(test, deny(warnings))]
 

@@ -4,7 +4,7 @@ Loom is a testing tool for concurrent Rust code. It runs a test many times,
 permuting the possible concurrent executions of that test under the C11 memory
 model. It uses state reduction techniques to avoid combinatorial explosion.
 
-[![Build Status](https://dev.azure.com/carllerche/loom/_apis/build/status/carllerche.loom?branchName=master)](https://dev.azure.com/carllerche/loom/_build/latest?definitionId=2&branchName=master)
+[![Build Status](https://dev.azure.com/tokio-rs/loom/_apis/build/status/tokio-rs.loom?branchName=master)](https://dev.azure.com/tokio-rs/loom/_build/latest?definitionId=2&branchName=master)
 
 [Documentation](https://docs.rs/loom)
 
@@ -14,7 +14,7 @@ To use `loom`, first add this to your `Cargo.toml`:
 
 ```toml
 [dev-dependencies]
-loom = "0.2.10"
+loom = "0.2.11"
 ```
 
 Next, create a test file and add a test:

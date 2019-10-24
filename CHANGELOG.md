@@ -1,3 +1,9 @@
+# 0.2.11 (October 24, 2019)
+
+### Added
+- `Mutex::try_lock` (#83).
+- stubbed `Condvar::wait_timeout` (#86).
+
 # 0.2.10 (October 15, 2019)
 
 ### Added
