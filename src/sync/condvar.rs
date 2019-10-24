@@ -1,6 +1,7 @@
 use super::{LockResult, MutexGuard};
 use crate::rt;
 
+use std::sync::PoisonError;
 use std::time::Duration;
 
 /// Mock implementation of `std::sync::Condvar`.
@@ -41,10 +42,13 @@ impl Condvar {
     /// specified duration.
     pub fn wait_timeout<'a, T>(
         &self,
-        _guard: MutexGuard<'a, T>,
+        guard: MutexGuard<'a, T>,
         _dur: Duration,
     ) -> LockResult<(MutexGuard<'a, T>, WaitTimeoutResult)> {
-        unimplemented!();
+        // TODO: implement timing out
+        self.wait(guard)
+            .map(|guard| (guard, WaitTimeoutResult(false)))
+            .map_err(|err| PoisonError::new((err.into_inner(), WaitTimeoutResult(false))))
     }
 
     /// Wakes up one blocked thread on this condvar.
@@ -55,5 +59,12 @@ impl Condvar {
     /// Wakes up all blocked threads on this condvar.
     pub fn notify_all(&self) {
         self.object.notify_all();
+    }
+}
+
+impl WaitTimeoutResult {
+    /// Returns `true` if the wait was known to have timed out.
+    pub fn timed_out(&self) -> bool {
+        self.0
     }
 }
