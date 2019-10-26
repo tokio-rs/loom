@@ -27,6 +27,10 @@ pub(super) struct State {
 impl Mutex {
     pub(crate) fn new(seq_cst: bool) -> Mutex {
         super::execution(|execution| {
+            if execution.log {
+                println!("Mutex::new");
+            }
+
             let obj = execution.objects.insert_mutex(State {
                 seq_cst,
                 lock: None,
@@ -50,6 +54,10 @@ impl Mutex {
 
     pub(crate) fn release_lock(&self) {
         super::execution(|execution| {
+            if execution.log {
+                println!("Mutex::release_lock");
+            }
+
             let state = self.get_state(&mut execution.objects);
 
             // Release the lock flag
@@ -85,6 +93,10 @@ impl Mutex {
 
     fn post_acquire(&self) -> bool {
         super::execution(|execution| {
+            if execution.log {
+                println!("Mutex::post_acquire");
+            }
+
             let state = self.get_state(&mut execution.objects);
             let thread_id = execution.threads.active_id();
 
@@ -124,7 +136,13 @@ impl Mutex {
 
     /// Returns `true` if the mutex is currently locked
     fn is_locked(&self) -> bool {
-        super::execution(|execution| self.get_state(&mut execution.objects).lock.is_some())
+        super::execution(|execution| {
+            if execution.log {
+                println!("Mutex::is_locked");
+            }
+
+            self.get_state(&mut execution.objects).lock.is_some()
+        })
     }
 
     fn get_state<'a>(&self, objects: &'a mut object::Store) -> &'a mut State {

@@ -53,7 +53,13 @@ impl<T> CausalCell<T> {
     /// Construct a new instance of `CausalCell` which will wrap the specified
     /// value.
     pub fn new(data: T) -> CausalCell<T> {
-        let v = rt::execution(|execution| execution.threads.active().causality.clone());
+        let v = rt::execution(|execution| {
+            if execution.log {
+                println!("CausalCell::new");
+            }
+
+            execution.threads.active().causality.clone()
+        });
 
         CausalCell {
             data: UnsafeCell::new(data),
@@ -97,6 +103,10 @@ impl<T> CausalCell<T> {
     {
         rt::critical(|| {
             rt::execution(|execution| {
+                if execution.log {
+                    println!("CausalCell::with_deferred");
+                }
+
                 let thread_causality = &execution.threads.active().causality;
 
                 let mut state = self.state.lock().unwrap();
@@ -151,6 +161,10 @@ impl<T> CausalCell<T> {
     {
         rt::critical(|| {
             rt::execution(|execution| {
+                if execution.log {
+                    println!("CausalCell::with_deferred_mut");
+                }
+
                 let thread_causality = &execution.threads.active().causality;
 
                 let mut state = self.state.lock().unwrap();
@@ -201,6 +215,10 @@ impl<T> CausalCell<T> {
     /// immutable accesses.
     pub fn check(&self) {
         rt::execution(|execution| {
+            if execution.log {
+                println!("CausalCell::check");
+            }
+
             let thread_causality = &execution.threads.active().causality;
             let mut state = self.state.lock().unwrap();
 
@@ -220,6 +238,10 @@ impl<T> CausalCell<T> {
     /// access and no concurrent immutable access(es) with this mutable access.
     pub fn check_mut(&self) {
         rt::execution(|execution| {
+            if execution.log {
+                println!("CausalCell::check_mut");
+            }
+
             let thread_causality = &execution.threads.active().causality;
             let mut state = self.state.lock().unwrap();
 

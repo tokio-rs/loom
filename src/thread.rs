@@ -122,6 +122,10 @@ impl<T: 'static> LocalKey<T> {
                 let value = (self.init)();
 
                 rt::execution(|execution| {
+                    if execution.log {
+                        println!("LocalKey::try_with");
+                    }
+
                     execution.threads.local_init(self, value);
                 });
 
@@ -137,6 +141,10 @@ impl<T: 'static> LocalKey<T> {
         }
 
         rt::execution(|execution| {
+            if execution.log {
+                println!("LocalKey::get");
+            }
+
             let res = execution.threads.local(self)?;
 
             let local = match res {

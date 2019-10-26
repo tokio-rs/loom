@@ -210,6 +210,10 @@ impl Object {
     // TODO: rename `branch_disable`
     pub(super) fn branch_acquire(self, is_locked: bool) {
         super::branch(|execution| {
+            if execution.log {
+                println!("Object::branch_acquire");
+            }
+
             self.set_action(execution, Action::Opaque);
 
             if is_locked {
@@ -221,6 +225,10 @@ impl Object {
 
     pub(super) fn branch<T: Into<Action>>(self, action: T) {
         super::branch(|execution| {
+            if execution.log {
+                println!("Object::branch");
+            }
+
             self.set_action(execution, action.into());
         })
     }

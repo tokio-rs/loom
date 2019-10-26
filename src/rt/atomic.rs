@@ -51,6 +51,10 @@ struct FirstSeen(Vec<Option<usize>>);
 impl Atomic {
     pub(crate) fn new() -> Atomic {
         rt::execution(|execution| {
+            if execution.log {
+                println!("Atomic::new");
+            }
+
             let mut state = State::default();
 
             // All atomics are initialized with a value, which brings the causality
@@ -71,6 +75,10 @@ impl Atomic {
         self.obj.branch(Action::Load);
 
         super::synchronize(|execution| {
+            if execution.log {
+                println!("Atomic::load");
+            }
+
             self.obj.atomic_mut(&mut execution.objects).unwrap().load(
                 &mut execution.path,
                 &mut execution.threads,
@@ -83,6 +91,10 @@ impl Atomic {
         self.obj.branch(Action::Store);
 
         super::synchronize(|execution| {
+            if execution.log {
+                println!("Atomic::store");
+            }
+
             self.obj
                 .atomic_mut(&mut execution.objects)
                 .unwrap()
@@ -97,6 +109,10 @@ impl Atomic {
         self.obj.branch(Action::Rmw);
 
         super::synchronize(|execution| {
+            if execution.log {
+                println!("Atomic::rmw");
+            }
+
             self.obj.atomic_mut(&mut execution.objects).unwrap().rmw(
                 f,
                 &mut execution.threads,
@@ -113,6 +129,10 @@ impl Atomic {
         self.obj.branch(Action::Rmw);
 
         super::execution(|execution| {
+            if execution.log {
+                println!("Atomic::get_mut");
+            }
+
             self.obj
                 .atomic_mut(&mut execution.objects)
                 .unwrap()
@@ -128,6 +148,10 @@ pub(crate) fn fence(order: Ordering) {
     );
 
     rt::synchronize(|execution| {
+        if execution.log {
+            println!("fence");
+        }
+
         // Find all stores for all atomic objects and, if they have been read by
         // the current thread, establish an acquire synchronization.
         for state in execution.objects.atomics_mut() {

@@ -32,6 +32,10 @@ pub(super) struct State {
 impl Notify {
     pub(crate) fn new(seq_cst: bool, spurious: bool) -> Notify {
         super::execution(|execution| {
+            if execution.log {
+                println!("Notify::new");
+            }
+
             let obj = execution.objects.insert_notify(State {
                 spurious,
                 did_spur: false,
@@ -49,6 +53,10 @@ impl Notify {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
+            if execution.log {
+                println!("Notify::notify");
+            }
+
             {
                 let state = self.get_state(&mut execution.objects);
 
@@ -80,6 +88,10 @@ impl Notify {
 
     pub(crate) fn wait(self) {
         let (notified, spurious) = rt::execution(|execution| {
+            if execution.log {
+                println!("Notify::wait 1");
+            }
+
             let state = self.get_state(&mut execution.objects);
 
             let spurious = if state.spurious && !state.did_spur {
@@ -109,6 +121,10 @@ impl Notify {
 
         // Thread was notified
         super::execution(|execution| {
+            if execution.log {
+                println!("Notify::wait 2");
+            }
+
             let state = self.get_state(&mut execution.objects);
 
             assert!(state.notified);

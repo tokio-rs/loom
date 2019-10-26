@@ -43,6 +43,10 @@ where
     F: FnOnce() + 'static,
 {
     execution(|execution| {
+        if execution.log {
+            println!("spawn");
+        }
+
         execution.new_thread();
     });
 
@@ -55,6 +59,10 @@ where
 /// Marks the current thread as blocked
 pub fn park() {
     execution(|execution| {
+        if execution.log {
+            println!("park");
+        }
+
         execution.threads.active_mut().set_blocked();
         execution.threads.active_mut().operation = None;
         execution.schedule()
@@ -69,6 +77,10 @@ where
     F: FnOnce(&mut Execution) -> R,
 {
     let (ret, switch) = execution(|execution| {
+        if execution.log {
+            println!("branch");
+        }
+
         let ret = f(execution);
         (ret, execution.schedule())
     });
@@ -85,6 +97,10 @@ where
     F: FnOnce(&mut Execution) -> R,
 {
     execution(|execution| {
+        if execution.log {
+            println!("synchronize");
+        }
+
         let ret = f(execution);
         execution.threads.active_causality_inc();
         ret
@@ -97,6 +113,10 @@ where
 /// progress.
 pub fn yield_now() {
     let switch = execution(|execution| {
+        if execution.log {
+            println!("yield_now");
+        }
+
         execution.threads.active_mut().set_yield();
         execution.threads.active_mut().operation = None;
         execution.schedule()
@@ -117,6 +137,10 @@ where
     impl Drop for Reset {
         fn drop(&mut self) {
             execution(|execution| {
+                if execution.log {
+                    println!("unset_critical");
+                }
+
                 execution.unset_critical();
             });
         }
@@ -125,6 +149,10 @@ where
     let _reset = Reset;
 
     execution(|execution| {
+        if execution.log {
+            println!("set_critical");
+        }
+
         execution.set_critical();
     });
 
@@ -139,12 +167,22 @@ where
 }
 
 pub fn thread_done() {
-    let locals = execution(|execution| execution.threads.active_mut().drop_locals());
+    let locals = execution(|execution| {
+        if execution.log {
+            println!("thread_done: drop_locals");
+        }
+
+        execution.threads.active_mut().drop_locals()
+    });
 
     // Drop outside of the execution context
     drop(locals);
 
     execution(|execution| {
+        if execution.log {
+            println!("thread_done: set_terminated");
+        }
+
         execution.threads.active_mut().operation = None;
         execution.threads.active_mut().set_terminated();
         execution.schedule();

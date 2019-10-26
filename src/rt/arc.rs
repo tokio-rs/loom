@@ -45,6 +45,10 @@ pub(super) enum Action {
 impl Arc {
     pub(crate) fn new() -> Arc {
         rt::execution(|execution| {
+            if execution.log {
+                println!("Arc::new");
+            }
+
             let obj = execution.objects.insert_arc(State {
                 ref_cnt: 1,
                 synchronize: Synchronize::new(execution.max_threads),
@@ -60,6 +64,10 @@ impl Arc {
         self.obj.branch(Action::RefInc);
 
         rt::execution(|execution| {
+            if execution.log {
+                println!("Arc::ref_inc");
+            }
+
             let state = self.obj.arc_mut(&mut execution.objects);
             state.ref_cnt = state.ref_cnt.checked_add(1).expect("overflow");
         })
@@ -70,6 +78,10 @@ impl Arc {
         self.obj.branch(Action::RefDec);
 
         rt::execution(|execution| {
+            if execution.log {
+                println!("Arc::get_mut");
+            }
+
             let state = self.obj.arc_mut(&mut execution.objects);
 
             assert!(state.ref_cnt >= 1, "Arc is released");
@@ -90,6 +102,10 @@ impl Arc {
         self.obj.branch(Action::RefDec);
 
         rt::execution(|execution| {
+            if execution.log {
+                println!("Arc::ref_dec");
+            }
+
             let state = self.obj.arc_mut(&mut execution.objects);
 
             assert!(state.ref_cnt >= 1, "Arc is already released");

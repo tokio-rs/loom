@@ -21,6 +21,10 @@ impl Condvar {
     /// Create a new condition variable object
     pub(crate) fn new() -> Condvar {
         super::execution(|execution| {
+            if execution.log {
+                println!("Condvar::new");
+            }
+
             let obj = execution.objects.insert_condvar(State {
                 last_access: None,
                 waiters: VecDeque::new(),
@@ -35,6 +39,10 @@ impl Condvar {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
+            if execution.log {
+                println!("Condvar::wait");
+            }
+
             let state = self.get_state(&mut execution.objects);
 
             // Track the current thread as a waiter
@@ -56,6 +64,10 @@ impl Condvar {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
+            if execution.log {
+                println!("Condvar::notify_one");
+            }
+
             let state = self.get_state(&mut execution.objects);
 
             // Notify the first waiter
@@ -72,6 +84,10 @@ impl Condvar {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
+            if execution.log {
+                println!("Condvar::notify_all");
+            }
+
             let state = self.get_state(&mut execution.objects);
 
             for thread in state.waiters.drain(..) {
