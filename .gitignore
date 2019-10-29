@@ -1,2 +1,6 @@
 target
 Cargo.lock
+
+# Vim
+.*.swp
+.*.swo
