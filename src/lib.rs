@@ -85,8 +85,8 @@
 //! case and control the scheduling.
 //!
 //! Tests must use the loom synchronization types, such as `Atomic*`, `Mutex`,
-//! `Condvar`, `thread::spawn`, etc. When writing a concurrent program, the
-//! `std` types should be used when running the program and the `loom` types
+//! `RwLock`, `Condvar`, `thread::spawn`, etc. When writing a concurrent program,
+//! the `std` types should be used when running the program and the `loom` types
 //! when running the test.
 //!
 //! One way to do this is via cfg flags.
