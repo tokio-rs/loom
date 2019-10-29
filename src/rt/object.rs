@@ -1,4 +1,4 @@
-use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify};
+use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify, rwlock};
 use crate::rt::{Access, Execution, VersionVec};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -27,9 +27,10 @@ enum Entry {
     Alloc(alloc::State),
     Arc(arc::State),
     Atomic(atomic::State),
-    Mutex(mutex::State),
     Condvar(condvar::State),
+    Mutex(mutex::State),
     Notify(notify::State),
+    RwLock(rwlock::State),
 }
 
 // TODO: mov to separate file
@@ -106,6 +107,15 @@ impl Object {
             _ => None,
         }
     }
+
+    pub(super) fn rwlock_mut(self, store: &mut Store) -> Option<&mut rwlock::State> {
+        assert_eq!(self.execution_id, store.execution_id);
+
+        match &mut store.entries[self.index] {
+            Entry::RwLock(v) => Some(v),
+            _ => None,
+        }
+    }
 }
 
 impl Store {
@@ -155,6 +165,11 @@ impl Store {
         self.insert(Entry::Notify(state))
     }
 
+    /// Insert a new rwlock object into the store.
+    pub(super) fn insert_rwlock(&mut self, state: rwlock::State) -> Object {
+        self.insert(Entry::RwLock(state))
+    }
+
     fn insert(&mut self, entry: Entry) -> Object {
         let index = self.entries.len();
         self.entries.push(entry);
@@ -173,6 +188,7 @@ impl Store {
             Entry::Mutex(entry) => entry.last_dependent_access(),
             Entry::Condvar(entry) => entry.last_dependent_access(),
             Entry::Notify(entry) => entry.last_dependent_access(),
+            Entry::RwLock(entry) => entry.last_dependent_accesses(),
         }
     }
 
@@ -189,6 +205,7 @@ impl Store {
             Entry::Mutex(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::Condvar(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::Notify(entry) => entry.set_last_access(path_id, dpor_vv),
+            Entry::RwLock(entry) => entry.set_last_access(path_id, dpor_vv),
         }
     }
 

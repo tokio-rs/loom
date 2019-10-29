@@ -27,6 +27,9 @@ pub(crate) use self::mutex::Mutex;
 mod path;
 pub(crate) use self::path::Path;
 
+mod rwlock;
+pub(crate) use self::rwlock::RwLock;
+
 mod scheduler;
 pub(crate) use self::scheduler::Scheduler;
 
