@@ -149,8 +149,8 @@ impl State {
         action: Action,
     ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
         match action {
-            Action::Load => Box::new(self.last_store.iter()),
-            Action::Store => Box::new(self.last_load.iter()),
+            Action::Load => Box::new({ self.last_load.iter().chain(self.last_store.iter()) }),
+            Action::Store => Box::new({ self.last_load.iter().chain(self.last_store.iter()) }),
             Action::Rmw => Box::new({ self.last_load.iter().chain(self.last_store.iter()) }),
         }
     }
