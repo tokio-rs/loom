@@ -23,6 +23,8 @@ pub struct RwLockReadGuard<'a, T> {
 #[derive(Debug)]
 pub struct RwLockWriteGuard<'a, T> {
     lock: &'a RwLock<T>,
+    /// `data` is an Option so that the Drop impl can drop the std guard and release the std lock
+    /// before releasing the loom mock lock, as that might cause another thread to acquire the lock
     data: Option<std::sync::RwLockWriteGuard<'a, T>>,
 }
 
@@ -31,7 +33,7 @@ impl<T> RwLock<T> {
     pub fn new(data: T) -> RwLock<T> {
         RwLock {
             data: std::sync::RwLock::new(data),
-            object: rt::RwLock::new(true),
+            object: rt::RwLock::new(),
         }
     }
 
