@@ -153,13 +153,21 @@ impl State {
         self.last_store.iter().for_each(&mut f);
     }
 
-    pub(super) fn set_last_access(&mut self, action: Action, access: Access) {
+    pub(super) fn set_last_access(&mut self, action: Action, path_id: usize, version: &VersionVec) {
+        let set_or_create = |access: &mut Option<Access>| {
+            if let Some(access) = access.as_mut() {
+                access.set(path_id, version);
+            } else {
+                *access = Some(Access::new(path_id, version));
+            }
+        };
+
         match action {
-            Action::Load => self.last_load = Some(access),
-            Action::Store => self.last_store = Some(access),
+            Action::Load => set_or_create(&mut self.last_load),
+            Action::Store => set_or_create(&mut self.last_store),
             Action::Rmw => {
-                self.last_load = Some(access.clone());
-                self.last_store = Some(access);
+                set_or_create(&mut self.last_load);
+                set_or_create(&mut self.last_store);
             }
         }
     }

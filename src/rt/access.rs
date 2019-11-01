@@ -14,6 +14,11 @@ impl Access {
         }
     }
 
+    pub(crate) fn set(&mut self, path_id: usize, version: &VersionVec) {
+        self.path_id = path_id;
+        self.dpor_vv.set(version);
+    }
+
     /// Location in the path
     pub(crate) fn path_id(&self) -> usize {
         self.path_id

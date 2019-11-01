@@ -1,6 +1,6 @@
 #![allow(warnings)]
 use crate::rt::object::Object;
-use crate::rt::{self, Access, Synchronize};
+use crate::rt::{self, Access, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
@@ -124,7 +124,7 @@ impl State {
     pub(super) fn for_each_last_dependent_access(
         &self,
         action: Action,
-        mut f: impl FnMut(&Access)
+        mut f: impl FnMut(&Access),
     ) {
         match action {
             // RefIncs are not dependent w/ RefDec, only inspections
@@ -133,10 +133,18 @@ impl State {
         }
     }
 
-    pub(super) fn set_last_access(&mut self, action: Action, access: Access) {
+    pub(super) fn set_last_access(&mut self, action: Action, path_id: usize, version: &VersionVec) {
+        let set_or_create = |access: &mut Option<Access>| {
+            if let Some(access) = access.as_mut() {
+                access.set(path_id, version);
+            } else {
+                *access = Some(Access::new(path_id, version));
+            }
+        };
+
         match action {
-            Action::RefInc => self.last_ref_inc = Some(access),
-            Action::RefDec => self.last_ref_dec = Some(access),
+            Action::RefInc => set_or_create(&mut self.last_ref_inc),
+            Action::RefDec => set_or_create(&mut self.last_ref_dec),
         }
     }
 }

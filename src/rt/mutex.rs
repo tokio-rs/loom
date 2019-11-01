@@ -1,5 +1,5 @@
 use crate::rt::object::{self, Object};
-use crate::rt::{thread, Access, Synchronize};
+use crate::rt::{thread, Access, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
@@ -137,7 +137,11 @@ impl State {
         self.last_access.iter().for_each(f);
     }
 
-    pub(crate) fn set_last_access(&mut self, access: Access) {
-        self.last_access = Some(access);
+    pub(crate) fn set_last_access(&mut self, path_id: usize, version: &VersionVec) {
+        if let Some(access) = self.last_access.as_mut() {
+            access.set(path_id, version);
+        } else {
+            self.last_access = Some(Access::new(path_id, version));
+        }
     }
 }
