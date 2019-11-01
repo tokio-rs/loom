@@ -121,14 +121,15 @@ impl State {
         assert_eq!(0, self.ref_cnt, "Arc leaked");
     }
 
-    pub(super) fn last_dependent_accesses<'a>(
-        &'a self,
+    pub(super) fn for_each_last_dependent_access(
+        &self,
         action: Action,
-    ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
+        mut f: impl FnMut(&Access)
+    ) {
         match action {
             // RefIncs are not dependent w/ RefDec, only inspections
-            Action::RefInc => Box::new([].into_iter()),
-            Action::RefDec => Box::new(self.last_ref_dec.iter()),
+            Action::RefInc => {}
+            Action::RefDec => self.last_ref_dec.iter().for_each(f),
         }
     }
 

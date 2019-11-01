@@ -121,15 +121,17 @@ impl Execution {
                 None => continue,
             };
 
-            for access in self.objects.last_dependent_accesses(operation) {
-                if access.happens_before(&th.dpor_vv) {
-                    // The previous access happened before this access, thus
-                    // there is no race.
-                    continue;
-                }
+            let path = &mut self.path;
+            self.objects
+                .for_each_last_dependent_access(operation, |access| {
+                    if access.happens_before(&th.dpor_vv) {
+                        // The previous access happened before this access, thus
+                        // there is no race.
+                        return;
+                    }
 
-                self.path.backtrack(access.path_id(), th_id);
-            }
+                    path.backtrack(access.path_id(), th_id);
+                });
         }
 
         // It's important to avoid pre-emption as much as possible
@@ -201,9 +203,10 @@ impl Execution {
             let threads = &mut self.threads;
             let th_id = threads.active_id();
 
-            for access in self.objects.last_dependent_accesses(operation) {
-                threads.active_mut().dpor_vv.join(access.version());
-            }
+            self.objects
+                .for_each_last_dependent_access(operation, |access| {
+                    threads.active_mut().dpor_vv.join(access.version());
+                });
 
             threads.active_mut().dpor_vv[th_id] += 1;
 

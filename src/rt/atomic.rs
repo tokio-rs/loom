@@ -144,15 +144,13 @@ pub(crate) fn fence(order: Ordering) {
 }
 
 impl State {
-    pub(super) fn last_dependent_accesses<'a>(
-        &'a self,
-        action: Action,
-    ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
-        match action {
-            Action::Load => Box::new({ self.last_load.iter().chain(self.last_store.iter()) }),
-            Action::Store => Box::new({ self.last_load.iter().chain(self.last_store.iter()) }),
-            Action::Rmw => Box::new({ self.last_load.iter().chain(self.last_store.iter()) }),
-        }
+    pub(super) fn for_each_last_dependent_access(
+        &self,
+        _action: Action,
+        mut f: impl FnMut(&Access),
+    ) {
+        self.last_load.iter().for_each(&mut f);
+        self.last_store.iter().for_each(&mut f);
     }
 
     pub(super) fn set_last_access(&mut self, action: Action, access: Access) {

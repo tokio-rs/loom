@@ -165,17 +165,18 @@ impl Store {
         }
     }
 
-    pub(super) fn last_dependent_accesses<'a>(
-        &'a self,
+    pub(super) fn for_each_last_dependent_access(
+        &self,
         operation: Operation,
-    ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
+        f: impl FnMut(&Access),
+    ) {
         match &self.entries[operation.obj.index] {
             Entry::Alloc(_) => panic!("allocations are not branchable operations"),
-            Entry::Arc(entry) => entry.last_dependent_accesses(operation.action.into()),
-            Entry::Atomic(entry) => entry.last_dependent_accesses(operation.action.into()),
-            Entry::Mutex(entry) => entry.last_dependent_accesses(),
-            Entry::Condvar(entry) => entry.last_dependent_accesses(),
-            Entry::Notify(entry) => entry.last_dependent_accesses(),
+            Entry::Arc(entry) => entry.for_each_last_dependent_access(operation.action.into(), f),
+            Entry::Atomic(entry) => entry.for_each_last_dependent_access(operation.action.into(), f),
+            Entry::Mutex(entry) => entry.for_each_last_dependent_access(f),
+            Entry::Condvar(entry) => entry.for_each_last_dependent_access(f),
+            Entry::Notify(entry) => entry.for_each_last_dependent_access(f),
         }
     }
 

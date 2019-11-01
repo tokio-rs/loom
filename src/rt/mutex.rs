@@ -133,8 +133,8 @@ impl Mutex {
 }
 
 impl State {
-    pub(crate) fn last_dependent_accesses<'a>(&'a self) -> Box<dyn Iterator<Item = &Access> + 'a> {
-        Box::new(self.last_access.iter())
+    pub(crate) fn for_each_last_dependent_access(&self, f: impl FnMut(&Access)) {
+        self.last_access.iter().for_each(f);
     }
 
     pub(crate) fn set_last_access(&mut self, access: Access) {
