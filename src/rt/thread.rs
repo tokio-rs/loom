@@ -294,16 +294,12 @@ impl Set {
             .map(move |(id, thread)| (Id::new(execution_id, id), thread))
     }
 
-    pub(crate) fn iter_mut<'a>(
-        &'a mut self,
-    ) -> Box<dyn Iterator<Item = (Id, &'a mut Thread)> + 'a> {
+    pub(crate) fn iter_mut<'a>(&'a mut self) -> impl Iterator<Item = (Id, &'a mut Thread)> {
         let execution_id = self.execution_id;
-        Box::new({
-            self.threads
-                .iter_mut()
-                .enumerate()
-                .map(move |(id, thread)| (Id::new(execution_id, id), thread))
-        })
+        self.threads
+            .iter_mut()
+            .enumerate()
+            .map(move |(id, thread)| (Id::new(execution_id, id), thread))
     }
 
     /// Split the set of threads into the active thread and an iterator of all
