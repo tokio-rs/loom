@@ -53,8 +53,6 @@ struct FirstSeen(Vec<Option<usize>>);
 impl Atomic {
     pub(crate) fn new() -> Atomic {
         rt::execution(|execution| {
-            trace!("Atomic::new");
-
             let mut state = State::default();
 
             // All atomics are initialized with a value, which brings the causality
@@ -67,6 +65,8 @@ impl Atomic {
 
             let obj = execution.objects.insert_atomic(state);
 
+            trace!(obj = ?obj, "Atomic::new");
+
             Atomic { obj }
         })
     }
@@ -75,7 +75,7 @@ impl Atomic {
         self.obj.branch(Action::Load);
 
         super::synchronize(|execution| {
-            trace!("Atomic::load");
+            trace!(obj = ?self.obj, order = ?order, "Atomic::load");
 
             self.obj.atomic_mut(&mut execution.objects).unwrap().load(
                 &mut execution.path,
@@ -89,7 +89,7 @@ impl Atomic {
         self.obj.branch(Action::Store);
 
         super::synchronize(|execution| {
-            trace!("Atomic::store");
+            trace!(obj = ?self.obj, order = ?order, "Atomic::store");
 
             self.obj
                 .atomic_mut(&mut execution.objects)
@@ -105,7 +105,8 @@ impl Atomic {
         self.obj.branch(Action::Rmw);
 
         super::synchronize(|execution| {
-            trace!("Atomic::rmw");
+            trace!(obj = ?self.obj, success = ?success, failure = ?failure,
+                   "Atomic::rmw");
 
             self.obj.atomic_mut(&mut execution.objects).unwrap().rmw(
                 f,
@@ -123,7 +124,7 @@ impl Atomic {
         self.obj.branch(Action::Rmw);
 
         super::execution(|execution| {
-            trace!("Atomic::get_mut");
+            trace!(obj = ?self.obj, "Atomic::get_mut");
 
             self.obj
                 .atomic_mut(&mut execution.objects)
@@ -140,7 +141,7 @@ pub(crate) fn fence(order: Ordering) {
     );
 
     rt::synchronize(|execution| {
-        trace!("fence");
+        trace!(order = ?order, "fence");
 
         // Find all stores for all atomic objects and, if they have been read by
         // the current thread, establish an acquire synchronization.
