@@ -47,14 +47,14 @@ pub(super) enum Action {
 impl Arc {
     pub(crate) fn new() -> Arc {
         rt::execution(|execution| {
-            trace!("Arc::new");
-
             let obj = execution.objects.insert_arc(State {
                 ref_cnt: 1,
                 synchronize: Synchronize::new(execution.max_threads),
                 last_ref_inc: None,
                 last_ref_dec: None,
             });
+
+            trace!(obj = ?obj, "Arc::new");
 
             Arc { obj }
         })
@@ -64,10 +64,10 @@ impl Arc {
         self.obj.branch(Action::RefInc);
 
         rt::execution(|execution| {
-            trace!("Arc::ref_inc");
-
             let state = self.obj.arc_mut(&mut execution.objects);
             state.ref_cnt = state.ref_cnt.checked_add(1).expect("overflow");
+
+            trace!(obj = ?self.obj, ref_cnt = ?state.ref_cnt, "Arc::ref_inc");
         })
     }
 
@@ -76,8 +76,6 @@ impl Arc {
         self.obj.branch(Action::RefDec);
 
         rt::execution(|execution| {
-            trace!("Arc::get_mut");
-
             let state = self.obj.arc_mut(&mut execution.objects);
 
             assert!(state.ref_cnt >= 1, "Arc is released");
@@ -85,11 +83,11 @@ impl Arc {
             // Synchronize the threads
             state.synchronize.sync_load(&mut execution.threads, Acquire);
 
-            if state.ref_cnt == 1 {
-                true
-            } else {
-                false
-            }
+            let res = state.ref_cnt == 1;
+
+            trace!(obj = ?self.obj, res = ?res, "Arc::get_mut");
+
+            res
         })
     }
 
@@ -98,14 +96,14 @@ impl Arc {
         self.obj.branch(Action::RefDec);
 
         rt::execution(|execution| {
-            trace!("Arc::ref_dec");
-
             let state = self.obj.arc_mut(&mut execution.objects);
 
             assert!(state.ref_cnt >= 1, "Arc is already released");
 
             // Decrement the ref count
             state.ref_cnt -= 1;
+
+            trace!(obj = ?self.obj, ref_cnt = ?state.ref_cnt, "Arc::ref_dec");
 
             // Synchronize the threads.
             state
