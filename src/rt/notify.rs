@@ -3,6 +3,8 @@ use crate::rt::{self, Access, Synchronize};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
+use tracing::{trace};
+
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Notify {
     obj: Object,
@@ -32,9 +34,7 @@ pub(super) struct State {
 impl Notify {
     pub(crate) fn new(seq_cst: bool, spurious: bool) -> Notify {
         super::execution(|execution| {
-            if execution.log {
-                println!("Notify::new");
-            }
+            trace!("Notify::new");
 
             let obj = execution.objects.insert_notify(State {
                 spurious,
@@ -53,9 +53,7 @@ impl Notify {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
-            if execution.log {
-                println!("Notify::notify");
-            }
+            trace!("Notify::notify");
 
             {
                 let state = self.get_state(&mut execution.objects);
@@ -88,9 +86,7 @@ impl Notify {
 
     pub(crate) fn wait(self) {
         let (notified, spurious) = rt::execution(|execution| {
-            if execution.log {
-                println!("Notify::wait 1");
-            }
+            trace!("Notify::wait 1");
 
             let state = self.get_state(&mut execution.objects);
 
@@ -121,9 +117,7 @@ impl Notify {
 
         // Thread was notified
         super::execution(|execution| {
-            if execution.log {
-                println!("Notify::wait 2");
-            }
+            trace!("Notify::wait 2");
 
             let state = self.get_state(&mut execution.objects);
 

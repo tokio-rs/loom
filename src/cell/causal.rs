@@ -4,6 +4,8 @@ use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use tracing::{trace};
+
 /// CausalCell ensures access to the inner value are valid under the Rust memory
 /// model.
 #[derive(Debug)]
@@ -54,9 +56,7 @@ impl<T> CausalCell<T> {
     /// value.
     pub fn new(data: T) -> CausalCell<T> {
         let v = rt::execution(|execution| {
-            if execution.log {
-                println!("CausalCell::new");
-            }
+            trace!("CausalCell::new");
 
             execution.threads.active().causality.clone()
         });
@@ -103,9 +103,7 @@ impl<T> CausalCell<T> {
     {
         rt::critical(|| {
             rt::execution(|execution| {
-                if execution.log {
-                    println!("CausalCell::with_deferred");
-                }
+                trace!("CausalCell::with_deferred");
 
                 let thread_causality = &execution.threads.active().causality;
 
@@ -161,9 +159,7 @@ impl<T> CausalCell<T> {
     {
         rt::critical(|| {
             rt::execution(|execution| {
-                if execution.log {
-                    println!("CausalCell::with_deferred_mut");
-                }
+                trace!("CausalCell::with_deferred_mut");
 
                 let thread_causality = &execution.threads.active().causality;
 
@@ -215,9 +211,7 @@ impl<T> CausalCell<T> {
     /// immutable accesses.
     pub fn check(&self) {
         rt::execution(|execution| {
-            if execution.log {
-                println!("CausalCell::check");
-            }
+            trace!("CausalCell::check");
 
             let thread_causality = &execution.threads.active().causality;
             let mut state = self.state.lock().unwrap();
@@ -238,9 +232,7 @@ impl<T> CausalCell<T> {
     /// access and no concurrent immutable access(es) with this mutable access.
     pub fn check_mut(&self) {
         rt::execution(|execution| {
-            if execution.log {
-                println!("CausalCell::check_mut");
-            }
+            trace!("CausalCell::check_mut");
 
             let thread_causality = &execution.threads.active().causality;
             let mut state = self.state.lock().unwrap();

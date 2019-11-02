@@ -11,6 +11,8 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::{fmt, io};
 
+use tracing::{trace};
+
 /// Mock implementation of `std::thread::JoinHandle`.
 pub struct JoinHandle<T> {
     result: Rc<RefCell<Option<std::thread::Result<T>>>>,
@@ -122,9 +124,7 @@ impl<T: 'static> LocalKey<T> {
                 let value = (self.init)();
 
                 rt::execution(|execution| {
-                    if execution.log {
-                        println!("LocalKey::try_with");
-                    }
+                    trace!("LocalKey::try_with");
 
                     execution.threads.local_init(self, value);
                 });
@@ -141,9 +141,7 @@ impl<T: 'static> LocalKey<T> {
         }
 
         rt::execution(|execution| {
-            if execution.log {
-                println!("LocalKey::get");
-            }
+            trace!("LocalKey::get");
 
             let res = execution.threads.local(self)?;
 

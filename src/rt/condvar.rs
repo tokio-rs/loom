@@ -3,6 +3,8 @@ use crate::rt::{self, thread, Access, Mutex};
 
 use std::collections::VecDeque;
 
+use tracing::{trace};
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) struct Condvar {
     obj: Object,
@@ -21,9 +23,7 @@ impl Condvar {
     /// Create a new condition variable object
     pub(crate) fn new() -> Condvar {
         super::execution(|execution| {
-            if execution.log {
-                println!("Condvar::new");
-            }
+            trace!("Condvar::new");
 
             let obj = execution.objects.insert_condvar(State {
                 last_access: None,
@@ -39,9 +39,7 @@ impl Condvar {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
-            if execution.log {
-                println!("Condvar::wait");
-            }
+            trace!("Condvar::wait");
 
             let state = self.get_state(&mut execution.objects);
 
@@ -64,9 +62,7 @@ impl Condvar {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
-            if execution.log {
-                println!("Condvar::notify_one");
-            }
+            trace!("Condvar::notify_one");
 
             let state = self.get_state(&mut execution.objects);
 
@@ -84,9 +80,7 @@ impl Condvar {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
-            if execution.log {
-                println!("Condvar::notify_all");
-            }
+            trace!("Condvar::notify_all");
 
             let state = self.get_state(&mut execution.objects);
 

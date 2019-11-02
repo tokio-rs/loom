@@ -4,6 +4,8 @@ use crate::rt::{self, Access, Synchronize};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
+use tracing::{trace};
+
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Arc {
     obj: Object,
@@ -45,9 +47,7 @@ pub(super) enum Action {
 impl Arc {
     pub(crate) fn new() -> Arc {
         rt::execution(|execution| {
-            if execution.log {
-                println!("Arc::new");
-            }
+            trace!("Arc::new");
 
             let obj = execution.objects.insert_arc(State {
                 ref_cnt: 1,
@@ -64,9 +64,7 @@ impl Arc {
         self.obj.branch(Action::RefInc);
 
         rt::execution(|execution| {
-            if execution.log {
-                println!("Arc::ref_inc");
-            }
+            trace!("Arc::ref_inc");
 
             let state = self.obj.arc_mut(&mut execution.objects);
             state.ref_cnt = state.ref_cnt.checked_add(1).expect("overflow");
@@ -78,9 +76,7 @@ impl Arc {
         self.obj.branch(Action::RefDec);
 
         rt::execution(|execution| {
-            if execution.log {
-                println!("Arc::get_mut");
-            }
+            trace!("Arc::get_mut");
 
             let state = self.obj.arc_mut(&mut execution.objects);
 
@@ -102,9 +98,7 @@ impl Arc {
         self.obj.branch(Action::RefDec);
 
         rt::execution(|execution| {
-            if execution.log {
-                println!("Arc::ref_dec");
-            }
+            trace!("Arc::ref_dec");
 
             let state = self.obj.arc_mut(&mut execution.objects);
 

@@ -1,6 +1,8 @@
 use crate::rt;
 use crate::rt::object::Object;
 
+use tracing::{trace};
+
 /// Tracks an allocation
 #[derive(Debug)]
 pub(crate) struct Allocation {
@@ -15,9 +17,7 @@ pub(super) struct State {
 /// Track a raw allocation
 pub(crate) fn alloc(ptr: *mut u8) {
     rt::execution(|execution| {
-        if execution.log {
-            println!("alloc");
-        }
+        trace!("alloc");
 
         let obj = execution.objects.insert_alloc(State { is_dropped: false });
 
@@ -31,9 +31,7 @@ pub(crate) fn alloc(ptr: *mut u8) {
 /// Track a raw deallocation
 pub(crate) fn dealloc(ptr: *mut u8) {
     let allocation = rt::execution(|execution| {
-        if execution.log {
-            println!("dealloc");
-        }
+        trace!("dealloc");
 
         match execution.raw_allocations.remove(&(ptr as usize)) {
             Some(allocation) => allocation,
@@ -48,9 +46,7 @@ pub(crate) fn dealloc(ptr: *mut u8) {
 impl Allocation {
     pub(crate) fn new() -> Allocation {
         rt::execution(|execution| {
-            if execution.log {
-                println!("Allocation::new");
-            }
+            trace!("Allocation::new");
 
             let obj = execution.objects.insert_alloc(State { is_dropped: false });
 
@@ -62,9 +58,7 @@ impl Allocation {
 impl Drop for Allocation {
     fn drop(&mut self) {
         rt::execution(|execution| {
-            if execution.log {
-                println!("Allocation::drop");
-            }
+            trace!("Allocation::drop");
 
             let state = self.obj.alloc(&mut execution.objects);
             state.is_dropped = true;

@@ -1,6 +1,8 @@
 use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify};
 use crate::rt::{Access, Execution};
 
+use tracing::{trace};
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Object {
     /// Index in the store
@@ -210,9 +212,7 @@ impl Object {
     // TODO: rename `branch_disable`
     pub(super) fn branch_acquire(self, is_locked: bool) {
         super::branch(|execution| {
-            if execution.log {
-                println!("Object::branch_acquire");
-            }
+            trace!("Object::branch_acquire");
 
             self.set_action(execution, Action::Opaque);
 
@@ -225,9 +225,7 @@ impl Object {
 
     pub(super) fn branch<T: Into<Action>>(self, action: T) {
         super::branch(|execution| {
-            if execution.log {
-                println!("Object::branch");
-            }
+            trace!("Object::branch");
 
             self.set_action(execution, action.into());
         })

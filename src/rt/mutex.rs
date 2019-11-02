@@ -3,6 +3,8 @@ use crate::rt::{thread, Access, Synchronize};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
+use tracing::{trace};
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) struct Mutex {
     obj: Object,
@@ -27,9 +29,7 @@ pub(super) struct State {
 impl Mutex {
     pub(crate) fn new(seq_cst: bool) -> Mutex {
         super::execution(|execution| {
-            if execution.log {
-                println!("Mutex::new");
-            }
+            trace!("Mutex::new");
 
             let obj = execution.objects.insert_mutex(State {
                 seq_cst,
@@ -54,9 +54,7 @@ impl Mutex {
 
     pub(crate) fn release_lock(&self) {
         super::execution(|execution| {
-            if execution.log {
-                println!("Mutex::release_lock");
-            }
+            trace!("Mutex::release_lock");
 
             let state = self.get_state(&mut execution.objects);
 
@@ -93,9 +91,7 @@ impl Mutex {
 
     fn post_acquire(&self) -> bool {
         super::execution(|execution| {
-            if execution.log {
-                println!("Mutex::post_acquire");
-            }
+            trace!("Mutex::post_acquire");
 
             let state = self.get_state(&mut execution.objects);
             let thread_id = execution.threads.active_id();
@@ -137,9 +133,7 @@ impl Mutex {
     /// Returns `true` if the mutex is currently locked
     fn is_locked(&self) -> bool {
         super::execution(|execution| {
-            if execution.log {
-                println!("Mutex::is_locked");
-            }
+            trace!("Mutex::is_locked");
 
             self.get_state(&mut execution.objects).lock.is_some()
         })

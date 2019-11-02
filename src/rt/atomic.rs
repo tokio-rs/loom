@@ -4,6 +4,8 @@ use crate::rt::{self, thread, Access, Path, Synchronize, VersionVec};
 use std::sync::atomic::Ordering;
 use std::sync::atomic::Ordering::Acquire;
 
+use tracing::{trace};
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) struct Atomic {
     obj: Object,
@@ -51,9 +53,7 @@ struct FirstSeen(Vec<Option<usize>>);
 impl Atomic {
     pub(crate) fn new() -> Atomic {
         rt::execution(|execution| {
-            if execution.log {
-                println!("Atomic::new");
-            }
+            trace!("Atomic::new");
 
             let mut state = State::default();
 
@@ -75,9 +75,7 @@ impl Atomic {
         self.obj.branch(Action::Load);
 
         super::synchronize(|execution| {
-            if execution.log {
-                println!("Atomic::load");
-            }
+            trace!("Atomic::load");
 
             self.obj.atomic_mut(&mut execution.objects).unwrap().load(
                 &mut execution.path,
@@ -91,9 +89,7 @@ impl Atomic {
         self.obj.branch(Action::Store);
 
         super::synchronize(|execution| {
-            if execution.log {
-                println!("Atomic::store");
-            }
+            trace!("Atomic::store");
 
             self.obj
                 .atomic_mut(&mut execution.objects)
@@ -109,9 +105,7 @@ impl Atomic {
         self.obj.branch(Action::Rmw);
 
         super::synchronize(|execution| {
-            if execution.log {
-                println!("Atomic::rmw");
-            }
+            trace!("Atomic::rmw");
 
             self.obj.atomic_mut(&mut execution.objects).unwrap().rmw(
                 f,
@@ -129,9 +123,7 @@ impl Atomic {
         self.obj.branch(Action::Rmw);
 
         super::execution(|execution| {
-            if execution.log {
-                println!("Atomic::get_mut");
-            }
+            trace!("Atomic::get_mut");
 
             self.obj
                 .atomic_mut(&mut execution.objects)
@@ -148,9 +140,7 @@ pub(crate) fn fence(order: Ordering) {
     );
 
     rt::synchronize(|execution| {
-        if execution.log {
-            println!("fence");
-        }
+        trace!("fence");
 
         // Find all stores for all atomic objects and, if they have been read by
         // the current thread, establish an acquire synchronization.
