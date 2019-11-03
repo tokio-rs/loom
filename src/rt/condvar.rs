@@ -23,12 +23,12 @@ impl Condvar {
     /// Create a new condition variable object
     pub(crate) fn new() -> Condvar {
         super::execution(|execution| {
-            trace!("Condvar::new");
-
             let obj = execution.objects.insert_condvar(State {
                 last_access: None,
                 waiters: VecDeque::new(),
             });
+
+            trace!(obj = ?obj, "Condvar::new");
 
             Condvar { obj }
         })
@@ -39,7 +39,7 @@ impl Condvar {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
-            trace!("Condvar::wait");
+            trace!(obj = ?self.obj, mutex = ?mutex, "Condvar::wait");
 
             let state = self.get_state(&mut execution.objects);
 
@@ -62,12 +62,12 @@ impl Condvar {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
-            trace!("Condvar::notify_one");
-
             let state = self.get_state(&mut execution.objects);
 
             // Notify the first waiter
             let thread = state.waiters.pop_front();
+
+            trace!(obj = ?self.obj, thread = ?thread, "Condvar::notify_one");
 
             if let Some(thread) = thread {
                 execution.threads.unpark(thread);
@@ -80,9 +80,9 @@ impl Condvar {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
-            trace!("Condvar::notify_all");
-
             let state = self.get_state(&mut execution.objects);
+
+            trace!(obj = ?self.obj, threads=?state.waiters, "Condvar::notify_all");
 
             for thread in state.waiters.drain(..) {
                 execution.threads.unpark(thread);
