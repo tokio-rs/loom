@@ -45,9 +45,9 @@ where
     F: FnOnce() + 'static,
 {
     execution(|execution| {
-        trace!("spawn");
+        let thread = execution.new_thread();
 
-        execution.new_thread();
+        trace!(thread = ?thread, "spawn");
     });
 
     Scheduler::spawn(Box::new(move || {
@@ -59,7 +59,9 @@ where
 /// Marks the current thread as blocked
 pub fn park() {
     execution(|execution| {
-        trace!("park");
+        let thread = execution.threads.active_id();
+
+        trace!(thread = ?thread, "park");
 
         execution.threads.active_mut().set_blocked();
         execution.threads.active_mut().operation = None;
@@ -75,10 +77,12 @@ where
     F: FnOnce(&mut Execution) -> R,
 {
     let (ret, switch) = execution(|execution| {
-        trace!("branch");
-
         let ret = f(execution);
-        (ret, execution.schedule())
+        let switch = execution.schedule();
+
+        trace!(switch = ?switch, "branch");
+
+        (ret, switch)
     });
 
     if switch {
@@ -107,11 +111,15 @@ where
 /// progress.
 pub fn yield_now() {
     let switch = execution(|execution| {
-        trace!("yield_now");
+        let thread = execution.threads.active_id();
 
         execution.threads.active_mut().set_yield();
         execution.threads.active_mut().operation = None;
-        execution.schedule()
+        let switch = execution.schedule();
+
+        trace!(thread = ?thread, switch = ?switch, "yield_now");
+
+        switch
     });
 
     if switch {
@@ -129,7 +137,7 @@ where
     impl Drop for Reset {
         fn drop(&mut self) {
             execution(|execution| {
-                trace!("unset_critical");
+                trace!("unset critical");
 
                 execution.unset_critical();
             });
@@ -139,7 +147,7 @@ where
     let _reset = Reset;
 
     execution(|execution| {
-        trace!("set_critical");
+        trace!("set critical");
 
         execution.set_critical();
     });
@@ -156,7 +164,9 @@ where
 
 pub fn thread_done() {
     let locals = execution(|execution| {
-        trace!("thread_done: drop_locals");
+        let thread = execution.threads.active_id();
+
+        trace!(thread = ?thread, "thread_done: drop locals");
 
         execution.threads.active_mut().drop_locals()
     });
@@ -165,10 +175,14 @@ pub fn thread_done() {
     drop(locals);
 
     execution(|execution| {
-        trace!("thread_done: set_terminated");
+        let thread = execution.threads.active_id();
 
         execution.threads.active_mut().operation = None;
         execution.threads.active_mut().set_terminated();
-        execution.schedule();
+        let switch = execution.schedule();
+
+        trace!(thread = ?thread, switch = ?switch, "thread_done: terminate");
+
+        switch
     });
 }
