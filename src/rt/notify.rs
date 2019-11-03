@@ -34,8 +34,6 @@ pub(super) struct State {
 impl Notify {
     pub(crate) fn new(seq_cst: bool, spurious: bool) -> Notify {
         super::execution(|execution| {
-            trace!("Notify::new");
-
             let obj = execution.objects.insert_notify(State {
                 spurious,
                 did_spur: false,
@@ -45,6 +43,9 @@ impl Notify {
                 synchronize: Synchronize::new(execution.max_threads),
             });
 
+            trace!(obj = ?obj, seq_cst = ?seq_cst, spurious = ?spurious,
+                   "Notify::new");
+
             Notify { obj }
         })
     }
@@ -53,8 +54,6 @@ impl Notify {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
-            trace!("Notify::notify");
-
             {
                 let state = self.get_state(&mut execution.objects);
 
@@ -79,6 +78,10 @@ impl Notify {
 
                 if obj == Some(self.obj) {
                     thread.unpark(active);
+
+                    trace!(obj = ?self.obj, thread = ?thread.id,
+                           "Notify::notify");
+
                 }
             }
         });
@@ -86,8 +89,6 @@ impl Notify {
 
     pub(crate) fn wait(self) {
         let (notified, spurious) = rt::execution(|execution| {
-            trace!("Notify::wait 1");
-
             let state = self.get_state(&mut execution.objects);
 
             let spurious = if state.spurious && !state.did_spur {
@@ -99,6 +100,9 @@ impl Notify {
             if spurious {
                 state.did_spur = true;
             }
+
+            trace!(obj = ?self.obj, notified = ?state.notified,
+                   spurious = ?spurious, "Notify::wait 1");
 
             (state.notified, spurious)
         });
@@ -117,7 +121,7 @@ impl Notify {
 
         // Thread was notified
         super::execution(|execution| {
-            trace!("Notify::wait 2");
+            trace!(obj = ?self.obj, "Notify::wait 2");
 
             let state = self.get_state(&mut execution.objects);
 
