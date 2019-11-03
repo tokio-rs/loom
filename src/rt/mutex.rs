@@ -29,14 +29,14 @@ pub(super) struct State {
 impl Mutex {
     pub(crate) fn new(seq_cst: bool) -> Mutex {
         super::execution(|execution| {
-            trace!("Mutex::new");
-
             let obj = execution.objects.insert_mutex(State {
                 seq_cst,
                 lock: None,
                 last_access: None,
                 synchronize: Synchronize::new(execution.max_threads),
             });
+
+            trace!(obj = ?obj, seq_cst = ?seq_cst, "Mutex::new");
 
             Mutex { obj }
         })
@@ -54,8 +54,6 @@ impl Mutex {
 
     pub(crate) fn release_lock(&self) {
         super::execution(|execution| {
-            trace!("Mutex::release_lock");
-
             let state = self.get_state(&mut execution.objects);
 
             // Release the lock flag
@@ -83,6 +81,9 @@ impl Mutex {
                     .map(|operation| operation.object());
 
                 if obj == Some(self.obj) {
+                    trace!(obj = ?self.obj, thread = ?id,
+                           "Mutex::release_lock");
+
                     thread.set_runnable();
                 }
             }
@@ -91,8 +92,6 @@ impl Mutex {
 
     fn post_acquire(&self) -> bool {
         super::execution(|execution| {
-            trace!("Mutex::post_acquire");
-
             let state = self.get_state(&mut execution.objects);
             let thread_id = execution.threads.active_id();
 
@@ -122,6 +121,9 @@ impl Mutex {
                     .map(|operation| operation.object());
 
                 if obj == Some(self.obj) {
+                    trace!(obj = ?self.obj, thread = ?id,
+                           "Mutex::post_acquire");
+
                     thread.set_blocked();
                 }
             }
@@ -133,9 +135,11 @@ impl Mutex {
     /// Returns `true` if the mutex is currently locked
     fn is_locked(&self) -> bool {
         super::execution(|execution| {
-            trace!("Mutex::is_locked");
+            let res = self.get_state(&mut execution.objects).lock.is_some();
 
-            self.get_state(&mut execution.objects).lock.is_some()
+            trace!(obj = ?self.obj, res = ?res, "Mutex::is_locked");
+
+            res
         })
     }
 
