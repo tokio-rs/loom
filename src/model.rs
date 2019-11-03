@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use tracing::{subscriber, info};
+use tracing::{info, subscriber};
 use tracing_subscriber::{fmt, EnvFilter};
 
 const DEFAULT_MAX_THREADS: usize = 4;

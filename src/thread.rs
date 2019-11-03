@@ -11,7 +11,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::{fmt, io};
 
-use tracing::{trace};
+use tracing::trace;
 
 /// Mock implementation of `std::thread::JoinHandle`.
 pub struct JoinHandle<T> {

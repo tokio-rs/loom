@@ -4,7 +4,7 @@ use crate::rt::{self, thread, Access, Path, Synchronize, VersionVec};
 use std::sync::atomic::Ordering;
 use std::sync::atomic::Ordering::Acquire;
 
-use tracing::{trace};
+use tracing::trace;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) struct Atomic {

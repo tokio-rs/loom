@@ -4,7 +4,7 @@ use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use tracing::{trace};
+use tracing::trace;
 
 /// CausalCell ensures access to the inner value are valid under the Rust memory
 /// model.

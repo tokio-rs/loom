@@ -38,7 +38,7 @@ pub(crate) mod thread;
 mod vv;
 pub(crate) use self::vv::VersionVec;
 
-use tracing::{trace};
+use tracing::trace;
 
 pub fn spawn<F>(f: F)
 where

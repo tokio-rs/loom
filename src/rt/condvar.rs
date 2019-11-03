@@ -3,7 +3,7 @@ use crate::rt::{self, thread, Access, Mutex};
 
 use std::collections::VecDeque;
 
-use tracing::{trace};
+use tracing::trace;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) struct Condvar {
@@ -82,7 +82,7 @@ impl Condvar {
         rt::execution(|execution| {
             let state = self.get_state(&mut execution.objects);
 
-            trace!(obj = ?self.obj, threads=?state.waiters, "Condvar::notify_all");
+            trace!(obj = ?self.obj, threads = ?state.waiters, "Condvar::notify_all");
 
             for thread in state.waiters.drain(..) {
                 execution.threads.unpark(thread);

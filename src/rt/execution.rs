@@ -4,7 +4,7 @@ use crate::rt::{object, thread, Access, Path};
 use std::collections::HashMap;
 use std::fmt;
 
-use tracing::{info};
+use tracing::info;
 
 pub(crate) struct Execution {
     /// Uniquely identifies an execution

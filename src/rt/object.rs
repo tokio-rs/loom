@@ -1,7 +1,7 @@
 use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify};
 use crate::rt::{Access, Execution};
 
-use tracing::{trace};
+use tracing::trace;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Object {

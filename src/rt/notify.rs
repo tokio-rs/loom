@@ -3,7 +3,7 @@ use crate::rt::{self, Access, Synchronize};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
-use tracing::{trace};
+use tracing::trace;
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Notify {
@@ -81,7 +81,6 @@ impl Notify {
 
                     trace!(obj = ?self.obj, thread = ?thread.id,
                            "Notify::notify");
-
                 }
             }
         });

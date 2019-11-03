@@ -3,7 +3,7 @@ use crate::rt::{thread, Access, Synchronize};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
-use tracing::{trace};
+use tracing::trace;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) struct Mutex {
