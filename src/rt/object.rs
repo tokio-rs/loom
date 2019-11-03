@@ -1,5 +1,5 @@
 use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify};
-use crate::rt::{Access, VersionVec, Execution};
+use crate::rt::{Access, Execution, VersionVec};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Object {
@@ -173,7 +173,9 @@ impl Store {
         match &self.entries[operation.obj.index] {
             Entry::Alloc(_) => panic!("allocations are not branchable operations"),
             Entry::Arc(entry) => entry.for_each_last_dependent_access(operation.action.into(), f),
-            Entry::Atomic(entry) => entry.for_each_last_dependent_access(operation.action.into(), f),
+            Entry::Atomic(entry) => {
+                entry.for_each_last_dependent_access(operation.action.into(), f)
+            }
             Entry::Mutex(entry) => entry.for_each_last_dependent_access(f),
             Entry::Condvar(entry) => entry.for_each_last_dependent_access(f),
             Entry::Notify(entry) => entry.for_each_last_dependent_access(f),
@@ -188,10 +190,10 @@ impl Store {
     ) {
         match &mut self.entries[operation.obj.index] {
             Entry::Alloc(_) => panic!("allocations are not branchable operations"),
-            Entry::Arc(entry) => {
+            Entry::Arc(entry) => entry.set_last_access(operation.action.into(), path_id, dpor_vv),
+            Entry::Atomic(entry) => {
                 entry.set_last_access(operation.action.into(), path_id, dpor_vv)
             }
-            Entry::Atomic(entry) => entry.set_last_access(operation.action.into(), path_id, dpor_vv),
             Entry::Mutex(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::Condvar(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::Notify(entry) => entry.set_last_access(path_id, dpor_vv),
