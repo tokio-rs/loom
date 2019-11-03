@@ -182,21 +182,27 @@ impl RwLock {
             let thread_id = execution.threads.active_id();
 
             // Set the lock to the current thread
-            state.lock = match &state.lock {
+            let mut already_locked = false;
+            state.lock = match state.lock.take() {
                 None => {
                     let mut threads: HashSet<thread::Id> = HashSet::new();
                     threads.insert(thread_id);
                     Some(Locked::Read(threads))
                 }
-                Some(Locked::Read(current)) => {
-                    // TODO: refactor this to not create a `new` HashSet
-                    let mut new: HashSet<thread::Id> = HashSet::new();
-                    new.extend(current);
-                    new.insert(thread_id);
-                    Some(Locked::Read(new))
+                Some(Locked::Read(mut threads)) => {
+                    threads.insert(thread_id);
+                    Some(Locked::Read(threads))
                 }
-                Some(Locked::Write(_)) => return false,
+                Some(Locked::Write(writer)) => {
+                    already_locked = true;
+                    Some(Locked::Write(writer))
+                }
             };
+
+            // The RwLock is already Write locked, so we cannot acquire a read lock on it.
+            if already_locked {
+                return false;
+            }
 
             dbg!(state.synchronize.sync_load(&mut execution.threads, Acquire));
 
