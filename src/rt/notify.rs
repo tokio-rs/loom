@@ -77,10 +77,10 @@ impl Notify {
                     .map(|operation| operation.object());
 
                 if obj == Some(self.obj) {
-                    thread.unpark(active);
-
                     trace!(obj = ?self.obj, thread = ?thread.id,
                            "Notify::notify");
+
+                    thread.unpark(active);
                 }
             }
         });
