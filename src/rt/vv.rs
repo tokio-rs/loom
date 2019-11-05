@@ -7,11 +7,14 @@ use std::ops;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
-pub(crate) struct VersionVec {
-    versions: Box<[usize]>,
+pub(crate) struct VersionVecGen<T: ops::DerefMut<Target = [usize]>> {
+    versions: T,
 }
 
-impl VersionVec {
+pub(crate) type VersionVec = VersionVecGen<Box<[usize]>>;
+//pub(crate) type VersionVecSlice<'a> = VersionVecGen<&'a [usize]>;
+
+impl<T: ops::DerefMut<Target = [usize]>> VersionVecGen<T> {
     pub(crate) fn new(max_threads: usize) -> VersionVec {
         assert!(max_threads > 0, "max_threads = {:?}", max_threads);
 
@@ -20,7 +23,7 @@ impl VersionVec {
         }
     }
 
-    pub(crate) fn set(&mut self, other: &VersionVec) {
+    pub(crate) fn set(&mut self, other: &VersionVecGen<T>) {
         self.versions.copy_from_slice(&other.versions);
     }
 
@@ -42,7 +45,7 @@ impl VersionVec {
         self.versions[id.as_usize()] += 1;
     }
 
-    pub(crate) fn join(&mut self, other: &VersionVec) {
+    pub(crate) fn join(&mut self, other: &VersionVecGen<T>) {
         assert_eq!(self.versions.len(), other.versions.len());
 
         for (i, &version) in other.versions.iter().enumerate() {
@@ -51,8 +54,8 @@ impl VersionVec {
     }
 }
 
-impl cmp::PartialOrd for VersionVec {
-    fn partial_cmp(&self, other: &VersionVec) -> Option<cmp::Ordering> {
+impl<T: ops::DerefMut<Target = [usize]> + cmp::PartialEq> cmp::PartialOrd for VersionVecGen<T> {
+    fn partial_cmp(&self, other: &VersionVecGen<T>) -> Option<cmp::Ordering> {
         use cmp::Ordering::*;
 
         let len = cmp::max(self.len(), other.len());
