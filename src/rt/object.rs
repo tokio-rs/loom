@@ -1,5 +1,6 @@
 use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify};
 use crate::rt::{Access, Execution, VersionVec};
+use bumpalo::Bump;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Object {
@@ -12,12 +13,15 @@ pub struct Object {
 
 /// Stores objects
 #[derive(Debug)]
-pub struct Store {
+pub struct Store<'bump> {
     /// Execution this store is part of
     execution_id: execution::Id,
 
     /// Stored state for all objects.
     entries: Vec<Entry>,
+
+    /// Bump allocator.
+    bump: &'bump Bump,
 }
 
 /// Entry in the object store. Enumerates the different kinds of objects that
@@ -53,7 +57,7 @@ pub(super) enum Action {
 }
 
 impl Object {
-    pub(super) fn alloc(self, store: &mut Store) -> &mut alloc::State {
+    pub(super) fn alloc<'a>(self, store: &'a mut Store<'_>) -> &'a mut alloc::State {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -62,7 +66,7 @@ impl Object {
         }
     }
 
-    pub(super) fn arc_mut(self, store: &mut Store) -> &mut arc::State {
+    pub(super) fn arc_mut<'a>(self, store: &'a mut Store<'_>) -> &'a mut arc::State {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -71,7 +75,7 @@ impl Object {
         }
     }
 
-    pub(super) fn atomic_mut(self, store: &mut Store) -> Option<&mut atomic::State> {
+    pub(super) fn atomic_mut<'a>(self, store: &'a mut Store<'_>) -> Option<&'a mut atomic::State> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -80,7 +84,7 @@ impl Object {
         }
     }
 
-    pub(super) fn condvar_mut(self, store: &mut Store) -> Option<&mut condvar::State> {
+    pub(super) fn condvar_mut<'a>(self, store: &'a mut Store<'_>) -> Option<&'a mut condvar::State> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -89,7 +93,7 @@ impl Object {
         }
     }
 
-    pub(super) fn mutex_mut(self, store: &mut Store) -> Option<&mut mutex::State> {
+    pub(super) fn mutex_mut<'a>(self, store: &'a mut Store<'_>) -> Option<&'a mut mutex::State> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -98,7 +102,7 @@ impl Object {
         }
     }
 
-    pub(super) fn notify_mut(self, store: &mut Store) -> Option<&mut notify::State> {
+    pub(super) fn notify_mut<'a>(self, store: &'a mut Store<'_>) -> Option<&'a mut notify::State> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -108,12 +112,13 @@ impl Object {
     }
 }
 
-impl Store {
+impl Store<'_> {
     /// Create a new, empty, object store
-    pub(super) fn new(execution_id: execution::Id) -> Store {
+    pub(super) fn new(execution_id: execution::Id, bump: &Bump) -> Store<'_> {
         Store {
             execution_id,
             entries: vec![],
+            bump,
         }
     }
 
@@ -191,10 +196,6 @@ impl Store {
             Entry::Notify(entry) => entry.set_last_access(path_id, dpor_vv),
         }
     }
-
-    // pub(crate) fn clear(&mut self) {
-    //     self.entries.clear();
-    // }
 
     /// Panics if any leaks were detected
     pub(crate) fn check_for_leaks(&self) {

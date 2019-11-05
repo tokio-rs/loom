@@ -80,7 +80,7 @@ impl Condvar {
         })
     }
 
-    fn get_state<'a>(&self, store: &'a mut object::Store) -> &'a mut State {
+    fn get_state<'a>(&self, store: &'a mut object::Store<'_>) -> &'a mut State {
         self.obj.condvar_mut(store).unwrap()
     }
 }

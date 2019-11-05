@@ -124,7 +124,7 @@ impl Notify {
         });
     }
 
-    fn get_state<'a>(self, store: &'a mut object::Store) -> &'a mut State {
+    fn get_state<'a>(self, store: &'a mut object::Store<'_>) -> &'a mut State {
         self.obj.notify_mut(store).unwrap()
     }
 }

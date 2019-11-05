@@ -1,6 +1,8 @@
 use crate::rt::alloc::Allocation;
 use crate::rt::{object, thread, Path};
 
+use bumpalo::Bump;
+
 use std::collections::HashMap;
 use std::fmt;
 
@@ -14,7 +16,7 @@ pub(crate) struct Execution<'a> {
     pub(crate) threads: thread::Set,
 
     /// All loom aware objects part of this execution run.
-    pub(super) objects: object::Store,
+    pub(super) objects: object::Store<'a>,
 
     /// Maps raw allocations to LeakTrack objects
     pub(super) raw_allocations: HashMap<usize, Allocation>,
@@ -31,15 +33,16 @@ pub(crate) struct Execution<'a> {
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
 pub(crate) struct Id(usize);
 
-impl<'a> Execution<'a> {
+impl Execution<'_> {
     /// Create a new execution.
     ///
     /// This is only called at the start of a fuzz run. The same instance is
     /// reused across permutations.
-    pub(crate) fn new(
+    pub(crate) fn new<'a>(
         max_threads: usize,
-        path: &mut Path,
-    ) -> Execution<'_> {
+        path: &'a mut Path,
+        bump: &'a Bump,
+    ) -> Execution<'a> {
         let id = Id::new();
         let threads = thread::Set::new(id, max_threads);
 
@@ -47,10 +50,9 @@ impl<'a> Execution<'a> {
             id,
             path,
             threads,
-            objects: object::Store::new(id),
+            objects: object::Store::new(id, bump),
             raw_allocations: HashMap::new(),
             max_threads,
-            // max_history: 7,
             log: false,
         }
     }

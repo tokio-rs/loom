@@ -127,7 +127,7 @@ impl Mutex {
         super::execution(|execution| self.get_state(&mut execution.objects).lock.is_some())
     }
 
-    fn get_state<'a>(&self, objects: &'a mut object::Store) -> &'a mut State {
+    fn get_state<'a>(&self, objects: &'a mut object::Store<'_>) -> &'a mut State {
         self.obj.mutex_mut(objects).unwrap()
     }
 }

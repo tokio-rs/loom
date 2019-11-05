@@ -1,6 +1,7 @@
 //! Model concurrent programs.
 
 use crate::rt::{self, Path, Execution, Scheduler};
+use bumpalo::Bump;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -123,6 +124,7 @@ impl Builder {
     {
         let mut path = Path::new(self.max_branches, self.preemption_bound);
         let mut scheduler = Scheduler::new(self.max_threads);
+        let mut bump = Bump::new();
 
         if let Some(ref fs_path) = self.checkpoint_file {
             if fs_path.exists() {
@@ -163,7 +165,7 @@ impl Builder {
 
             let f = f.clone();
 
-            let mut execution = Execution::new(self.max_threads, &mut path);
+            let mut execution = Execution::new(self.max_threads, &mut path, &bump);
             execution.log = self.log;
 
             scheduler.run(&mut execution, move || {
@@ -173,6 +175,7 @@ impl Builder {
 
             execution.check_for_leaks();
 
+            bump.reset();
             if !path.step() {
                 println!("Completed in {} iterations", i);
                 return;
