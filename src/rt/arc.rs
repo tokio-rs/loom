@@ -54,7 +54,7 @@ impl Arc {
                 last_ref_dec: None,
             });
 
-            trace!(obj = ?obj, "Arc::new");
+            trace!(?obj, "Arc::new");
 
             Arc { obj }
         })
@@ -85,7 +85,7 @@ impl Arc {
 
             let res = state.ref_cnt == 1;
 
-            trace!(obj = ?self.obj, res = ?res, "Arc::get_mut");
+            trace!(obj = ?self.obj, ?res, "Arc::get_mut");
 
             res
         })

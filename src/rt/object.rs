@@ -212,8 +212,7 @@ impl Object {
     // TODO: rename `branch_disable`
     pub(super) fn branch_acquire(self, is_locked: bool) {
         super::branch(|execution| {
-            trace!(obj = ?self, is_locked = ?is_locked,
-                   "Object::branch_acquire");
+            trace!(obj = ?self, ?is_locked, "Object::branch_acquire");
 
             self.set_action(execution, Action::Opaque);
 
@@ -228,7 +227,7 @@ impl Object {
         super::branch(|execution| {
             let action = t.into();
 
-            trace!(obj = ?self, action = ?action, "Object::branch");
+            trace!(obj = ?self, ?action, "Object::branch");
 
             self.set_action(execution, action);
         })

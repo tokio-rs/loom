@@ -21,7 +21,7 @@ pub(crate) fn alloc(ptr: *mut u8) {
 
         let allocation = Allocation { obj };
 
-        trace!(obj = ?obj, ptr = ?ptr, "alloc");
+        trace!(?obj, ?ptr, "alloc");
 
         let prev = execution.raw_allocations.insert(ptr as usize, allocation);
         assert!(prev.is_none(), "pointer already tracked");
@@ -34,7 +34,7 @@ pub(crate) fn dealloc(ptr: *mut u8) {
         rt::execution(
             |execution| match execution.raw_allocations.remove(&(ptr as usize)) {
                 Some(allocation) => {
-                    trace!(obj = ?allocation.obj, ptr = ?ptr, "dealloc");
+                    trace!(obj = ?allocation.obj, ?ptr, "dealloc");
 
                     allocation
                 }
@@ -51,7 +51,7 @@ impl Allocation {
         rt::execution(|execution| {
             let obj = execution.objects.insert_alloc(State { is_dropped: false });
 
-            trace!(obj = ?obj, "Allocation::new");
+            trace!(?obj, "Allocation::new");
 
             Allocation { obj }
         })

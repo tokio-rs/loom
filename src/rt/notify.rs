@@ -43,8 +43,7 @@ impl Notify {
                 synchronize: Synchronize::new(execution.max_threads),
             });
 
-            trace!(obj = ?obj, seq_cst = ?seq_cst, spurious = ?spurious,
-                   "Notify::new");
+            trace!(?obj, ?seq_cst, ?spurious, "Notify::new");
 
             Notify { obj }
         })
@@ -101,7 +100,7 @@ impl Notify {
             }
 
             trace!(obj = ?self.obj, notified = ?state.notified,
-                   spurious = ?spurious, "Notify::wait 1");
+                   ?spurious, "Notify::wait 1");
 
             (state.notified, spurious)
         });

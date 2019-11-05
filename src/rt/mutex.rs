@@ -36,7 +36,7 @@ impl Mutex {
                 synchronize: Synchronize::new(execution.max_threads),
             });
 
-            trace!(obj = ?obj, seq_cst = ?seq_cst, "Mutex::new");
+            trace!(?obj, ?seq_cst, "Mutex::new");
 
             Mutex { obj }
         })
@@ -137,7 +137,7 @@ impl Mutex {
         super::execution(|execution| {
             let res = self.get_state(&mut execution.objects).lock.is_some();
 
-            trace!(obj = ?self.obj, res = ?res, "Mutex::is_locked");
+            trace!(obj = ?self.obj, ?res, "Mutex::is_locked");
 
             res
         })

@@ -28,7 +28,7 @@ impl Condvar {
                 waiters: VecDeque::new(),
             });
 
-            trace!(obj = ?obj, "Condvar::new");
+            trace!(?obj, "Condvar::new");
 
             Condvar { obj }
         })
@@ -39,7 +39,7 @@ impl Condvar {
         self.obj.branch_opaque();
 
         rt::execution(|execution| {
-            trace!(obj = ?self.obj, mutex = ?mutex, "Condvar::wait");
+            trace!(obj = ?self.obj, ?mutex, "Condvar::wait");
 
             let state = self.get_state(&mut execution.objects);
 
@@ -67,7 +67,7 @@ impl Condvar {
             // Notify the first waiter
             let thread = state.waiters.pop_front();
 
-            trace!(obj = ?self.obj, thread = ?thread, "Condvar::notify_one");
+            trace!(obj = ?self.obj, ?thread, "Condvar::notify_one");
 
             if let Some(thread) = thread {
                 execution.threads.unpark(thread);

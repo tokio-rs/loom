@@ -47,7 +47,7 @@ where
     execution(|execution| {
         let thread = execution.new_thread();
 
-        trace!(thread = ?thread, "spawn");
+        trace!(?thread, "spawn");
     });
 
     Scheduler::spawn(Box::new(move || {
@@ -61,7 +61,7 @@ pub fn park() {
     execution(|execution| {
         let thread = execution.threads.active_id();
 
-        trace!(thread = ?thread, "park");
+        trace!(?thread, "park");
 
         execution.threads.active_mut().set_blocked();
         execution.threads.active_mut().operation = None;
@@ -80,7 +80,7 @@ where
         let ret = f(execution);
         let switch = execution.schedule();
 
-        trace!(switch = ?switch, "branch");
+        trace!(?switch, "branch");
 
         (ret, switch)
     });
@@ -117,7 +117,7 @@ pub fn yield_now() {
         execution.threads.active_mut().operation = None;
         let switch = execution.schedule();
 
-        trace!(thread = ?thread, switch = ?switch, "yield_now");
+        trace!(?thread, ?switch, "yield_now");
 
         switch
     });
@@ -166,7 +166,7 @@ pub fn thread_done() {
     let locals = execution(|execution| {
         let thread = execution.threads.active_id();
 
-        trace!(thread = ?thread, "thread_done: drop locals");
+        trace!(?thread, "thread_done: drop locals");
 
         execution.threads.active_mut().drop_locals()
     });
@@ -181,7 +181,7 @@ pub fn thread_done() {
         execution.threads.active_mut().set_terminated();
         let switch = execution.schedule();
 
-        trace!(thread = ?thread, switch = ?switch, "thread_done: terminate");
+        trace!(?thread, ?switch, "thread_done: terminate");
 
         switch
     });

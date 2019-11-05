@@ -65,7 +65,7 @@ impl Atomic {
 
             let obj = execution.objects.insert_atomic(state);
 
-            trace!(obj = ?obj, "Atomic::new");
+            trace!(?obj, "Atomic::new");
 
             Atomic { obj }
         })
@@ -75,7 +75,7 @@ impl Atomic {
         self.obj.branch(Action::Load);
 
         super::synchronize(|execution| {
-            trace!(obj = ?self.obj, order = ?order, "Atomic::load");
+            trace!(obj = ?self.obj, ?order, "Atomic::load");
 
             self.obj.atomic_mut(&mut execution.objects).unwrap().load(
                 &mut execution.path,
@@ -89,7 +89,7 @@ impl Atomic {
         self.obj.branch(Action::Store);
 
         super::synchronize(|execution| {
-            trace!(obj = ?self.obj, order = ?order, "Atomic::store");
+            trace!(obj = ?self.obj, ?order, "Atomic::store");
 
             self.obj
                 .atomic_mut(&mut execution.objects)
@@ -105,8 +105,7 @@ impl Atomic {
         self.obj.branch(Action::Rmw);
 
         super::synchronize(|execution| {
-            trace!(obj = ?self.obj, success = ?success, failure = ?failure,
-                   "Atomic::rmw");
+            trace!(obj = ?self.obj, ?success, ?failure, "Atomic::rmw");
 
             self.obj.atomic_mut(&mut execution.objects).unwrap().rmw(
                 f,
@@ -141,7 +140,7 @@ pub(crate) fn fence(order: Ordering) {
     );
 
     rt::synchronize(|execution| {
-        trace!(order = ?order, "fence");
+        trace!(?order, "fence");
 
         // Find all stores for all atomic objects and, if they have been read by
         // the current thread, establish an acquire synchronization.
