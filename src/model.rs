@@ -1,6 +1,6 @@
 //! Model concurrent programs.
 
-use crate::rt::{self, Execution, Scheduler};
+use crate::rt::{self, Path, Execution, Scheduler};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -121,17 +121,14 @@ impl Builder {
     where
         F: Fn() + Sync + Send + 'static,
     {
-        let mut execution =
-            Execution::new(self.max_threads, self.max_branches, self.preemption_bound);
+        let mut path = Path::new(self.max_branches, self.preemption_bound);
         let mut scheduler = Scheduler::new(self.max_threads);
 
-        if let Some(ref path) = self.checkpoint_file {
-            if path.exists() {
-                execution.path = checkpoint::load_execution_path(path);
+        if let Some(ref fs_path) = self.checkpoint_file {
+            if fs_path.exists() {
+                path = checkpoint::load_execution_path(fs_path);
             }
         }
-
-        execution.log = self.log;
 
         let f = Arc::new(f);
 
@@ -147,8 +144,8 @@ impl Builder {
                 println!(" ================== Iteration {} ==================", i);
                 println!("");
 
-                if let Some(ref path) = self.checkpoint_file {
-                    checkpoint::store_execution_path(&execution.path, path);
+                if let Some(ref fs_path) = self.checkpoint_file {
+                    checkpoint::store_execution_path(&path, fs_path);
                 }
 
                 if let Some(max_permutations) = self.max_permutations {
@@ -166,6 +163,9 @@ impl Builder {
 
             let f = f.clone();
 
+            let mut execution = Execution::new(self.max_threads, &mut path);
+            execution.log = self.log;
+
             scheduler.run(&mut execution, move || {
                 f();
                 rt::thread_done();
@@ -173,9 +173,7 @@ impl Builder {
 
             execution.check_for_leaks();
 
-            if let Some(next) = execution.step() {
-                execution = next;
-            } else {
+            if !path.step() {
                 println!("Completed in {} iterations", i);
                 return;
             }

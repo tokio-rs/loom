@@ -4,12 +4,12 @@ use crate::rt::{object, thread, Path};
 use std::collections::HashMap;
 use std::fmt;
 
-pub(crate) struct Execution {
+pub(crate) struct Execution<'a> {
     /// Uniquely identifies an execution
     pub(super) id: Id,
 
     /// Execution path taken
-    pub(crate) path: Path,
+    pub(crate) path: &'a mut Path,
 
     pub(crate) threads: thread::Set,
 
@@ -22,7 +22,7 @@ pub(crate) struct Execution {
     /// Maximum number of concurrent threads
     pub(super) max_threads: usize,
 
-    pub(super) max_history: usize,
+    // pub(super) max_history: usize,
 
     /// Log execution output to STDOUT
     pub(crate) log: bool,
@@ -31,27 +31,26 @@ pub(crate) struct Execution {
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
 pub(crate) struct Id(usize);
 
-impl Execution {
+impl<'a> Execution<'a> {
     /// Create a new execution.
     ///
     /// This is only called at the start of a fuzz run. The same instance is
     /// reused across permutations.
     pub(crate) fn new(
         max_threads: usize,
-        max_branches: usize,
-        preemption_bound: Option<usize>,
-    ) -> Execution {
+        path: &mut Path,
+    ) -> Execution<'_> {
         let id = Id::new();
         let threads = thread::Set::new(id, max_threads);
 
         Execution {
             id,
-            path: Path::new(max_branches, preemption_bound),
+            path,
             threads,
             objects: object::Store::new(id),
             raw_allocations: HashMap::new(),
             max_threads,
-            max_history: 7,
+            // max_history: 7,
             log: false,
         }
     }
@@ -72,39 +71,6 @@ impl Execution {
         active.causality[active_id] += 1;
 
         thread_id
-    }
-
-    /// Resets the execution state for the next execution run
-    pub(crate) fn step(self) -> Option<Self> {
-        let id = Id::new();
-        let max_threads = self.max_threads;
-        let max_history = self.max_history;
-        let log = self.log;
-        let mut path = self.path;
-        let mut objects = self.objects;
-        let mut raw_allocations = self.raw_allocations;
-
-        let mut threads = self.threads;
-
-        objects.clear();
-        raw_allocations.clear();
-
-        if !path.step() {
-            return None;
-        }
-
-        threads.clear(id);
-
-        Some(Execution {
-            id,
-            path,
-            threads,
-            objects,
-            raw_allocations,
-            max_threads,
-            max_history,
-            log,
-        })
     }
 
     /// Returns `true` if a switch is required
@@ -240,7 +206,7 @@ impl Execution {
     }
 }
 
-impl fmt::Debug for Execution {
+impl<'a> fmt::Debug for Execution<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("Execution")
             .field("path", &self.path)

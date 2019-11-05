@@ -192,9 +192,9 @@ impl Store {
         }
     }
 
-    pub(crate) fn clear(&mut self) {
-        self.entries.clear();
-    }
+    // pub(crate) fn clear(&mut self) {
+    //     self.entries.clear();
+    // }
 
     /// Panics if any leaks were detected
     pub(crate) fn check_for_leaks(&self) {
@@ -231,7 +231,7 @@ impl Object {
         self.branch(Action::Opaque)
     }
 
-    fn set_action(self, execution: &mut Execution, action: Action) {
+    fn set_action(self, execution: &mut Execution<'_>, action: Action) {
         execution.threads.active_mut().operation = Some(Operation { obj: self, action });
     }
 }

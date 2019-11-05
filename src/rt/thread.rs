@@ -274,17 +274,17 @@ impl Set {
             .join(&self.threads[self.active.unwrap()].causality);
     }
 
-    pub(crate) fn clear(&mut self, execution_id: execution::Id) {
-        self.threads.clear();
-        self.threads.push(Thread::new(
-            Id::new(execution_id, 0),
-            self.threads.capacity(),
-        ));
+    // pub(crate) fn clear(&mut self, execution_id: execution::Id) {
+    //     self.threads.clear();
+    //     self.threads.push(Thread::new(
+    //         Id::new(execution_id, 0),
+    //         self.threads.capacity(),
+    //     ));
 
-        self.execution_id = execution_id;
-        self.active = Some(0);
-        self.seq_cst_causality = VersionVec::new(self.max());
-    }
+    //     self.execution_id = execution_id;
+    //     self.active = Some(0);
+    //     self.seq_cst_causality = VersionVec::new(self.max());
+    // }
 
     pub(crate) fn iter<'a>(&'a self) -> impl Iterator<Item = (Id, &'a Thread)> + 'a {
         let execution_id = self.execution_id;
