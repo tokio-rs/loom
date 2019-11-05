@@ -135,11 +135,11 @@ impl Mutex {
     /// Returns `true` if the mutex is currently locked
     fn is_locked(&self) -> bool {
         super::execution(|execution| {
-            let res = self.get_state(&mut execution.objects).lock.is_some();
+            let is_locked = self.get_state(&mut execution.objects).lock.is_some();
 
-            trace!(obj = ?self.obj, ?res, "Mutex::is_locked");
+            trace!(obj = ?self.obj, ?is_locked, "Mutex::is_locked");
 
-            res
+            is_locked
         })
     }
 

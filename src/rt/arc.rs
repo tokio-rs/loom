@@ -83,11 +83,11 @@ impl Arc {
             // Synchronize the threads
             state.synchronize.sync_load(&mut execution.threads, Acquire);
 
-            let res = state.ref_cnt == 1;
+            let is_only_ref = state.ref_cnt == 1;
 
-            trace!(obj = ?self.obj, ?res, "Arc::get_mut");
+            trace!(obj = ?self.obj, ?is_only_ref, "Arc::get_mut");
 
-            res
+            is_only_ref
         })
     }
 
