@@ -154,20 +154,12 @@ impl State {
     }
 
     pub(super) fn set_last_access(&mut self, action: Action, path_id: usize, version: &VersionVec) {
-        let set_or_create = |access: &mut Option<Access>| {
-            if let Some(access) = access.as_mut() {
-                access.set(path_id, version);
-            } else {
-                *access = Some(Access::new(path_id, version));
-            }
-        };
-
         match action {
-            Action::Load => set_or_create(&mut self.last_load),
-            Action::Store => set_or_create(&mut self.last_store),
+            Action::Load => Access::set_or_create(&mut self.last_load, path_id, version),
+            Action::Store => Access::set_or_create(&mut self.last_store, path_id, version),
             Action::Rmw => {
-                set_or_create(&mut self.last_load);
-                set_or_create(&mut self.last_store);
+                Access::set_or_create(&mut self.last_load, path_id, version);
+                Access::set_or_create(&mut self.last_store, path_id, version);
             }
         }
     }

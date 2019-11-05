@@ -91,10 +91,6 @@ impl State {
     }
 
     pub(crate) fn set_last_access(&mut self, path_id: usize, version: &VersionVec) {
-        if let Some(access) = self.last_access.as_mut() {
-            access.set(path_id, version);
-        } else {
-            self.last_access = Some(Access::new(path_id, version));
-        }
+        Access::set_or_create(&mut self.last_access, path_id, version);
     }
 }
