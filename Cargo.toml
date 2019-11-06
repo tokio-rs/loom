@@ -24,7 +24,7 @@ categories = ["concurrency", "data-structures"]
 [features]
 default = []
 checkpoint = ["serde", "serde_json"]
-futures = ["futures-util-preview"]
+futures = ["futures-util"]
 
 [dependencies]
 cfg-if = "0.1.6"
@@ -37,4 +37,4 @@ generator = "0.6.18"
 serde = { version = "1.0.92", features = ["derive"], optional = true }
 serde_json = { version = "1.0.33", optional = true }
 
-futures-util-preview = { version = "=0.3.0-alpha.19", optional = true }
+futures-util = { version = "0.3.0", optional = true }
