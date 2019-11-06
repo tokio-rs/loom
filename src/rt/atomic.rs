@@ -10,7 +10,7 @@ pub(crate) struct Atomic {
     obj: Object,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(super) struct State<'bump> {
     last_access: Option<Access>,
     history: History<'bump>,
@@ -28,9 +28,15 @@ pub(super) enum Action {
     Rmw,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct History<'bump> {
-    stores: Vec<Store<'bump>>,
+    stores: BumpVec<'bump, Store<'bump>>,
+}
+
+impl History<'_> {
+    fn new(bump: &Bump) -> History<'_> {
+        History { stores: BumpVec::new_in(bump) }
+    }
 }
 
 #[derive(Debug)]
@@ -51,7 +57,11 @@ struct FirstSeen<'bump>(BumpVec<'bump, Option<usize>>);
 impl Atomic {
     pub(crate) fn new() -> Atomic {
         rt::execution(|execution| {
-            let mut state = State::default();
+            let mut state = State {
+                last_load: None,
+                last_store: None,
+                history: History::new(execution.bump),
+            };
 
             // All atomics are initialized with a value, which brings the causality
             // of the thread initializing the atomic.
