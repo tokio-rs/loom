@@ -121,7 +121,7 @@ impl Execution {
                 None => continue,
             };
 
-            for access in self.objects.last_dependent_accesses(operation) {
+            if let Some(access) = self.objects.last_dependent_access(operation) {
                 if access.happens_before(&th.dpor_vv) {
                     // The previous access happened before this access, thus
                     // there is no race.
@@ -201,7 +201,7 @@ impl Execution {
             let threads = &mut self.threads;
             let th_id = threads.active_id();
 
-            for access in self.objects.last_dependent_accesses(operation) {
+            if let Some(access) = self.objects.last_dependent_access(operation) {
                 threads.active_mut().dpor_vv.join(access.version());
             }
 
