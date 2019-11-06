@@ -1,7 +1,7 @@
 use crate::rt::object::Object;
 use crate::rt::{self, thread, Access, Path, Synchronize, VersionVec};
 
-use bumpalo::Bump;
+use bumpalo::{Bump, collections::vec::Vec as BumpVec};
 use std::sync::atomic::Ordering;
 use std::sync::atomic::Ordering::Acquire;
 
@@ -39,14 +39,14 @@ struct Store<'bump> {
     sync: Synchronize<'bump>,
 
     /// Tracks when each thread first saw value
-    first_seen: FirstSeen,
+    first_seen: FirstSeen<'bump>,
 
     /// True when the store was done with `SeqCst` ordering
     seq_cst: bool,
 }
 
 #[derive(Debug)]
-struct FirstSeen(Vec<Option<usize>>);
+struct FirstSeen<'bump>(BumpVec<'bump, Option<usize>>);
 
 impl Atomic {
     pub(crate) fn new() -> Atomic {
@@ -57,7 +57,7 @@ impl Atomic {
             // of the thread initializing the atomic.
             state.history.stores.push(Store {
                 sync: Synchronize::new(execution.max_threads, execution.bump),
-                first_seen: FirstSeen::new(&mut execution.threads),
+                first_seen: FirstSeen::new(&mut execution.threads, execution.bump),
                 seq_cst: false,
             });
 
@@ -165,7 +165,7 @@ impl<'bump> State<'bump> {
     fn store(&mut self, threads: &mut thread::Set, order: Ordering, bump: &'bump Bump) {
         let mut store = Store {
             sync: Synchronize::new(threads.max(), bump),
-            first_seen: FirstSeen::new(threads),
+            first_seen: FirstSeen::new(threads, bump),
             seq_cst: is_seq_cst(order),
         };
 
@@ -197,7 +197,7 @@ impl<'bump> State<'bump> {
         let mut new = Store {
             // Clone the previous sync in order to form a release sequence.
             sync: self.history.stores[index].sync.clone_bump(bump),
-            first_seen: FirstSeen::new(threads),
+            first_seen: FirstSeen::new(threads, bump),
             seq_cst: is_seq_cst(success),
         };
 
@@ -256,9 +256,9 @@ impl History<'_> {
     }
 }
 
-impl FirstSeen {
-    fn new(threads: &mut thread::Set) -> FirstSeen {
-        let mut first_seen = FirstSeen(vec![]);
+impl<'bump> FirstSeen<'bump> {
+    fn new(threads: &mut thread::Set, bump: &'bump Bump) -> FirstSeen<'bump> {
+        let mut first_seen = FirstSeen(BumpVec::with_capacity_in(threads.max(), bump));
         first_seen.touch(threads);
 
         first_seen
