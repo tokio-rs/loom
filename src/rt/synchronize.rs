@@ -1,5 +1,6 @@
-use crate::rt::{thread, VersionVec};
+use crate::rt::{thread, VersionVecSlice};
 
+use bumpalo::Bump;
 use std::sync::atomic::Ordering::{self, *};
 
 /// A synchronization point between two threads.
@@ -8,19 +9,25 @@ use std::sync::atomic::Ordering::{self, *};
 /// loads, the thread's causality is updated using the synchronization point's
 /// stored causality. On stores, the synchronization point's causality is
 /// updated with the threads.
-#[derive(Debug, Clone)]
-pub(crate) struct Synchronize {
-    happens_before: VersionVec,
+#[derive(Debug)]
+pub(crate) struct Synchronize<'bump> {
+    happens_before: VersionVecSlice<'bump>,
 }
 
-impl Synchronize {
-    pub fn new(max_threads: usize) -> Self {
-        let happens_before = VersionVec::new(max_threads);
+impl<'bump> Synchronize<'bump> {
+    pub fn new(max_threads: usize, bump: &'bump Bump) -> Self {
+        let happens_before = VersionVecSlice::new_bump(max_threads, bump);
 
         Synchronize { happens_before }
     }
 
-    pub fn version_vec(&self) -> &VersionVec {
+    pub fn clone_bump(&self, bump: &'bump Bump) -> Self {
+        let mut res = Self::new(self.happens_before.len(), bump);
+        res.happens_before.set(&self.happens_before);
+        res
+    }
+
+    pub fn version_vec(&self) -> &VersionVecSlice<'_> {
         &self.happens_before
     }
 

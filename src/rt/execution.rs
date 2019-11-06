@@ -13,6 +13,8 @@ pub(crate) struct Execution<'a> {
     /// Execution path taken
     pub(crate) path: &'a mut Path,
 
+    pub(crate) bump: &'a Bump,
+
     pub(crate) threads: thread::Set,
 
     /// All loom aware objects part of this execution run.
@@ -49,6 +51,7 @@ impl Execution<'_> {
         Execution {
             id,
             path,
+            bump,
             threads,
             objects: object::Store::new(id, bump),
             raw_allocations: HashMap::new(),

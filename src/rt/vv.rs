@@ -1,18 +1,19 @@
 use crate::rt::{execution, thread};
+use bumpalo::Bump;
 
 #[cfg(feature = "checkpoint")]
 use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::ops;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub(crate) struct VersionVecGen<T: ops::DerefMut<Target = [usize]>> {
     versions: T,
 }
 
 pub(crate) type VersionVec = VersionVecGen<Box<[usize]>>;
-//pub(crate) type VersionVecSlice<'a> = VersionVecGen<&'a [usize]>;
+pub(crate) type VersionVecSlice<'a> = VersionVecGen<&'a mut [usize]>;
 
 impl<T: ops::DerefMut<Target = [usize]>> VersionVecGen<T> {
     pub(crate) fn new(max_threads: usize) -> VersionVec {
@@ -23,7 +24,30 @@ impl<T: ops::DerefMut<Target = [usize]>> VersionVecGen<T> {
         }
     }
 
-    pub(crate) fn set(&mut self, other: &VersionVecGen<T>) {
+    pub(crate) fn new_bump(max_threads: usize, bump: &Bump) -> VersionVecSlice<'_> {
+        let layout = std::alloc::Layout::from_size_align(
+            std::mem::size_of::<usize>() * max_threads,
+            std::mem::align_of::<usize>(),
+        )
+        .unwrap();
+
+        let ptr = bump.alloc_layout(layout).cast::<usize>();
+
+        unsafe {
+            for i in 0..max_threads {
+                std::ptr::write(ptr.as_ptr().add(i), 0);
+            }
+
+            VersionVecSlice {
+                versions: std::slice::from_raw_parts_mut(ptr.as_ptr(), max_threads),
+            }
+        }
+    }
+
+    pub(crate) fn set<U>(&mut self, other: &VersionVecGen<U>)
+    where
+        U: ops::DerefMut<Target = [usize]>,
+    {
         self.versions.copy_from_slice(&other.versions);
     }
 
@@ -45,7 +69,10 @@ impl<T: ops::DerefMut<Target = [usize]>> VersionVecGen<T> {
         self.versions[id.as_usize()] += 1;
     }
 
-    pub(crate) fn join(&mut self, other: &VersionVecGen<T>) {
+    pub(crate) fn join<U>(&mut self, other: &VersionVecGen<U>)
+    where
+        U: ops::DerefMut<Target = [usize]>,
+    {
         assert_eq!(self.versions.len(), other.versions.len());
 
         for (i, &version) in other.versions.iter().enumerate() {
@@ -54,8 +81,22 @@ impl<T: ops::DerefMut<Target = [usize]>> VersionVecGen<T> {
     }
 }
 
-impl<T: ops::DerefMut<Target = [usize]> + cmp::PartialEq> cmp::PartialOrd for VersionVecGen<T> {
-    fn partial_cmp(&self, other: &VersionVecGen<T>) -> Option<cmp::Ordering> {
+impl<T, U> cmp::PartialEq<VersionVecGen<U>> for VersionVecGen<T>
+where
+    T: ops::DerefMut<Target = [usize]>,
+    U: ops::DerefMut<Target = [usize]>,
+{
+    fn eq(&self, other: &VersionVecGen<U>) -> bool {
+        *self.versions == *other.versions
+    }
+}
+
+impl<T, U> cmp::PartialOrd<VersionVecGen<U>> for VersionVecGen<T>
+where
+    T: ops::DerefMut<Target = [usize]>,
+    U: ops::DerefMut<Target = [usize]>,
+{
+    fn partial_cmp(&self, other: &VersionVecGen<U>) -> Option<cmp::Ordering> {
         use cmp::Ordering::*;
 
         let len = cmp::max(self.len(), other.len());

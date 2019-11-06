@@ -9,7 +9,7 @@ pub(crate) struct Notify {
 }
 
 #[derive(Debug)]
-pub(super) struct State {
+pub(super) struct State<'bump> {
     /// If true, spurious notifications are possible
     spurious: bool,
 
@@ -26,7 +26,7 @@ pub(super) struct State {
     last_access: Option<Access>,
 
     /// Causality transfers between threads
-    synchronize: Synchronize,
+    synchronize: Synchronize<'bump>,
 }
 
 impl Notify {
@@ -38,7 +38,7 @@ impl Notify {
                 seq_cst,
                 notified: false,
                 last_access: None,
-                synchronize: Synchronize::new(execution.max_threads),
+                synchronize: Synchronize::new(execution.max_threads, execution.bump),
             });
 
             Notify { obj }
@@ -124,12 +124,12 @@ impl Notify {
         });
     }
 
-    fn get_state<'a>(self, store: &'a mut object::Store<'_>) -> &'a mut State {
+    fn get_state<'a, 'b>(self, store: &'a mut object::Store<'b>) -> &'a mut State<'b> {
         self.obj.notify_mut(store).unwrap()
     }
 }
 
-impl State {
+impl State<'_> {
     pub(crate) fn last_dependent_access(&self) -> Option<&Access> {
         self.last_access.as_ref()
     }

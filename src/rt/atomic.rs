@@ -1,6 +1,7 @@
 use crate::rt::object::Object;
 use crate::rt::{self, thread, Access, Path, Synchronize, VersionVec};
 
+use bumpalo::Bump;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::Ordering::Acquire;
 
@@ -10,9 +11,9 @@ pub(crate) struct Atomic {
 }
 
 #[derive(Debug, Default)]
-pub(super) struct State {
+pub(super) struct State<'bump> {
     last_access: Option<Access>,
-    history: History,
+    history: History<'bump>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -28,14 +29,14 @@ pub(super) enum Action {
 }
 
 #[derive(Debug, Default)]
-struct History {
-    stores: Vec<Store>,
+struct History<'bump> {
+    stores: Vec<Store<'bump>>,
 }
 
 #[derive(Debug)]
-struct Store {
+struct Store<'bump> {
     /// Manages causality transfers between threads
-    sync: Synchronize,
+    sync: Synchronize<'bump>,
 
     /// Tracks when each thread first saw value
     first_seen: FirstSeen,
@@ -55,7 +56,7 @@ impl Atomic {
             // All atomics are initialized with a value, which brings the causality
             // of the thread initializing the atomic.
             state.history.stores.push(Store {
-                sync: Synchronize::new(execution.threads.max()),
+                sync: Synchronize::new(execution.max_threads, execution.bump),
                 first_seen: FirstSeen::new(&mut execution.threads),
                 seq_cst: false,
             });
@@ -85,7 +86,7 @@ impl Atomic {
             self.obj
                 .atomic_mut(&mut execution.objects)
                 .unwrap()
-                .store(&mut execution.threads, order)
+                .store(&mut execution.threads, order, execution.bump)
         })
     }
 
@@ -101,6 +102,7 @@ impl Atomic {
                 &mut execution.threads,
                 success,
                 failure,
+                execution.bump,
             )
         })
     }
@@ -142,7 +144,7 @@ pub(crate) fn fence(order: Ordering) {
     });
 }
 
-impl State {
+impl<'bump> State<'bump> {
     pub(super) fn last_dependent_access(&self) -> Option<&Access> {
         self.last_access.as_ref()
     }
@@ -160,9 +162,9 @@ impl State {
         index
     }
 
-    fn store(&mut self, threads: &mut thread::Set, order: Ordering) {
+    fn store(&mut self, threads: &mut thread::Set, order: Ordering, bump: &'bump Bump) {
         let mut store = Store {
-            sync: Synchronize::new(threads.max()),
+            sync: Synchronize::new(threads.max(), bump),
             first_seen: FirstSeen::new(threads),
             seq_cst: is_seq_cst(order),
         };
@@ -177,6 +179,7 @@ impl State {
         threads: &mut thread::Set,
         success: Ordering,
         failure: Ordering,
+        bump: &'bump Bump,
     ) -> Result<usize, E>
     where
         F: FnOnce(usize) -> Result<(), E>,
@@ -193,7 +196,7 @@ impl State {
 
         let mut new = Store {
             // Clone the previous sync in order to form a release sequence.
-            sync: self.history.stores[index].sync.clone(),
+            sync: self.history.stores[index].sync.clone_bump(bump),
             first_seen: FirstSeen::new(threads),
             seq_cst: is_seq_cst(success),
         };
@@ -214,7 +217,7 @@ impl State {
     }
 }
 
-impl History {
+impl History<'_> {
     fn pick_store(
         &mut self,
         path: &mut rt::Path,

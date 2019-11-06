@@ -18,7 +18,7 @@ pub struct Store<'bump> {
     execution_id: execution::Id,
 
     /// Stored state for all objects.
-    entries: Vec<Entry>,
+    entries: Vec<Entry<'bump>>,
 
     /// Bump allocator.
     bump: &'bump Bump,
@@ -27,13 +27,13 @@ pub struct Store<'bump> {
 /// Entry in the object store. Enumerates the different kinds of objects that
 /// can be stored.
 #[derive(Debug)]
-enum Entry {
+enum Entry<'bump> {
     Alloc(alloc::State),
-    Arc(arc::State),
-    Atomic(atomic::State),
-    Mutex(mutex::State),
+    Arc(arc::State<'bump>),
+    Atomic(atomic::State<'bump>),
+    Mutex(mutex::State<'bump>),
     Condvar(condvar::State),
-    Notify(notify::State),
+    Notify(notify::State<'bump>),
 }
 
 // TODO: mov to separate file
@@ -66,7 +66,7 @@ impl Object {
         }
     }
 
-    pub(super) fn arc_mut<'a>(self, store: &'a mut Store<'_>) -> &'a mut arc::State {
+    pub(super) fn arc_mut<'a, 'b>(self, store: &'a mut Store<'b>) -> &'a mut arc::State<'b> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -75,7 +75,7 @@ impl Object {
         }
     }
 
-    pub(super) fn atomic_mut<'a>(self, store: &'a mut Store<'_>) -> Option<&'a mut atomic::State> {
+    pub(super) fn atomic_mut<'a, 'b>(self, store: &'a mut Store<'b>) -> Option<&'a mut atomic::State<'b>> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -84,7 +84,7 @@ impl Object {
         }
     }
 
-    pub(super) fn condvar_mut<'a>(self, store: &'a mut Store<'_>) -> Option<&'a mut condvar::State> {
+    pub(super) fn condvar_mut<'a, 'b>(self, store: &'a mut Store<'_>) -> Option<&'a mut condvar::State> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -93,7 +93,7 @@ impl Object {
         }
     }
 
-    pub(super) fn mutex_mut<'a>(self, store: &'a mut Store<'_>) -> Option<&'a mut mutex::State> {
+    pub(super) fn mutex_mut<'a, 'b>(self, store: &'a mut Store<'b>) -> Option<&'a mut mutex::State<'b>> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -102,7 +102,7 @@ impl Object {
         }
     }
 
-    pub(super) fn notify_mut<'a>(self, store: &'a mut Store<'_>) -> Option<&'a mut notify::State> {
+    pub(super) fn notify_mut<'a, 'b>(self, store: &'a mut Store<'b>) -> Option<&'a mut notify::State<'b>> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -112,7 +112,7 @@ impl Object {
     }
 }
 
-impl Store<'_> {
+impl<'bump> Store<'bump> {
     /// Create a new, empty, object store
     pub(super) fn new(execution_id: execution::Id, bump: &Bump) -> Store<'_> {
         Store {
@@ -128,17 +128,17 @@ impl Store<'_> {
     }
 
     /// Insert a new arc object into the store.
-    pub(super) fn insert_arc(&mut self, state: arc::State) -> Object {
+    pub(super) fn insert_arc(&mut self, state: arc::State<'bump>) -> Object {
         self.insert(Entry::Arc(state))
     }
 
     /// Insert a new atomic object into the store.
-    pub(super) fn insert_atomic(&mut self, state: atomic::State) -> Object {
+    pub(super) fn insert_atomic(&mut self, state: atomic::State<'bump>) -> Object {
         self.insert(Entry::Atomic(state))
     }
 
     /// Iterate all atomic objects
-    pub(super) fn atomics_mut(&mut self) -> impl Iterator<Item = &mut atomic::State> {
+    pub(super) fn atomics_mut(&mut self) -> impl Iterator<Item = &mut atomic::State<'bump>> {
         self.entries.iter_mut().filter_map(|entry| match entry {
             Entry::Atomic(entry) => Some(entry),
             _ => None,
@@ -146,7 +146,7 @@ impl Store<'_> {
     }
 
     /// Insert a new mutex object into the store.
-    pub(super) fn insert_mutex(&mut self, state: mutex::State) -> Object {
+    pub(super) fn insert_mutex(&mut self, state: mutex::State<'bump>) -> Object {
         self.insert(Entry::Mutex(state))
     }
 
@@ -156,11 +156,11 @@ impl Store<'_> {
     }
 
     /// Inserts a new notify object into the store
-    pub(super) fn insert_notify(&mut self, state: notify::State) -> Object {
+    pub(super) fn insert_notify(&mut self, state: notify::State<'bump>) -> Object {
         self.insert(Entry::Notify(state))
     }
 
-    fn insert(&mut self, entry: Entry) -> Object {
+    fn insert(&mut self, entry: Entry<'bump>) -> Object {
         let index = self.entries.len();
         self.entries.push(entry);
 

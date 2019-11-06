@@ -10,14 +10,14 @@ pub(crate) struct Arc {
 }
 
 #[derive(Debug)]
-pub(super) struct State {
+pub(super) struct State<'bump> {
     /// Reference count
     ref_cnt: usize,
 
     /// Causality transfers between threads
     ///
     /// Only updated on on ref dec and acquired before drop
-    synchronize: Synchronize,
+    synchronize: Synchronize<'bump>,
 
     /// Tracks access to the arc object
     last_ref_inc: Option<Access>,
@@ -47,7 +47,7 @@ impl Arc {
         rt::execution(|execution| {
             let obj = execution.objects.insert_arc(State {
                 ref_cnt: 1,
-                synchronize: Synchronize::new(execution.max_threads),
+                synchronize: Synchronize::new(execution.max_threads, execution.bump),
                 last_ref_inc: None,
                 last_ref_dec: None,
             });
@@ -116,7 +116,7 @@ impl Arc {
     }
 }
 
-impl State {
+impl State<'_> {
     pub(super) fn check_for_leaks(&self) {
         assert_eq!(0, self.ref_cnt, "Arc leaked");
     }

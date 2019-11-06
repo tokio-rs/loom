@@ -9,7 +9,7 @@ pub(crate) struct Mutex {
 }
 
 #[derive(Debug)]
-pub(super) struct State {
+pub(super) struct State<'bump> {
     /// If the mutex should establish sequential consistency.
     seq_cst: bool,
 
@@ -21,7 +21,7 @@ pub(super) struct State {
     last_access: Option<Access>,
 
     /// Causality transfers between threads
-    synchronize: Synchronize,
+    synchronize: Synchronize<'bump>,
 }
 
 impl Mutex {
@@ -31,7 +31,7 @@ impl Mutex {
                 seq_cst,
                 lock: None,
                 last_access: None,
-                synchronize: Synchronize::new(execution.max_threads),
+                synchronize: Synchronize::new(execution.max_threads, execution.bump),
             });
 
             Mutex { obj }
@@ -127,12 +127,12 @@ impl Mutex {
         super::execution(|execution| self.get_state(&mut execution.objects).lock.is_some())
     }
 
-    fn get_state<'a>(&self, objects: &'a mut object::Store<'_>) -> &'a mut State {
+    fn get_state<'a, 'b>(&self, objects: &'a mut object::Store<'b>) -> &'a mut State<'b> {
         self.obj.mutex_mut(objects).unwrap()
     }
 }
 
-impl State {
+impl State<'_> {
     pub(crate) fn last_dependent_access(&self) -> Option<&Access> {
         self.last_access.as_ref()
     }
