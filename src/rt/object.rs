@@ -1,6 +1,6 @@
 use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify};
 use crate::rt::{Access, Execution, VersionVec};
-use bumpalo::Bump;
+use bumpalo::{Bump, collections::vec::Vec as BumpVec};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Object {
@@ -18,10 +18,20 @@ pub struct Store<'bump> {
     execution_id: execution::Id,
 
     /// Stored state for all objects.
-    entries: Vec<Entry<'bump>>,
+    entries: BumpVec<'bump, Entry<'bump>>,
 
     /// Bump allocator.
     bump: &'bump Bump,
+}
+
+impl Drop for Store<'_> {
+    fn drop(&mut self) {
+        // BumpVec won't drop its elements so we need to drop them manually because e.g.
+        // condvar::State contains a VecDeque allocated on the heap so the drop is non-trivial.
+        for object in self.entries.drain(..) {
+            drop(object);
+        }
+    }
 }
 
 /// Entry in the object store. Enumerates the different kinds of objects that
@@ -129,7 +139,7 @@ impl<'bump> Store<'bump> {
     pub(super) fn new(execution_id: execution::Id, bump: &Bump) -> Store<'_> {
         Store {
             execution_id,
-            entries: vec![],
+            entries: BumpVec::new_in(bump),
             bump,
         }
     }

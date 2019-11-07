@@ -174,6 +174,7 @@ impl Builder {
             });
 
             execution.check_for_leaks();
+            drop(execution);
 
             bump.reset();
             if !path.step() {

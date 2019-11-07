@@ -15,7 +15,7 @@ pub(super) struct State<'bump> {
     last_access: Option<Access<'bump>>,
 
     /// Threads waiting on the condvar
-    waiters: VecDeque<thread::Id>,
+    pub(crate) waiters: VecDeque<thread::Id>,
 }
 
 impl Condvar {
