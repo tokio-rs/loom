@@ -1,7 +1,7 @@
 use crate::rt::object::Object;
 use crate::rt::{self, thread, Access, Path, Synchronize, VersionVec};
 
-use bumpalo::{Bump, collections::vec::Vec as BumpVec};
+use bumpalo::{collections::vec::Vec as BumpVec, Bump};
 use std::sync::atomic::Ordering;
 use std::sync::atomic::Ordering::Acquire;
 
@@ -12,7 +12,7 @@ pub(crate) struct Atomic {
 
 #[derive(Debug)]
 pub(super) struct State<'bump> {
-    last_access: Option<Access>,
+    last_access: Option<Access<'bump>>,
     history: History<'bump>,
 }
 
@@ -35,7 +35,9 @@ struct History<'bump> {
 
 impl History<'_> {
     fn new(bump: &Bump) -> History<'_> {
-        History { stores: BumpVec::new_in(bump) }
+        History {
+            stores: BumpVec::new_in(bump),
+        }
     }
 }
 
@@ -58,8 +60,7 @@ impl Atomic {
     pub(crate) fn new() -> Atomic {
         rt::execution(|execution| {
             let mut state = State {
-                last_load: None,
-                last_store: None,
+                last_access: None,
                 history: History::new(execution.bump),
             };
 
@@ -93,10 +94,11 @@ impl Atomic {
         self.obj.branch(Action::Store);
 
         super::synchronize(|execution| {
-            self.obj
-                .atomic_mut(&mut execution.objects)
-                .unwrap()
-                .store(&mut execution.threads, order, execution.bump)
+            self.obj.atomic_mut(&mut execution.objects).unwrap().store(
+                &mut execution.threads,
+                order,
+                execution.bump,
+            )
         })
     }
 
@@ -155,12 +157,17 @@ pub(crate) fn fence(order: Ordering) {
 }
 
 impl<'bump> State<'bump> {
-    pub(super) fn last_dependent_access(&self) -> Option<&Access> {
+    pub(super) fn last_dependent_access(&self) -> Option<&Access<'bump>> {
         self.last_access.as_ref()
     }
 
-    pub(super) fn set_last_access(&mut self, path_id: usize, version: &VersionVec) {
-        Access::set_or_create(&mut self.last_access, path_id, version);
+    pub(super) fn set_last_access(
+        &mut self,
+        path_id: usize,
+        version: &VersionVec,
+        bump: &'bump Bump,
+    ) {
+        Access::set_or_create_in(&mut self.last_access, path_id, version, bump);
     }
 
     fn load(&mut self, path: &mut Path, threads: &mut thread::Set, order: Ordering) -> usize {

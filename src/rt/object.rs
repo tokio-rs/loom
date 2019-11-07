@@ -32,7 +32,7 @@ enum Entry<'bump> {
     Arc(arc::State<'bump>),
     Atomic(atomic::State<'bump>),
     Mutex(mutex::State<'bump>),
-    Condvar(condvar::State),
+    Condvar(condvar::State<'bump>),
     Notify(notify::State<'bump>),
 }
 
@@ -75,7 +75,10 @@ impl Object {
         }
     }
 
-    pub(super) fn atomic_mut<'a, 'b>(self, store: &'a mut Store<'b>) -> Option<&'a mut atomic::State<'b>> {
+    pub(super) fn atomic_mut<'a, 'b>(
+        self,
+        store: &'a mut Store<'b>,
+    ) -> Option<&'a mut atomic::State<'b>> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -84,7 +87,10 @@ impl Object {
         }
     }
 
-    pub(super) fn condvar_mut<'a, 'b>(self, store: &'a mut Store<'_>) -> Option<&'a mut condvar::State> {
+    pub(super) fn condvar_mut<'a, 'b>(
+        self,
+        store: &'a mut Store<'b>,
+    ) -> Option<&'a mut condvar::State<'b>> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -93,7 +99,10 @@ impl Object {
         }
     }
 
-    pub(super) fn mutex_mut<'a, 'b>(self, store: &'a mut Store<'b>) -> Option<&'a mut mutex::State<'b>> {
+    pub(super) fn mutex_mut<'a, 'b>(
+        self,
+        store: &'a mut Store<'b>,
+    ) -> Option<&'a mut mutex::State<'b>> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -102,7 +111,10 @@ impl Object {
         }
     }
 
-    pub(super) fn notify_mut<'a, 'b>(self, store: &'a mut Store<'b>) -> Option<&'a mut notify::State<'b>> {
+    pub(super) fn notify_mut<'a, 'b>(
+        self,
+        store: &'a mut Store<'b>,
+    ) -> Option<&'a mut notify::State<'b>> {
         assert_eq!(self.execution_id, store.execution_id);
 
         match &mut store.entries[self.index] {
@@ -151,7 +163,7 @@ impl<'bump> Store<'bump> {
     }
 
     /// Insert a new condition variable object into the store
-    pub(super) fn insert_condvar(&mut self, state: condvar::State) -> Object {
+    pub(super) fn insert_condvar(&mut self, state: condvar::State<'bump>) -> Object {
         self.insert(Entry::Condvar(state))
     }
 
@@ -170,7 +182,7 @@ impl<'bump> Store<'bump> {
         }
     }
 
-    pub(super) fn last_dependent_access(&self, operation: Operation) -> Option<&Access> {
+    pub(super) fn last_dependent_access(&self, operation: Operation) -> Option<&Access<'bump>> {
         match &self.entries[operation.obj.index] {
             Entry::Alloc(_) => panic!("allocations are not branchable operations"),
             Entry::Arc(entry) => entry.last_dependent_access(operation.action.into()),
@@ -189,11 +201,13 @@ impl<'bump> Store<'bump> {
     ) {
         match &mut self.entries[operation.obj.index] {
             Entry::Alloc(_) => panic!("allocations are not branchable operations"),
-            Entry::Arc(entry) => entry.set_last_access(operation.action.into(), path_id, dpor_vv),
-            Entry::Atomic(entry) => entry.set_last_access(path_id, dpor_vv),
-            Entry::Mutex(entry) => entry.set_last_access(path_id, dpor_vv),
-            Entry::Condvar(entry) => entry.set_last_access(path_id, dpor_vv),
-            Entry::Notify(entry) => entry.set_last_access(path_id, dpor_vv),
+            Entry::Arc(entry) => {
+                entry.set_last_access(operation.action.into(), path_id, dpor_vv, self.bump)
+            }
+            Entry::Atomic(entry) => entry.set_last_access(path_id, dpor_vv, self.bump),
+            Entry::Mutex(entry) => entry.set_last_access(path_id, dpor_vv, self.bump),
+            Entry::Condvar(entry) => entry.set_last_access(path_id, dpor_vv, self.bump),
+            Entry::Notify(entry) => entry.set_last_access(path_id, dpor_vv, self.bump),
         }
     }
 

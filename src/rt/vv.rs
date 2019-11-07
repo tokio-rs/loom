@@ -44,6 +44,18 @@ impl<T: ops::DerefMut<Target = [usize]>> VersionVecGen<T> {
         }
     }
 
+    pub(crate) fn clone_bump<'bump, U>(
+        other: &VersionVecGen<U>,
+        bump: &'bump Bump,
+    ) -> VersionVecSlice<'bump>
+    where
+        U: ops::DerefMut<Target = [usize]>,
+    {
+        VersionVecSlice {
+            versions: bump.alloc_slice_copy(&other.versions),
+        }
+    }
+
     pub(crate) fn set<U>(&mut self, other: &VersionVecGen<U>)
     where
         U: ops::DerefMut<Target = [usize]>,

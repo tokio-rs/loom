@@ -1,16 +1,21 @@
-use crate::rt::VersionVec;
+use crate::rt::{VersionVec, VersionVecSlice};
+use bumpalo::Bump;
 
-#[derive(Debug, Clone)]
-pub(crate) struct Access {
+#[derive(Debug)]
+pub(crate) struct Access<'bump> {
     path_id: usize,
-    dpor_vv: VersionVec,
+    dpor_vv: VersionVecSlice<'bump>,
 }
 
-impl Access {
-    pub(crate) fn new(path_id: usize, version: &VersionVec) -> Access {
+impl<'bump> Access<'bump> {
+    pub(crate) fn new(
+        path_id: usize,
+        version: &VersionVec,
+        bump: &'bump Bump,
+    ) -> Access<'bump> {
         Access {
             path_id,
-            dpor_vv: version.clone(),
+            dpor_vv: VersionVecSlice::clone_bump(version, bump),
         }
     }
 
@@ -19,11 +24,16 @@ impl Access {
         self.dpor_vv.set(version);
     }
 
-    pub(crate) fn set_or_create(access: &mut Option<Self>, path_id: usize, version: &VersionVec) {
+    pub(crate) fn set_or_create_in(
+        access: &mut Option<Self>,
+        path_id: usize,
+        version: &VersionVec,
+        bump: &'bump Bump,
+    ) {
         if let Some(access) = access.as_mut() {
             access.set(path_id, version);
         } else {
-            *access = Some(Access::new(path_id, version));
+            *access = Some(Access::new(path_id, version, bump));
         }
     }
 
@@ -32,7 +42,7 @@ impl Access {
         self.path_id
     }
 
-    pub(crate) fn version(&self) -> &VersionVec {
+    pub(crate) fn version(&self) -> &VersionVecSlice<'_> {
         &self.dpor_vv
     }
 
