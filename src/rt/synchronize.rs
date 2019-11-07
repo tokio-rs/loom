@@ -31,7 +31,7 @@ impl<'bump> Synchronize<'bump> {
         &self.happens_before
     }
 
-    pub fn sync_load(&mut self, threads: &mut thread::Set, order: Ordering) {
+    pub fn sync_load(&mut self, threads: &mut thread::Set<'_>, order: Ordering) {
         match order {
             Relaxed | Release => {
                 // Nothing happens!
@@ -47,7 +47,7 @@ impl<'bump> Synchronize<'bump> {
         }
     }
 
-    pub fn sync_store(&mut self, threads: &mut thread::Set, order: Ordering) {
+    pub fn sync_store(&mut self, threads: &mut thread::Set<'_>, order: Ordering) {
         match order {
             Relaxed | Acquire => {
                 // Nothing happens!
@@ -63,11 +63,11 @@ impl<'bump> Synchronize<'bump> {
         }
     }
 
-    fn sync_acq(&mut self, threads: &mut thread::Set) {
+    fn sync_acq(&mut self, threads: &mut thread::Set<'_>) {
         threads.active_mut().causality.join(&self.happens_before);
     }
 
-    fn sync_rel(&mut self, threads: &thread::Set) {
+    fn sync_rel(&mut self, threads: &thread::Set<'_>) {
         self.happens_before.join(&threads.active().causality);
     }
 }

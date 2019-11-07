@@ -15,7 +15,7 @@ pub(crate) struct Execution<'a> {
 
     pub(crate) bump: &'a Bump,
 
-    pub(crate) threads: thread::Set,
+    pub(crate) threads: thread::Set<'a>,
 
     /// All loom aware objects part of this execution run.
     pub(super) objects: object::Store<'a>,
@@ -46,7 +46,7 @@ impl<'bump> Execution<'bump> {
         bump: &'bump Bump,
     ) -> Self {
         let id = Id::new();
-        let threads = thread::Set::new(id, max_threads);
+        let threads = thread::Set::new(id, max_threads, bump);
 
         Execution {
             id,

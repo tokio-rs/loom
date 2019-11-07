@@ -1,4 +1,4 @@
-use crate::rt::{self, VersionVec};
+use crate::rt::{self, VersionVec, VersionVecGen, VersionVecSlice};
 
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
@@ -53,7 +53,7 @@ impl<T> CausalCell<T> {
     /// Construct a new instance of `CausalCell` which will wrap the specified
     /// value.
     pub fn new(data: T) -> CausalCell<T> {
-        let v = rt::execution(|execution| execution.threads.active().causality.clone());
+        let v = rt::execution(|execution| execution.threads.active().causality.clone_box());
 
         CausalCell {
             data: UnsafeCell::new(data),
@@ -107,7 +107,7 @@ impl<T> CausalCell<T> {
                     index,
                     Deferred {
                         is_mut: false,
-                        thread_causality: thread_causality.clone(),
+                        thread_causality: thread_causality.clone_box(),
                         result,
                     },
                 );
@@ -161,7 +161,7 @@ impl<T> CausalCell<T> {
                     index,
                     Deferred {
                         is_mut: true,
-                        thread_causality: thread_causality.clone(),
+                        thread_causality: thread_causality.clone_box(),
                         result,
                     },
                 );
@@ -279,7 +279,7 @@ impl Default for CausalCheck {
 }
 
 impl Causality {
-    fn check(&self, thread_causality: &VersionVec) -> Result<(), String> {
+    fn check(&self, thread_causality: &VersionVecSlice<'_>) -> Result<(), String> {
         // Check that there is no concurrent mutable access, i.e., the last
         // mutable access must happen-before this immutable access.
 
@@ -299,7 +299,7 @@ impl Causality {
         Ok(())
     }
 
-    fn check_mut(&self, thread_causality: &VersionVec) -> Result<(), String> {
+    fn check_mut(&self, thread_causality: &VersionVecSlice<'_>) -> Result<(), String> {
         // Check that there is no concurrent mutable access, i.e., the last
         // mutable access must happen-before this mutable access.
 
@@ -337,7 +337,10 @@ impl Causality {
 }
 
 impl Deferred {
-    fn check(&mut self, thread_causality: &VersionVec) {
+    fn check<T>(&mut self, thread_causality: &VersionVecGen<T>)
+    where
+        T: std::ops::DerefMut<Target = [usize]>,
+    {
         if self.result.is_err() {
             return;
         }
@@ -360,7 +363,10 @@ impl Deferred {
         }
     }
 
-    fn check_mut(&mut self, thread_causality: &VersionVec) {
+    fn check_mut<T>(&mut self, thread_causality: &VersionVecGen<T>)
+    where
+        T: std::ops::DerefMut<Target = [usize]>,
+    {
         if self.result.is_err() {
             return;
         }

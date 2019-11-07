@@ -16,14 +16,6 @@ pub(crate) type VersionVec = VersionVecGen<Box<[usize]>>;
 pub(crate) type VersionVecSlice<'a> = VersionVecGen<&'a mut [usize]>;
 
 impl<T: ops::DerefMut<Target = [usize]>> VersionVecGen<T> {
-    pub(crate) fn new(max_threads: usize) -> VersionVec {
-        assert!(max_threads > 0, "max_threads = {:?}", max_threads);
-
-        VersionVec {
-            versions: vec![0; max_threads].into_boxed_slice(),
-        }
-    }
-
     pub(crate) fn new_bump(max_threads: usize, bump: &Bump) -> VersionVecSlice<'_> {
         let layout = std::alloc::Layout::from_size_align(
             std::mem::size_of::<usize>() * max_threads,
@@ -44,15 +36,15 @@ impl<T: ops::DerefMut<Target = [usize]>> VersionVecGen<T> {
         }
     }
 
-    pub(crate) fn clone_bump<'bump, U>(
-        other: &VersionVecGen<U>,
-        bump: &'bump Bump,
-    ) -> VersionVecSlice<'bump>
-    where
-        U: ops::DerefMut<Target = [usize]>,
-    {
+    pub(crate) fn clone_bump<'bump>(&self, bump: &'bump Bump) -> VersionVecSlice<'bump> {
         VersionVecSlice {
-            versions: bump.alloc_slice_copy(&other.versions),
+            versions: bump.alloc_slice_copy(&self.versions),
+        }
+    }
+
+    pub(crate) fn clone_box(&self) -> VersionVec {
+        VersionVec {
+            versions: (&*self.versions).into(),
         }
     }
 
@@ -139,7 +131,10 @@ where
     }
 }
 
-impl ops::Index<thread::Id> for VersionVec {
+impl<T> ops::Index<thread::Id> for VersionVecGen<T>
+where
+    T: ops::DerefMut<Target = [usize]>,
+{
     type Output = usize;
 
     fn index(&self, index: thread::Id) -> &usize {
@@ -147,7 +142,10 @@ impl ops::Index<thread::Id> for VersionVec {
     }
 }
 
-impl ops::IndexMut<thread::Id> for VersionVec {
+impl<T> ops::IndexMut<thread::Id> for VersionVecGen<T>
+where
+    T: ops::DerefMut<Target = [usize]>,
+{
     fn index_mut(&mut self, index: thread::Id) -> &mut usize {
         self.versions.index_mut(index.as_usize())
     }
