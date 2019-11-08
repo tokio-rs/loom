@@ -130,8 +130,8 @@ impl Notify {
 }
 
 impl State {
-    pub(crate) fn last_dependent_accesses<'a>(&'a self) -> Box<dyn Iterator<Item = &Access> + 'a> {
-        Box::new(self.last_access.iter())
+    pub(crate) fn last_dependent_access(&self) -> Option<&Access> {
+        self.last_access.as_ref()
     }
 
     pub(crate) fn set_last_access(&mut self, access: Access) {
