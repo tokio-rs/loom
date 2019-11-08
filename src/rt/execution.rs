@@ -27,7 +27,6 @@ pub(crate) struct Execution<'a> {
     pub(super) max_threads: usize,
 
     // pub(super) max_history: usize,
-
     /// Log execution output to STDOUT
     pub(crate) log: bool,
 }
@@ -40,11 +39,7 @@ impl<'bump> Execution<'bump> {
     ///
     /// This is only called at the start of a fuzz run. The same instance is
     /// reused across permutations.
-    pub(crate) fn new(
-        max_threads: usize,
-        path: &'bump mut Path,
-        bump: &'bump Bump,
-    ) -> Self {
+    pub(crate) fn new(max_threads: usize, path: &'bump mut Path, bump: &'bump Bump) -> Self {
         let id = Id::new();
         let threads = thread::Set::new(id, max_threads, bump);
 

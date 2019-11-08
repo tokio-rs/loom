@@ -1,6 +1,6 @@
 use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify};
 use crate::rt::{Access, Execution, VersionVecSlice};
-use bumpalo::{Bump, collections::vec::Vec as BumpVec};
+use bumpalo::{collections::vec::Vec as BumpVec, Bump};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Object {

@@ -1,6 +1,6 @@
 //! Model concurrent programs.
 
-use crate::rt::{self, Path, Execution, Scheduler};
+use crate::rt::{self, Execution, Path, Scheduler};
 use bumpalo::Bump;
 use std::path::PathBuf;
 use std::sync::Arc;

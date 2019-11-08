@@ -126,6 +126,8 @@ fn spawn_threads(n: usize) -> Vec<Thread> {
         .collect()
 }
 
-unsafe fn transmute_lt<'a>(state: &'a RefCell<State<'_, '_>>) -> &'a RefCell<State<'static, 'static>> {
+unsafe fn transmute_lt<'a>(
+    state: &'a RefCell<State<'_, '_>>,
+) -> &'a RefCell<State<'static, 'static>> {
     ::std::mem::transmute(state)
 }
