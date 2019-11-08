@@ -11,8 +11,7 @@ pub(crate) struct Atomic {
 
 #[derive(Debug, Default)]
 pub(super) struct State {
-    last_load: Option<Access>,
-    last_store: Option<Access>,
+    last_access: Option<Access>,
     history: History,
 }
 
@@ -144,24 +143,12 @@ pub(crate) fn fence(order: Ordering) {
 }
 
 impl State {
-    pub(super) fn for_each_last_dependent_access(
-        &self,
-        _action: Action,
-        mut f: impl FnMut(&Access),
-    ) {
-        self.last_load.iter().for_each(&mut f);
-        self.last_store.iter().for_each(&mut f);
+    pub(super) fn last_dependent_access(&self) -> Option<&Access> {
+        self.last_access.as_ref()
     }
 
-    pub(super) fn set_last_access(&mut self, action: Action, path_id: usize, version: &VersionVec) {
-        match action {
-            Action::Load => Access::set_or_create(&mut self.last_load, path_id, version),
-            Action::Store => Access::set_or_create(&mut self.last_store, path_id, version),
-            Action::Rmw => {
-                Access::set_or_create(&mut self.last_load, path_id, version);
-                Access::set_or_create(&mut self.last_store, path_id, version);
-            }
-        }
+    pub(super) fn set_last_access(&mut self, path_id: usize, version: &VersionVec) {
+        Access::set_or_create(&mut self.last_access, path_id, version);
     }
 
     fn load(&mut self, path: &mut Path, threads: &mut thread::Set, order: Ordering) -> usize {

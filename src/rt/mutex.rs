@@ -133,8 +133,8 @@ impl Mutex {
 }
 
 impl State {
-    pub(crate) fn for_each_last_dependent_access(&self, f: impl FnMut(&Access)) {
-        self.last_access.iter().for_each(f);
+    pub(crate) fn last_dependent_access(&self) -> Option<&Access> {
+        self.last_access.as_ref()
     }
 
     pub(crate) fn set_last_access(&mut self, path_id: usize, version: &VersionVec) {

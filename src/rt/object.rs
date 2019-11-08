@@ -165,20 +165,14 @@ impl Store {
         }
     }
 
-    pub(super) fn for_each_last_dependent_access(
-        &self,
-        operation: Operation,
-        f: impl FnMut(&Access),
-    ) {
+    pub(super) fn last_dependent_access(&self, operation: Operation) -> Option<&Access> {
         match &self.entries[operation.obj.index] {
             Entry::Alloc(_) => panic!("allocations are not branchable operations"),
-            Entry::Arc(entry) => entry.for_each_last_dependent_access(operation.action.into(), f),
-            Entry::Atomic(entry) => {
-                entry.for_each_last_dependent_access(operation.action.into(), f)
-            }
-            Entry::Mutex(entry) => entry.for_each_last_dependent_access(f),
-            Entry::Condvar(entry) => entry.for_each_last_dependent_access(f),
-            Entry::Notify(entry) => entry.for_each_last_dependent_access(f),
+            Entry::Arc(entry) => entry.last_dependent_access(operation.action.into()),
+            Entry::Atomic(entry) => entry.last_dependent_access(),
+            Entry::Mutex(entry) => entry.last_dependent_access(),
+            Entry::Condvar(entry) => entry.last_dependent_access(),
+            Entry::Notify(entry) => entry.last_dependent_access(),
         }
     }
 
@@ -191,9 +185,7 @@ impl Store {
         match &mut self.entries[operation.obj.index] {
             Entry::Alloc(_) => panic!("allocations are not branchable operations"),
             Entry::Arc(entry) => entry.set_last_access(operation.action.into(), path_id, dpor_vv),
-            Entry::Atomic(entry) => {
-                entry.set_last_access(operation.action.into(), path_id, dpor_vv)
-            }
+            Entry::Atomic(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::Mutex(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::Condvar(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::Notify(entry) => entry.set_last_access(path_id, dpor_vv),
