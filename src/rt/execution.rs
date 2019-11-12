@@ -1,5 +1,5 @@
 use crate::rt::alloc::Allocation;
-use crate::rt::{object, thread, Access, Path};
+use crate::rt::{object, thread, Path};
 
 use std::collections::HashMap;
 use std::fmt;
@@ -208,7 +208,7 @@ impl Execution {
             threads.active_mut().dpor_vv[th_id] += 1;
 
             self.objects
-                .set_last_access(operation, Access::new(path_id, &threads.active().dpor_vv));
+                .set_last_access(operation, path_id, &threads.active().dpor_vv);
         }
 
         // Reactivate yielded threads, but only if the current active thread is

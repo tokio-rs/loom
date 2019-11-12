@@ -1,5 +1,5 @@
 use crate::rt::object::{self, Object};
-use crate::rt::{self, thread, Access, Mutex};
+use crate::rt::{self, thread, Access, Mutex, VersionVec};
 
 use std::collections::VecDeque;
 
@@ -90,7 +90,7 @@ impl State {
         self.last_access.as_ref()
     }
 
-    pub(super) fn set_last_access(&mut self, access: Access) {
-        self.last_access = Some(access);
+    pub(crate) fn set_last_access(&mut self, path_id: usize, version: &VersionVec) {
+        Access::set_or_create(&mut self.last_access, path_id, version);
     }
 }

@@ -14,6 +14,19 @@ impl Access {
         }
     }
 
+    pub(crate) fn set(&mut self, path_id: usize, version: &VersionVec) {
+        self.path_id = path_id;
+        self.dpor_vv.set(version);
+    }
+
+    pub(crate) fn set_or_create(access: &mut Option<Self>, path_id: usize, version: &VersionVec) {
+        if let Some(access) = access.as_mut() {
+            access.set(path_id, version);
+        } else {
+            *access = Some(Access::new(path_id, version));
+        }
+    }
+
     /// Location in the path
     pub(crate) fn path_id(&self) -> usize {
         self.path_id

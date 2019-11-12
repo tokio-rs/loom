@@ -1,5 +1,5 @@
 use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify};
-use crate::rt::{Access, Execution};
+use crate::rt::{Access, Execution, VersionVec};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Object {
@@ -176,14 +176,19 @@ impl Store {
         }
     }
 
-    pub(super) fn set_last_access(&mut self, operation: Operation, access: Access) {
+    pub(super) fn set_last_access(
+        &mut self,
+        operation: Operation,
+        path_id: usize,
+        dpor_vv: &VersionVec,
+    ) {
         match &mut self.entries[operation.obj.index] {
             Entry::Alloc(_) => panic!("allocations are not branchable operations"),
-            Entry::Arc(entry) => entry.set_last_access(operation.action.into(), access),
-            Entry::Atomic(entry) => entry.set_last_access(access),
-            Entry::Mutex(entry) => entry.set_last_access(access),
-            Entry::Condvar(entry) => entry.set_last_access(access),
-            Entry::Notify(entry) => entry.set_last_access(access),
+            Entry::Arc(entry) => entry.set_last_access(operation.action.into(), path_id, dpor_vv),
+            Entry::Atomic(entry) => entry.set_last_access(path_id, dpor_vv),
+            Entry::Mutex(entry) => entry.set_last_access(path_id, dpor_vv),
+            Entry::Condvar(entry) => entry.set_last_access(path_id, dpor_vv),
+            Entry::Notify(entry) => entry.set_last_access(path_id, dpor_vv),
         }
     }
 

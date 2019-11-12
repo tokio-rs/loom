@@ -147,8 +147,8 @@ impl State {
         self.last_access.as_ref()
     }
 
-    pub(super) fn set_last_access(&mut self, access: Access) {
-        self.last_access = Some(access);
+    pub(super) fn set_last_access(&mut self, path_id: usize, version: &VersionVec) {
+        Access::set_or_create(&mut self.last_access, path_id, version);
     }
 
     fn load(&mut self, path: &mut Path, threads: &mut thread::Set, order: Ordering) -> usize {
