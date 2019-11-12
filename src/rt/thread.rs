@@ -1,6 +1,6 @@
 use crate::rt::execution;
 use crate::rt::object::Operation;
-use crate::rt::vv::VersionVecSlice;
+use crate::rt::vv::VersionVec;
 
 use bumpalo::Bump;
 use std::{any::Any, collections::HashMap, fmt, ops};
@@ -18,10 +18,10 @@ pub(crate) struct Thread<'bump> {
     pub(super) operation: Option<Operation>,
 
     /// Tracks observed causality
-    pub causality: VersionVecSlice<'bump>,
+    pub causality: VersionVec<'bump>,
 
     /// Tracks DPOR relations
-    pub dpor_vv: VersionVecSlice<'bump>,
+    pub dpor_vv: VersionVec<'bump>,
 
     /// Version at which the thread last yielded
     pub last_yield: Option<usize>,
@@ -47,7 +47,7 @@ pub(crate) struct Set<'bump> {
 
     /// Sequential consistency causality. All sequentially consistent operations
     /// synchronize with this causality.
-    pub seq_cst_causality: VersionVecSlice<'bump>,
+    pub seq_cst_causality: VersionVec<'bump>,
 
     bump: &'bump Bump,
 }
@@ -80,8 +80,8 @@ impl<'bump> Thread<'bump> {
             state: State::Runnable,
             critical: false,
             operation: None,
-            causality: VersionVecSlice::new_bump(max_threads, bump),
-            dpor_vv: VersionVecSlice::new_bump(max_threads, bump),
+            causality: VersionVec::new_in(max_threads, bump),
+            dpor_vv: VersionVec::new_in(max_threads, bump),
             last_yield: None,
             yield_count: 0,
             locals: HashMap::new(),
@@ -190,7 +190,7 @@ impl<'bump> Set<'bump> {
             execution_id,
             threads,
             active: Some(0),
-            seq_cst_causality: VersionVecSlice::new_bump(max_threads, bump),
+            seq_cst_causality: VersionVec::new_in(max_threads, bump),
             bump,
         }
     }

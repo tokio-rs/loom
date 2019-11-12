@@ -1,4 +1,4 @@
-use crate::rt::{thread, VersionVecSlice};
+use crate::rt::{thread, VersionVec};
 
 use bumpalo::Bump;
 use std::sync::atomic::Ordering::{self, *};
@@ -11,12 +11,12 @@ use std::sync::atomic::Ordering::{self, *};
 /// updated with the threads.
 #[derive(Debug)]
 pub(crate) struct Synchronize<'bump> {
-    happens_before: VersionVecSlice<'bump>,
+    happens_before: VersionVec<'bump>,
 }
 
 impl<'bump> Synchronize<'bump> {
     pub fn new(max_threads: usize, bump: &'bump Bump) -> Self {
-        let happens_before = VersionVecSlice::new_bump(max_threads, bump);
+        let happens_before = VersionVec::new_in(max_threads, bump);
 
         Synchronize { happens_before }
     }
@@ -27,7 +27,7 @@ impl<'bump> Synchronize<'bump> {
         res
     }
 
-    pub fn version_vec(&self) -> &VersionVecSlice<'_> {
+    pub fn version_vec(&self) -> &VersionVec<'_> {
         &self.happens_before
     }
 

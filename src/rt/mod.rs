@@ -39,7 +39,7 @@ pub(crate) use self::synchronize::Synchronize;
 pub(crate) mod thread;
 
 mod vv;
-pub(crate) use self::vv::VersionVecSlice;
+pub(crate) use self::vv::VersionVec;
 
 pub fn spawn<F>(f: F)
 where

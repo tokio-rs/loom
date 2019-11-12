@@ -1,5 +1,5 @@
 use crate::rt::object::Object;
-use crate::rt::{self, thread, Access, Path, Synchronize, VersionVecSlice};
+use crate::rt::{self, thread, Access, Path, Synchronize, VersionVec};
 
 use bumpalo::{collections::vec::Vec as BumpVec, Bump};
 use std::sync::atomic::Ordering;
@@ -164,7 +164,7 @@ impl<'bump> State<'bump> {
     pub(super) fn set_last_access(
         &mut self,
         path_id: usize,
-        version: &VersionVecSlice<'_>,
+        version: &VersionVec<'_>,
         bump: &'bump Bump,
     ) {
         Access::set_or_create_in(&mut self.last_access, path_id, version, bump);
@@ -224,7 +224,7 @@ impl<'bump> State<'bump> {
         Ok(index)
     }
 
-    fn happens_before(&self, vv: &VersionVecSlice<'_>) {
+    fn happens_before(&self, vv: &VersionVec<'_>) {
         assert!({
             self.history
                 .stores

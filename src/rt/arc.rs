@@ -1,6 +1,6 @@
 #![allow(warnings)]
 use crate::rt::object::Object;
-use crate::rt::{self, Access, Synchronize, VersionVecSlice};
+use crate::rt::{self, Access, Synchronize, VersionVec};
 
 use bumpalo::Bump;
 use std::sync::atomic::Ordering::{Acquire, Release};
@@ -134,7 +134,7 @@ impl<'bump> State<'bump> {
         &mut self,
         action: Action,
         path_id: usize,
-        version: &VersionVecSlice<'_>,
+        version: &VersionVec<'_>,
         bump: &'bump Bump,
     ) {
         match action {

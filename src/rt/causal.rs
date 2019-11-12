@@ -1,4 +1,4 @@
-use super::{execution, critical, object, VersionVecSlice};
+use super::{execution, critical, object, VersionVec};
 
 use std::collections::HashMap;
 
@@ -17,10 +17,10 @@ pub(crate) struct State<'bump> {
 #[derive(Debug)]
 struct Causality<'bump> {
     // The transitive closure of all immutable accessses of `data`.
-    immut_access_version: VersionVecSlice<'bump>,
+    immut_access_version: VersionVec<'bump>,
 
     // The last mutable access of `data`.
-    mut_access_version: VersionVecSlice<'bump>,
+    mut_access_version: VersionVec<'bump>,
 }
 
 #[derive(Debug)]
@@ -34,7 +34,7 @@ struct Deferred<'bump> {
     is_mut: bool,
 
     /// Thread causality at the point the access happened.
-    thread_causality: VersionVecSlice<'bump>,
+    thread_causality: VersionVec<'bump>,
 
     /// Result
     result: Result<(), String>,
@@ -172,7 +172,7 @@ impl CausalCell {
 }
 
 impl Causality<'_> {
-    fn check(&self, thread_causality: &VersionVecSlice<'_>) -> Result<(), String> {
+    fn check(&self, thread_causality: &VersionVec<'_>) -> Result<(), String> {
         // Check that there is no concurrent mutable access, i.e., the last
         // mutable access must happen-before this immutable access.
 
@@ -192,7 +192,7 @@ impl Causality<'_> {
         Ok(())
     }
 
-    fn check_mut(&self, thread_causality: &VersionVecSlice<'_>) -> Result<(), String> {
+    fn check_mut(&self, thread_causality: &VersionVec<'_>) -> Result<(), String> {
         // Check that there is no concurrent mutable access, i.e., the last
         // mutable access must happen-before this mutable access.
 
@@ -277,7 +277,7 @@ impl Default for CausalCheck {
 }
 
 impl Deferred<'_> {
-    fn check(&mut self, thread_causality: &VersionVecSlice<'_>)
+    fn check(&mut self, thread_causality: &VersionVec<'_>)
     {
         if self.result.is_err() {
             return;
@@ -301,7 +301,7 @@ impl Deferred<'_> {
         }
     }
 
-    fn check_mut(&mut self, thread_causality: &VersionVecSlice<'_>)
+    fn check_mut(&mut self, thread_causality: &VersionVec<'_>)
     {
         if self.result.is_err() {
             return;

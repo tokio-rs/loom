@@ -1,5 +1,5 @@
 use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify, causal};
-use crate::rt::{Access, Execution, VersionVecSlice};
+use crate::rt::{Access, Execution, VersionVec};
 use bumpalo::{collections::vec::Vec as BumpVec, Bump};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -240,7 +240,7 @@ impl<'bump> Store<'bump> {
         &mut self,
         operation: Operation,
         path_id: usize,
-        dpor_vv: &VersionVecSlice<'_>,
+        dpor_vv: &VersionVec<'_>,
     ) {
         match &mut self.entries[operation.obj.index] {
             Entry::Alloc(_) => panic!("allocations are not branchable operations"),
