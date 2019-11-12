@@ -21,7 +21,7 @@ impl<'bump> Synchronize<'bump> {
         Synchronize { happens_before }
     }
 
-    pub fn clone_bump(&self, bump: &'bump Bump) -> Self {
+    pub fn clone_in(&self, bump: &'bump Bump) -> Self {
         let mut res = Self::new(self.happens_before.len(), bump);
         res.happens_before.set(&self.happens_before);
         res

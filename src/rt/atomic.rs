@@ -213,7 +213,7 @@ impl<'bump> State<'bump> {
 
         let mut new = Store {
             // Clone the previous sync in order to form a release sequence.
-            sync: self.history.stores[index].sync.clone_bump(bump),
+            sync: self.history.stores[index].sync.clone_in(bump),
             first_seen: FirstSeen::new(threads, bump),
             seq_cst: is_seq_cst(success),
         };

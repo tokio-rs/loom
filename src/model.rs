@@ -174,9 +174,10 @@ impl Builder {
             });
 
             execution.check_for_leaks();
-            drop(execution);
 
+            drop(execution);
             bump.reset();
+
             if !path.step() {
                 println!("Completed in {} iterations", i);
                 return;

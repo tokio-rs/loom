@@ -1,4 +1,4 @@
-use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify, causal};
+use crate::rt::{alloc, arc, atomic, causal, condvar, execution, mutex, notify};
 use crate::rt::{Access, Execution, VersionVec};
 use bumpalo::{collections::vec::Vec as BumpVec, Bump};
 
@@ -13,7 +13,7 @@ pub struct Object {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct CausalCellRef {
-    /// Index in the causal_cells vec.
+    /// Index in the causal_cells vec
     index: usize,
 
     /// Execution the object is part of
@@ -29,9 +29,10 @@ pub struct Store<'bump> {
     /// Stored state for all objects.
     entries: BumpVec<'bump, Entry<'bump>>,
 
+    /// Stored state for CausalCells
     causal_cells: BumpVec<'bump, causal::State<'bump>>,
 
-    /// Bump allocator.
+    /// Bump allocator
     bump: &'bump Bump,
 }
 

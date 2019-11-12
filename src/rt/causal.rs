@@ -1,4 +1,4 @@
-use super::{execution, critical, object, VersionVec};
+use super::{critical, execution, object, VersionVec};
 
 use std::collections::HashMap;
 
@@ -68,7 +68,7 @@ impl CausalCell {
         })
     }
 
-    pub(crate)  fn with_deferred<F, T, R>(&self, f: F, data: *const T) -> (R, CausalCheck)
+    pub(crate) fn with_deferred<F, T, R>(&self, f: F, data: *const T) -> (R, CausalCheck)
     where
         F: FnOnce(*const T) -> R,
     {
@@ -277,8 +277,7 @@ impl Default for CausalCheck {
 }
 
 impl Deferred<'_> {
-    fn check(&mut self, thread_causality: &VersionVec<'_>)
-    {
+    fn check(&mut self, thread_causality: &VersionVec<'_>) {
         if self.result.is_err() {
             return;
         }
@@ -301,8 +300,7 @@ impl Deferred<'_> {
         }
     }
 
-    fn check_mut(&mut self, thread_causality: &VersionVec<'_>)
-    {
+    fn check_mut(&mut self, thread_causality: &VersionVec<'_>) {
         if self.result.is_err() {
             return;
         }

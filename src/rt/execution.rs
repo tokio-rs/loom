@@ -2,23 +2,22 @@ use crate::rt::alloc::Allocation;
 use crate::rt::{object, thread, Path};
 
 use bumpalo::Bump;
-
 use std::collections::HashMap;
 use std::fmt;
 
-pub(crate) struct Execution<'a> {
+pub(crate) struct Execution<'bump> {
     /// Uniquely identifies an execution
     pub(super) id: Id,
 
     /// Execution path taken
-    pub(crate) path: &'a mut Path,
+    pub(crate) path: &'bump mut Path,
 
-    pub(crate) bump: &'a Bump,
+    pub(crate) bump: &'bump Bump,
 
-    pub(crate) threads: thread::Set<'a>,
+    pub(crate) threads: thread::Set<'bump>,
 
     /// All loom aware objects part of this execution run.
-    pub(super) objects: object::Store<'a>,
+    pub(super) objects: object::Store<'bump>,
 
     /// Maps raw allocations to LeakTrack objects
     pub(super) raw_allocations: HashMap<usize, Allocation>,
@@ -26,7 +25,6 @@ pub(crate) struct Execution<'a> {
     /// Maximum number of concurrent threads
     pub(super) max_threads: usize,
 
-    // pub(super) max_history: usize,
     /// Log execution output to STDOUT
     pub(crate) log: bool,
 }
