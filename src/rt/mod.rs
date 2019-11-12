@@ -24,6 +24,9 @@ pub(crate) mod object;
 mod mutex;
 pub(crate) use self::mutex::Mutex;
 
+mod causal;
+pub(crate) use self::causal::{CausalCell, CausalCheck};
+
 mod path;
 pub(crate) use self::path::Path;
 
@@ -36,7 +39,7 @@ pub(crate) use self::synchronize::Synchronize;
 pub(crate) mod thread;
 
 mod vv;
-pub(crate) use self::vv::{VersionVec, VersionVecGen, VersionVecSlice};
+pub(crate) use self::vv::VersionVecSlice;
 
 pub fn spawn<F>(f: F)
 where

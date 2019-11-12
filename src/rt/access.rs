@@ -15,7 +15,7 @@ impl<'bump> Access<'bump> {
     ) -> Access<'bump> {
         Access {
             path_id,
-            dpor_vv: VersionVecSlice::clone_bump(version, bump),
+            dpor_vv: VersionVecSlice::clone_in(version, bump),
         }
     }
 

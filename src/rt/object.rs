@@ -1,10 +1,19 @@
-use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify};
+use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify, causal};
 use crate::rt::{Access, Execution, VersionVecSlice};
 use bumpalo::{collections::vec::Vec as BumpVec, Bump};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Object {
     /// Index in the store
+    index: usize,
+
+    /// Execution the object is part of
+    execution_id: execution::Id,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct CausalCellRef {
+    /// Index in the causal_cells vec.
     index: usize,
 
     /// Execution the object is part of
@@ -20,6 +29,8 @@ pub struct Store<'bump> {
     /// Stored state for all objects.
     entries: BumpVec<'bump, Entry<'bump>>,
 
+    causal_cells: BumpVec<'bump, causal::State<'bump>>,
+
     /// Bump allocator.
     bump: &'bump Bump,
 }
@@ -29,6 +40,10 @@ impl Drop for Store<'_> {
         // BumpVec won't drop its elements so we need to drop them manually because e.g.
         // condvar::State contains a VecDeque allocated on the heap so the drop is non-trivial.
         for object in self.entries.drain(..) {
+            drop(object);
+        }
+
+        for object in self.causal_cells.drain(..) {
             drop(object);
         }
     }
@@ -134,12 +149,20 @@ impl Object {
     }
 }
 
+impl CausalCellRef {
+    pub(super) fn get_mut<'a, 'b>(self, store: &'a mut Store<'b>) -> &'a mut causal::State<'b> {
+        assert_eq!(self.execution_id, store.execution_id);
+        &mut store.causal_cells[self.index]
+    }
+}
+
 impl<'bump> Store<'bump> {
     /// Create a new, empty, object store
     pub(super) fn new(execution_id: execution::Id, bump: &Bump) -> Store<'_> {
         Store {
             execution_id,
             entries: BumpVec::new_in(bump),
+            causal_cells: BumpVec::new_in(bump),
             bump,
         }
     }
@@ -187,6 +210,16 @@ impl<'bump> Store<'bump> {
         self.entries.push(entry);
 
         Object {
+            index,
+            execution_id: self.execution_id,
+        }
+    }
+
+    pub(super) fn insert_causal_cell(&mut self, state: causal::State<'bump>) -> CausalCellRef {
+        let index = self.causal_cells.len();
+        self.causal_cells.push(state);
+
+        CausalCellRef {
             index,
             execution_id: self.execution_id,
         }

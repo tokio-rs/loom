@@ -12,7 +12,6 @@ pub(crate) struct VersionVecGen<T: ops::DerefMut<Target = [usize]>> {
     versions: T,
 }
 
-pub(crate) type VersionVec = VersionVecGen<Box<[usize]>>;
 pub(crate) type VersionVecSlice<'a> = VersionVecGen<&'a mut [usize]>;
 
 impl<T: ops::DerefMut<Target = [usize]>> VersionVecGen<T> {
@@ -36,15 +35,9 @@ impl<T: ops::DerefMut<Target = [usize]>> VersionVecGen<T> {
         }
     }
 
-    pub(crate) fn clone_bump<'bump>(&self, bump: &'bump Bump) -> VersionVecSlice<'bump> {
+    pub(crate) fn clone_in<'bump>(&self, bump: &'bump Bump) -> VersionVecSlice<'bump> {
         VersionVecSlice {
             versions: bump.alloc_slice_copy(&self.versions),
-        }
-    }
-
-    pub(crate) fn clone_box(&self) -> VersionVec {
-        VersionVec {
-            versions: (&*self.versions).into(),
         }
     }
 
