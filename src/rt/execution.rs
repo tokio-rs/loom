@@ -33,10 +33,7 @@ pub(crate) struct Execution<'bump> {
 pub(crate) struct Id(usize);
 
 impl<'bump> Execution<'bump> {
-    /// Create a new execution.
-    ///
-    /// This is only called at the start of a fuzz run. The same instance is
-    /// reused across permutations.
+    /// Create a new execution at the start of each iteration
     pub(crate) fn new(max_threads: usize, path: &'bump mut Path, bump: &'bump Bump) -> Self {
         let id = Id::new();
         let threads = thread::Set::new(id, max_threads, bump);
