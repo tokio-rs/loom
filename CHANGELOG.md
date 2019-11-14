@@ -1,3 +1,14 @@
+# 0.2.13 (November 6, 2019)
+
+### Changed
+- update `futures` to 0.3.0 final release (#96).
+
+# 0.2.12 (October 29, 2019)
+
+### Fixed
+- thread-local bug when using loom with `--release` (#89).
+- omitted state explorations when using SeqCst atomic values (#90).
+
 # 0.2.11 (October 24, 2019)
 
 ### Added

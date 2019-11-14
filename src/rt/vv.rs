@@ -20,6 +20,10 @@ impl VersionVec {
         }
     }
 
+    pub(crate) fn set(&mut self, other: &VersionVec) {
+        self.versions.copy_from_slice(&other.versions);
+    }
+
     pub(crate) fn versions<'a>(
         &'a self,
         execution_id: execution::Id,

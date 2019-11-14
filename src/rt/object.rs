@@ -1,5 +1,5 @@
 use crate::rt::{alloc, arc, atomic, condvar, execution, mutex, notify};
-use crate::rt::{Access, Execution};
+use crate::rt::{Access, Execution, VersionVec};
 
 use tracing::trace;
 
@@ -167,28 +167,30 @@ impl Store {
         }
     }
 
-    pub(super) fn last_dependent_accesses<'a>(
-        &'a self,
-        operation: Operation,
-    ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
+    pub(super) fn last_dependent_access(&self, operation: Operation) -> Option<&Access> {
         match &self.entries[operation.obj.index] {
             Entry::Alloc(_) => panic!("allocations are not branchable operations"),
-            Entry::Arc(entry) => entry.last_dependent_accesses(operation.action.into()),
-            Entry::Atomic(entry) => entry.last_dependent_accesses(operation.action.into()),
-            Entry::Mutex(entry) => entry.last_dependent_accesses(),
-            Entry::Condvar(entry) => entry.last_dependent_accesses(),
-            Entry::Notify(entry) => entry.last_dependent_accesses(),
+            Entry::Arc(entry) => entry.last_dependent_access(operation.action.into()),
+            Entry::Atomic(entry) => entry.last_dependent_access(),
+            Entry::Mutex(entry) => entry.last_dependent_access(),
+            Entry::Condvar(entry) => entry.last_dependent_access(),
+            Entry::Notify(entry) => entry.last_dependent_access(),
         }
     }
 
-    pub(super) fn set_last_access(&mut self, operation: Operation, access: Access) {
+    pub(super) fn set_last_access(
+        &mut self,
+        operation: Operation,
+        path_id: usize,
+        dpor_vv: &VersionVec,
+    ) {
         match &mut self.entries[operation.obj.index] {
             Entry::Alloc(_) => panic!("allocations are not branchable operations"),
-            Entry::Arc(entry) => entry.set_last_access(operation.action.into(), access),
-            Entry::Atomic(entry) => entry.set_last_access(operation.action.into(), access),
-            Entry::Mutex(entry) => entry.set_last_access(access),
-            Entry::Condvar(entry) => entry.set_last_access(access),
-            Entry::Notify(entry) => entry.set_last_access(access),
+            Entry::Arc(entry) => entry.set_last_access(operation.action.into(), path_id, dpor_vv),
+            Entry::Atomic(entry) => entry.set_last_access(path_id, dpor_vv),
+            Entry::Mutex(entry) => entry.set_last_access(path_id, dpor_vv),
+            Entry::Condvar(entry) => entry.set_last_access(path_id, dpor_vv),
+            Entry::Notify(entry) => entry.set_last_access(path_id, dpor_vv),
         }
     }
 

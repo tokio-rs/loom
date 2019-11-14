@@ -1,6 +1,6 @@
 #![allow(warnings)]
 use crate::rt::object::Object;
-use crate::rt::{self, Access, Synchronize};
+use crate::rt::{self, Access, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
@@ -129,21 +129,18 @@ impl State {
         assert_eq!(0, self.ref_cnt, "Arc leaked");
     }
 
-    pub(super) fn last_dependent_accesses<'a>(
-        &'a self,
-        action: Action,
-    ) -> Box<dyn Iterator<Item = &'a Access> + 'a> {
+    pub(super) fn last_dependent_access(&self, action: Action) -> Option<&Access> {
         match action {
             // RefIncs are not dependent w/ RefDec, only inspections
-            Action::RefInc => Box::new([].into_iter()),
-            Action::RefDec => Box::new(self.last_ref_dec.iter()),
+            Action::RefInc => None,
+            Action::RefDec => self.last_ref_dec.as_ref(),
         }
     }
 
-    pub(super) fn set_last_access(&mut self, action: Action, access: Access) {
+    pub(super) fn set_last_access(&mut self, action: Action, path_id: usize, version: &VersionVec) {
         match action {
-            Action::RefInc => self.last_ref_inc = Some(access),
-            Action::RefDec => self.last_ref_dec = Some(access),
+            Action::RefInc => Access::set_or_create(&mut self.last_ref_inc, path_id, version),
+            Action::RefDec => Access::set_or_create(&mut self.last_ref_dec, path_id, version),
         }
     }
 }
