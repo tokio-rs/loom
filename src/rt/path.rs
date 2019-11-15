@@ -54,6 +54,8 @@ pub(crate) struct Schedule {
 
     pub(crate) initial_active: Option<usize>,
 
+    current_active: Option<usize>,
+
     pub(crate) threads: Vec<Thread>,
 
     init_threads: Vec<Thread>,
@@ -179,35 +181,41 @@ impl Path {
 
             let mut threads: Vec<_> = seed.collect();
 
-            let num_active = threads.iter().filter(|th| th.is_active()).count();
-            assert!(num_active <= 1, "num_active = {}", num_active);
+            let mut current_active = None;
+
+            for (i, th) in threads.iter().enumerate() {
+                if th.is_active() {
+                    assert!(current_active.is_none(), "more than one active thread");
+                    current_active = Some(i);
+                }
+            }
 
             // Ensure at least one thread is active, otherwise toggle a yielded
             // thread.
-            if num_active == 0 {
-                for th in &mut threads {
+            if current_active.is_none() {
+                for (i, th) in threads.iter_mut().enumerate() {
                     if *th == Thread::Yield {
+                        assert!(current_active.is_none(), "more than one yielded thread");
                         *th = Thread::Active;
+                        current_active = Some(i);
                     }
                 }
             }
 
-            let curr_active = active(&threads);
-
             let initial_active = if let Some(prev) = self.schedules.last() {
-                if curr_active == active(&prev.threads) {
-                    curr_active
+                if current_active == prev.current_active {
+                    current_active
                 } else {
                     None
                 }
             } else {
-                curr_active
+                current_active
             };
 
             let preemptions = if let Some(prev) = self.schedules.last() {
                 let mut preemptions = prev.preemptions;
 
-                if prev.initial_active.is_some() && prev.initial_active != active(&prev.threads) {
+                if prev.initial_active.is_some() && prev.initial_active != prev.current_active {
                     preemptions += 1;
                 }
 
@@ -221,6 +229,7 @@ impl Path {
                 preemptions,
                 threads,
                 initial_active,
+                current_active,
                 init_threads: threads_clone,
             });
 
@@ -233,14 +242,9 @@ impl Path {
         };
 
         self.pos += 1;
-
-        let threads = &mut self.schedules[i].threads;
-
-        threads
-            .iter_mut()
-            .enumerate()
-            .find(|&(_, ref th)| th.is_active())
-            .map(|(i, _)| thread::Id::new(execution_id, i))
+        self.schedules[i]
+            .current_active
+            .map(|id| thread::Id::new(execution_id, id))
     }
 
     pub(crate) fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
@@ -257,8 +261,7 @@ impl Path {
                 for j in (1..index).rev() {
                     // Preemption bounded DPOR requires conservatively adding another
                     // backtrack point to cover cases missed by the bounds.
-                    if active(&self.schedules[j].threads) != active(&self.schedules[j - 1].threads)
-                    {
+                    if self.schedules[j].current_active != self.schedules[j - 1].current_active {
                         self.schedules[j].backtrack(thread_id, self.preemption_bound);
                         return;
                     }
@@ -278,24 +281,23 @@ impl Path {
         while self.branches.len() > 0 {
             match self.branches.last().unwrap() {
                 &Schedule(i) => {
+                    let schedule = &mut self.schedules[i];
+
                     // Transition the active thread to visited.
-                    self.schedules[i]
-                        .threads
-                        .iter_mut()
-                        .find(|th| th.is_active())
-                        .map(|th| *th = Thread::Visited);
+                    if let Some(active_id) = schedule.current_active.take() {
+                        schedule.threads[active_id] = Thread::Visited;
+                    }
 
                     // Find a pending thread and transition it to active
-                    let rem = self.schedules[i]
-                        .threads
-                        .iter_mut()
-                        .find(|th| th.is_pending())
-                        .map(|th| {
+                    for (i, th) in schedule.threads.iter_mut().enumerate() {
+                        if th.is_pending() {
                             *th = Thread::Active;
-                        })
-                        .is_some();
+                            schedule.current_active = Some(i);
+                            break;
+                        }
+                    }
 
-                    if !rem {
+                    if schedule.current_active.is_none() {
                         self.branches.pop();
                         self.schedules.pop();
                         continue;
@@ -385,13 +387,4 @@ impl Thread {
     fn is_disabled(&self) -> bool {
         *self == Thread::Disabled
     }
-}
-
-fn active(threads: &[Thread]) -> Option<usize> {
-    // Get the index of the currently active thread
-    threads
-        .iter()
-        .enumerate()
-        .find(|(_, th)| th.is_active())
-        .map(|(index, _)| index)
 }
