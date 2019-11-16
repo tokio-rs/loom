@@ -28,6 +28,7 @@ pub(crate) struct Path {
 
     /// Tracks threads to be scheduled
     schedules: Vec<Schedule>,
+    thread_states: SliceVec<Thread>,
 
     /// Atomic writes
     writes: Vec<VecDeque<usize>>,
@@ -55,10 +56,16 @@ pub(crate) struct Schedule {
     pub(crate) initial_active: Option<usize>,
 
     current_active: Option<usize>,
+}
 
-    pub(crate) threads: Vec<Thread>,
-
-    init_threads: Vec<Thread>,
+/// A container that is conceptually equivalent to Vec<[T]>.
+/// It allows storing slices of differing sizes in a single contiguous chunk of memory
+/// with random access.
+#[derive(Debug)]
+#[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
+pub(crate) struct SliceVec<T> {
+    data: Vec<T>,
+    slice_ends: Vec<usize>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -91,6 +98,7 @@ impl Path {
             branches: vec![],
             pos: 0,
             schedules: vec![],
+            thread_states: SliceVec::new(),
             writes: vec![],
             spurious: vec![],
             max_branches,
@@ -179,7 +187,8 @@ impl Path {
 
             let i = self.schedules.len();
 
-            let mut threads: Vec<_> = seed.collect();
+            self.thread_states.extend(seed);
+            let threads = self.thread_states.get_mut(i);
 
             let mut current_active = None;
 
@@ -224,13 +233,10 @@ impl Path {
                 0
             };
 
-            let threads_clone = threads.clone();
             self.schedules.push(Schedule {
                 preemptions,
-                threads,
                 initial_active,
                 current_active,
-                init_threads: threads_clone,
             });
 
             self.branches.push(Branch::Schedule(i));
@@ -254,7 +260,11 @@ impl Path {
         };
 
         // Exhaustive DPOR only requires adding this backtrack point
-        self.schedules[index].backtrack(thread_id, self.preemption_bound);
+        self.schedules[index].backtrack(
+            thread_id,
+            self.preemption_bound,
+            self.thread_states.get_mut(index),
+        );
 
         if self.preemption_bound.is_some() {
             if index > 0 {
@@ -262,12 +272,20 @@ impl Path {
                     // Preemption bounded DPOR requires conservatively adding another
                     // backtrack point to cover cases missed by the bounds.
                     if self.schedules[j].current_active != self.schedules[j - 1].current_active {
-                        self.schedules[j].backtrack(thread_id, self.preemption_bound);
+                        self.schedules[j].backtrack(
+                            thread_id,
+                            self.preemption_bound,
+                            self.thread_states.get_mut(j),
+                        );
                         return;
                     }
                 }
 
-                self.schedules[0].backtrack(thread_id, self.preemption_bound);
+                self.schedules[0].backtrack(
+                    thread_id,
+                    self.preemption_bound,
+                    self.thread_states.get_mut(0),
+                );
             }
         }
     }
@@ -282,14 +300,15 @@ impl Path {
             match self.branches.last().unwrap() {
                 &Schedule(i) => {
                     let schedule = &mut self.schedules[i];
+                    let threads = self.thread_states.get_mut(i);
 
                     // Transition the active thread to visited.
                     if let Some(active_id) = schedule.current_active.take() {
-                        schedule.threads[active_id] = Thread::Visited;
+                        threads[active_id] = Thread::Visited;
                     }
 
                     // Find a pending thread and transition it to active
-                    for (i, th) in schedule.threads.iter_mut().enumerate() {
+                    for (i, th) in threads.iter_mut().enumerate() {
                         if th.is_pending() {
                             *th = Thread::Active;
                             schedule.current_active = Some(i);
@@ -300,6 +319,7 @@ impl Path {
                     if schedule.current_active.is_none() {
                         self.branches.pop();
                         self.schedules.pop();
+                        self.thread_states.pop();
                         continue;
                     }
                 }
@@ -331,7 +351,12 @@ impl Path {
 }
 
 impl Schedule {
-    fn backtrack(&mut self, thread_id: thread::Id, preemption_bound: Option<usize>) {
+    fn backtrack(
+        &mut self,
+        thread_id: thread::Id,
+        preemption_bound: Option<usize>,
+        threads: &mut [Thread],
+    ) {
         if let Some(bound) = preemption_bound {
             assert!(self.preemptions <= bound, "actual = {}", self.preemptions);
 
@@ -342,17 +367,45 @@ impl Schedule {
 
         let thread_id = thread_id.as_usize();
 
-        if thread_id >= self.threads.len() {
+        if thread_id >= threads.len() {
             return;
         }
 
-        if self.threads[thread_id].is_enabled() {
-            self.threads[thread_id].explore();
+        if threads[thread_id].is_enabled() {
+            threads[thread_id].explore();
         } else {
-            for th in &mut self.threads {
+            for th in threads {
                 th.explore();
             }
         }
+    }
+}
+
+impl<T> SliceVec<T> {
+    fn new() -> Self {
+        Self {
+            data: vec![],
+            slice_ends: vec![],
+        }
+    }
+
+    fn extend(&mut self, it: impl Iterator<Item = T>) {
+        self.data.extend(it);
+        self.slice_ends.push(self.data.len());
+    }
+
+    fn pop(&mut self) {
+        if self.slice_ends.pop().is_none() {
+            return;
+        }
+
+        let new_len = self.slice_ends.last().unwrap_or(&0);
+        self.data.truncate(*new_len);
+    }
+
+    fn get_mut(&mut self, i: usize) -> &mut [T] {
+        let slice_begin = if i == 0 { 0 } else { self.slice_ends[i - 1] };
+        &mut self.data[slice_begin..self.slice_ends[i]]
     }
 }
 
