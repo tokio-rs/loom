@@ -31,7 +31,9 @@ pub(crate) struct Path {
     thread_states: SliceVec<Thread>,
 
     /// Atomic writes
-    writes: Vec<VecDeque<usize>>,
+    writes: SliceVec<usize>,
+    /// i-th element in `current_writes` tracks current position in the i-th slice in `writes`
+    current_writes: Vec<usize>,
 
     /// Tracks spurious notifications
     spurious: Vec<VecDeque<bool>>,
@@ -99,7 +101,8 @@ impl Path {
             pos: 0,
             schedules: vec![],
             thread_states: SliceVec::new(),
-            writes: vec![],
+            writes: SliceVec::new(),
+            current_writes: vec![],
             spurious: vec![],
             max_branches,
         }
@@ -124,9 +127,8 @@ impl Path {
 
         if self.pos == self.branches.len() {
             let i = self.writes.len();
-
-            let writes: VecDeque<_> = seed.collect();
-            self.writes.push(writes);
+            self.writes.extend(seed);
+            self.current_writes.push(0);
             self.branches.push(Branch::Write(i));
         }
 
@@ -137,7 +139,7 @@ impl Path {
 
         self.pos += 1;
 
-        self.writes[i][0]
+        self.writes.get(i)[self.current_writes[i]]
     }
 
     /// Branch on spurious notifications
@@ -324,11 +326,12 @@ impl Path {
                     }
                 }
                 &Write(i) => {
-                    self.writes[i].pop_front();
+                    self.current_writes[i] += 1;
 
-                    if self.writes[i].is_empty() {
+                    if self.current_writes[i] == self.writes.get(i).len() {
                         self.branches.pop();
                         self.writes.pop();
+                        self.current_writes.pop();
                         continue;
                     }
                 }
@@ -401,6 +404,15 @@ impl<T> SliceVec<T> {
 
         let new_len = self.slice_ends.last().unwrap_or(&0);
         self.data.truncate(*new_len);
+    }
+
+    fn len(&self) -> usize {
+        self.slice_ends.len()
+    }
+
+    fn get(&self, i: usize) -> &[T] {
+        let slice_begin = if i == 0 { 0 } else { self.slice_ends[i - 1] };
+        &self.data[slice_begin..self.slice_ends[i]]
     }
 
     fn get_mut(&mut self, i: usize) -> &mut [T] {
