@@ -55,7 +55,9 @@ impl Scheduler {
         use std::ptr;
         use std::task::{Context, RawWaker, RawWakerVTable, Waker};
 
-        unsafe fn noop_clone(_: *const ()) -> RawWaker { unreachable!() }
+        unsafe fn noop_clone(_: *const ()) -> RawWaker {
+            unreachable!()
+        }
         unsafe fn noop(_: *const ()) {}
 
         // Wrapping with an async block deals with the thread-local context
@@ -65,16 +67,12 @@ impl Scheduler {
 
         let raw_waker = RawWaker::new(
             ptr::null(),
-            &RawWakerVTable::new(
-                noop_clone,
-                noop,
-                noop,
-                noop));
+            &RawWakerVTable::new(noop_clone, noop, noop, noop),
+        );
         let mut waker = unsafe { Waker::from_raw(raw_waker) };
         let mut cx = Context::from_waker(&mut waker);
 
         assert!(switch.poll(&mut cx).is_ready());
-
     }
 
     pub(crate) fn spawn(f: Box<dyn FnOnce()>) {
