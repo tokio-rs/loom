@@ -40,13 +40,21 @@ impl AtomicWaker {
 
     /// Notifies the task that last called `register`.
     pub fn wake(&self) {
+        if let Some(waker) = self.take_waker() {
+            waker.wake();
+        }
+    }
+
+    /// Attempts to take the `Waker` value out of the `AtomicWaker` with the
+    /// intention that the caller will wake the task later.
+    pub fn take_waker(&self) -> Option<Waker> {
         dbg!(self.object.acquire_lock());
 
-        if let Some(waker) = self.waker.lock().unwrap().take() {
-            dbg!(waker.wake());
-        }
+        let ret = self.waker.lock().unwrap().take();
 
         dbg!(self.object.release_lock());
+
+        ret
     }
 }
 
