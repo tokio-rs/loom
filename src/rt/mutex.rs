@@ -61,7 +61,7 @@ impl Mutex {
 
             if state.seq_cst {
                 // Establish sequential consistency between the lock's operations.
-                execution.threads.seq_cst();
+                // execution.threads.seq_cst();
             }
 
             let thread_id = execution.threads.active_id();
@@ -99,7 +99,7 @@ impl Mutex {
 
             if state.seq_cst {
                 // Establish sequential consistency between locks
-                execution.threads.seq_cst();
+                // execution.threads.seq_cst();
             }
 
             // Block all **other** threads attempting to acquire the mutex

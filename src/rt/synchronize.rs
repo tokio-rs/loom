@@ -34,7 +34,7 @@ impl Synchronize {
             }
             SeqCst => {
                 self.sync_acq(threads);
-                threads.seq_cst();
+                // threads.seq_cst();
             }
             order => unimplemented!("unimplemented ordering {:?}", order),
         }
@@ -50,7 +50,7 @@ impl Synchronize {
             }
             SeqCst => {
                 self.sync_rel(threads);
-                threads.seq_cst();
+                // threads.seq_cst();
             }
             order => unimplemented!("unimplemented ordering {:?}", order),
         }

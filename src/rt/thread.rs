@@ -270,6 +270,7 @@ impl Set {
         self.threads[self.active.unwrap()]
             .causality
             .join(&self.seq_cst_causality);
+
         self.seq_cst_causality
             .join(&self.threads[self.active.unwrap()].causality);
     }
