@@ -1,5 +1,5 @@
 use crate::rt::alloc::Allocation;
-use crate::rt::{object, thread, Access, Path};
+use crate::rt::{object, thread, Path};
 
 use std::collections::HashMap;
 use std::fmt;
@@ -121,7 +121,7 @@ impl Execution {
                 None => continue,
             };
 
-            for access in self.objects.last_dependent_accesses(operation) {
+            if let Some(access) = self.objects.last_dependent_access(operation) {
                 if access.happens_before(&th.dpor_vv) {
                     // The previous access happened before this access, thus
                     // there is no race.
@@ -201,14 +201,14 @@ impl Execution {
             let threads = &mut self.threads;
             let th_id = threads.active_id();
 
-            for access in self.objects.last_dependent_accesses(operation) {
+            if let Some(access) = self.objects.last_dependent_access(operation) {
                 threads.active_mut().dpor_vv.join(access.version());
             }
 
             threads.active_mut().dpor_vv[th_id] += 1;
 
             self.objects
-                .set_last_access(operation, Access::new(path_id, &threads.active().dpor_vv));
+                .set_last_access(operation, path_id, &threads.active().dpor_vv);
         }
 
         // Reactivate yielded threads, but only if the current active thread is

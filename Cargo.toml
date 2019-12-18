@@ -9,12 +9,12 @@ name = "loom"
 #   - Cargo.toml
 #   - README.md
 # - Create git tag
-version = "0.2.11"
+version = "0.2.14"
 edition = "2018"
 license = "MIT"
 authors = ["Carl Lerche <me@carllerche.com>"]
 description = "Permutation testing for concurrent code"
-documentation = "https://docs.rs/loom/0.2.11/loom"
+documentation = "https://docs.rs/loom/0.2.14/loom"
 homepage = "https://github.com/tokio-rs/loom"
 repository = "https://github.com/tokio-rs/loom"
 readme = "README.md"
@@ -24,7 +24,7 @@ categories = ["concurrency", "data-structures"]
 [features]
 default = []
 checkpoint = ["serde", "serde_json"]
-futures = ["futures-util-preview"]
+futures = ["futures-util"]
 
 [dependencies]
 cfg-if = "0.1.6"
@@ -37,4 +37,4 @@ generator = "0.6.18"
 serde = { version = "1.0.92", features = ["derive"], optional = true }
 serde_json = { version = "1.0.33", optional = true }
 
-futures-util-preview = { version = "=0.3.0-alpha.19", optional = true }
+futures-util = { version = "0.3.0", optional = true }

@@ -1,13 +1,13 @@
 use crate::rt;
 use crate::thread;
 
-use std::cell::RefCell;
+use std::sync::Mutex;
 use std::task::Waker;
 
 /// Mock implementation of `tokio::sync::AtomicWaker`.
 #[derive(Debug)]
 pub struct AtomicWaker {
-    waker: RefCell<Option<Waker>>,
+    waker: Mutex<Option<Waker>>,
     object: rt::Mutex,
 }
 
@@ -15,7 +15,7 @@ impl AtomicWaker {
     /// Create a new instance of `AtomicWaker`.
     pub fn new() -> AtomicWaker {
         AtomicWaker {
-            waker: RefCell::new(None),
+            waker: Mutex::new(None),
             object: rt::Mutex::new(false),
         }
     }
@@ -29,7 +29,7 @@ impl AtomicWaker {
             return;
         }
 
-        *self.waker.borrow_mut() = Some(waker);
+        *self.waker.lock().unwrap() = Some(waker);
         dbg!(self.object.release_lock());
     }
 
@@ -40,13 +40,21 @@ impl AtomicWaker {
 
     /// Notifies the task that last called `register`.
     pub fn wake(&self) {
+        if let Some(waker) = self.take_waker() {
+            waker.wake();
+        }
+    }
+
+    /// Attempts to take the `Waker` value out of the `AtomicWaker` with the
+    /// intention that the caller will wake the task later.
+    pub fn take_waker(&self) -> Option<Waker> {
         dbg!(self.object.acquire_lock());
 
-        if let Some(waker) = self.waker.borrow_mut().take() {
-            dbg!(waker.wake());
-        }
+        let ret = self.waker.lock().unwrap().take();
 
         dbg!(self.object.release_lock());
+
+        ret
     }
 }
 

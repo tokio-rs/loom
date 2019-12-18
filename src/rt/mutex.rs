@@ -1,5 +1,5 @@
 use crate::rt::object::{self, Object};
-use crate::rt::{thread, Access, Synchronize};
+use crate::rt::{thread, Access, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
@@ -133,11 +133,11 @@ impl Mutex {
 }
 
 impl State {
-    pub(crate) fn last_dependent_accesses<'a>(&'a self) -> Box<dyn Iterator<Item = &Access> + 'a> {
-        Box::new(self.last_access.iter())
+    pub(crate) fn last_dependent_access(&self) -> Option<&Access> {
+        self.last_access.as_ref()
     }
 
-    pub(crate) fn set_last_access(&mut self, access: Access) {
-        self.last_access = Some(access);
+    pub(crate) fn set_last_access(&mut self, path_id: usize, version: &VersionVec) {
+        Access::set_or_create(&mut self.last_access, path_id, version);
     }
 }

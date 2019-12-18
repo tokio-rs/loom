@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/loom/0.2.11")]
+#![doc(html_root_url = "https://docs.rs/loom/0.2.14")]
 #![deny(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![cfg_attr(test, deny(warnings))]
 
@@ -185,7 +185,7 @@ macro_rules! thread_local {
 #[doc(hidden)]
 macro_rules! __thread_local_inner {
     ($(#[$attr:meta])* $vis:vis $name:ident, $t:ty, $init:expr) => {
-        $(#[$attr])* $vis const $name: $crate::thread::LocalKey<$t> =
+        $(#[$attr])* $vis static $name: $crate::thread::LocalKey<$t> =
             $crate::thread::LocalKey {
                 init: (|| { $init }) as fn() -> $t,
                 _p: std::marker::PhantomData,
