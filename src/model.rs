@@ -15,25 +15,39 @@ pub struct Builder {
     pub max_threads: usize,
 
     /// Maximum number of thread switches per permutation.
+    ///
+    /// Defaults to `LOOM_MAX_BRANCHES` environment variable.
     pub max_branches: usize,
 
     /// Maximum number of permutations to explore.
+    ///
+    /// Defaults to `LOOM_MAX_PERMUTATIONS` environment variable.
     pub max_permutations: Option<usize>,
 
     /// Maximum amount of time to spend on checking
+    ///
+    /// Defaults to `LOOM_MAX_DURATION` environment variable.
     pub max_duration: Option<Duration>,
 
     /// Maximum number of thread preemptions to explore
+    ///
+    /// Defaults to `LOOM_MAX_PREEMPTIONS` environment variable.
     pub preemption_bound: Option<usize>,
 
     /// When doing an exhaustive check, uses the file to store and load the
     /// check progress
+    ///
+    /// Defaults to `LOOM_CHECKPOINT_FILE` environment variable.
     pub checkpoint_file: Option<PathBuf>,
 
     /// How often to write the checkpoint file
+    ///
+    /// Defaults to `LOOM_CHECKPOINT_INTERVAL` environment variable.
     pub checkpoint_interval: usize,
 
     /// Log execution output to stdout.
+    ///
+    /// Defaults to existance of `LOOM_LOG` environment variable.
     pub log: bool,
 
     // Support adding more fields in the future
@@ -184,6 +198,9 @@ impl Builder {
 }
 
 /// Run all concurrent permutations of the provided closure.
+///
+/// Uses a default [`Builder`](crate::model::Builder) which can be affected
+/// by environment variables.
 pub fn model<F>(f: F)
 where
     F: Fn() + Sync + Send + 'static,
