@@ -267,11 +267,9 @@ impl Set {
 
     /// Insert a point of sequential consistency
     pub(crate) fn seq_cst(&mut self) {
-        self.threads[self.active.unwrap()]
-            .causality
-            .join(&self.seq_cst_causality);
-        self.seq_cst_causality
-            .join(&self.threads[self.active.unwrap()].causality);
+        // The previous implementation of sequential consistency was incorrect.
+        // As a quick fix, just disable it. This may fail to model correct code,
+        // but will not silently allow bugs.
     }
 
     pub(crate) fn clear(&mut self, execution_id: execution::Id) {

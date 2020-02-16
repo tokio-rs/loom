@@ -353,13 +353,13 @@ fn defer_success() {
         let s2 = s1.clone();
 
         let th = thread::spawn(move || {
-            s2.1.store(1, SeqCst);
+            s2.1.swap(1, SeqCst);
             s2.0.with_mut(|ptr| unsafe { *(*ptr).as_mut_ptr() = 1 });
         });
 
         let (mem, check) = s1.0.with_deferred(|ptr| unsafe { *ptr });
 
-        if 0 == s1.1.load(SeqCst) {
+        if 0 == s1.1.compare_and_swap(0, 0, SeqCst) {
             assert_eq!(unsafe { *mem.as_ptr() }, 0);
             check.check();
         }
@@ -409,7 +409,7 @@ fn batch_defer_success() {
         let s2 = s1.clone();
 
         let th = thread::spawn(move || {
-            s2[0].1.store(1, SeqCst);
+            s2[0].1.swap(1, SeqCst);
             s2[0].0.with_mut(|ptr| unsafe { *(*ptr).as_mut_ptr() = 1 });
         });
 
@@ -421,7 +421,7 @@ fn batch_defer_success() {
         let (mem1, c) = s1[0].0.with_deferred(|ptr| unsafe { *ptr });
         check.join(c);
 
-        if 0 != s1[0].1.load(SeqCst) {
+        if 0 != s1[0].1.compare_and_swap(0, 0, SeqCst) {
             return;
         }
 
