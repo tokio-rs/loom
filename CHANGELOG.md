@@ -1,3 +1,8 @@
+# 0.2.15 (February 25, 2019)
+
+### Fixed
+- avoid global happens-before with `SeqCst` ordering (#108).
+
 # 0.2.14 (November 19, 2019)
 
 ### Fixed
