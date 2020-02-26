@@ -55,8 +55,6 @@ pub(crate) struct Schedule {
     pub(crate) initial_active: Option<usize>,
 
     pub(crate) threads: Vec<Thread>,
-
-    init_threads: Vec<Thread>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -216,12 +214,10 @@ impl Path {
                 0
             };
 
-            let threads_clone = threads.clone();
             self.schedules.push(Schedule {
                 preemptions,
                 threads,
                 initial_active,
-                init_threads: threads_clone,
             });
 
             self.branches.push(Branch::Schedule(i));
