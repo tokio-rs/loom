@@ -1,5 +1,5 @@
-use crate::rt::{self, Access, Backtrace, Synchronize, VersionVec};
 use crate::rt::object::Object;
+use crate::rt::{self, Access, Backtrace, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
@@ -123,7 +123,10 @@ impl State {
     pub(super) fn check_for_leaks(&self) {
         if self.ref_cnt != 0 {
             if let Some(backtrace) = &self.allocated {
-                panic!("Arc leaked.\n------------\nAllocated:\n\n{}\n------------\n", backtrace);
+                panic!(
+                    "Arc leaked.\n------------\nAllocated:\n\n{}\n------------\n",
+                    backtrace
+                );
             } else {
                 panic!("Arc leaked.");
             }

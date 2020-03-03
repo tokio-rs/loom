@@ -35,7 +35,7 @@ mod cfg {
     }
 
     impl fmt::Display for Backtrace {
-        fn fmt(&self, fmt: &fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(fmt, "[enable `backtrace` feature for backtrace capture]")
         }
     }
