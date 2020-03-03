@@ -1,6 +1,5 @@
-#![allow(warnings)]
+use crate::rt::{self, Access, Backtrace, Synchronize, VersionVec};
 use crate::rt::object::Object;
-use crate::rt::{self, Access, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
@@ -13,6 +12,9 @@ pub(crate) struct Arc {
 pub(super) struct State {
     /// Reference count
     ref_cnt: usize,
+
+    /// Backtrace where the arc was allocated
+    allocated: Option<Backtrace>,
 
     /// Causality transfers between threads
     ///
@@ -47,6 +49,7 @@ impl Arc {
         rt::execution(|execution| {
             let obj = execution.objects.insert_arc(State {
                 ref_cnt: 1,
+                allocated: execution.backtrace(),
                 synchronize: Synchronize::new(execution.max_threads),
                 last_ref_inc: None,
                 last_ref_dec: None,
@@ -118,7 +121,13 @@ impl Arc {
 
 impl State {
     pub(super) fn check_for_leaks(&self) {
-        assert_eq!(0, self.ref_cnt, "Arc leaked");
+        if self.ref_cnt != 0 {
+            if let Some(backtrace) = &self.allocated {
+                panic!("Arc leaked.\n------------\nAllocated:\n\n{}\n------------\n", backtrace);
+            } else {
+                panic!("Arc leaked.");
+            }
+        }
     }
 
     pub(super) fn last_dependent_access(&self, action: Action) -> Option<&Access> {
