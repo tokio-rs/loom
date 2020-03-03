@@ -45,6 +45,15 @@ pub struct Builder {
     /// Defaults to `LOOM_CHECKPOINT_INTERVAL` environment variable.
     pub checkpoint_interval: usize,
 
+    /// When `true`, backtraces are captured on each loom operation.
+    ///
+    /// Note that is is **very** expensive. It is recommended to first isolate a
+    /// failing iteration using `LOOM_CHECKPOINT_FILE`, then enable backtrace
+    /// collection.
+    ///
+    /// Defaults to `LOOM_BACKTRACE` environment variable.
+    pub backtrace: bool,
+
     /// Log execution output to stdout.
     ///
     /// Defaults to existance of `LOOM_LOG` environment variable.
@@ -74,6 +83,8 @@ impl Builder {
                     .expect("invalid value for `LOOM_MAX_BRANCHES`")
             })
             .unwrap_or(DEFAULT_MAX_BRANCHES);
+
+        let backtrace = env::var("LOOM_BACKTRACE").is_ok();
 
         let log = env::var("LOOM_LOG").is_ok();
 
@@ -119,6 +130,7 @@ impl Builder {
             preemption_bound,
             checkpoint_file,
             checkpoint_interval,
+            backtrace,
             log,
             _p: (),
         }
@@ -146,6 +158,7 @@ impl Builder {
         }
 
         execution.log = self.log;
+        execution.backtrace = self.backtrace;
 
         let f = Arc::new(f);
 
