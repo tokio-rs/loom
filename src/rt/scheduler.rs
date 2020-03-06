@@ -50,7 +50,29 @@ impl Scheduler {
 
     /// Perform a context switch
     pub(crate) fn switch() {
-        generator::yield_with(());
+        use std::future::Future;
+        use std::pin::Pin;
+        use std::ptr;
+        use std::task::{Context, RawWaker, RawWakerVTable, Waker};
+
+        unsafe fn noop_clone(_: *const ()) -> RawWaker {
+            unreachable!()
+        }
+        unsafe fn noop(_: *const ()) {}
+
+        // Wrapping with an async block deals with the thread-local context
+        // `std` uses to manage async blocks
+        let mut switch = async { generator::yield_with(()) };
+        let switch = unsafe { Pin::new_unchecked(&mut switch) };
+
+        let raw_waker = RawWaker::new(
+            ptr::null(),
+            &RawWakerVTable::new(noop_clone, noop, noop, noop),
+        );
+        let mut waker = unsafe { Waker::from_raw(raw_waker) };
+        let mut cx = Context::from_waker(&mut waker);
+
+        assert!(switch.poll(&mut cx).is_ready());
     }
 
     pub(crate) fn spawn(f: Box<dyn FnOnce()>) {

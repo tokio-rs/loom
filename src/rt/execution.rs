@@ -1,5 +1,5 @@
 use crate::rt::alloc::Allocation;
-use crate::rt::{object, thread, Path};
+use crate::rt::{object, thread, Backtrace, Path};
 
 use bumpalo::Bump;
 use std::collections::HashMap;
@@ -25,6 +25,9 @@ pub(crate) struct Execution<'bump> {
     /// Maximum number of concurrent threads
     pub(super) max_threads: usize,
 
+    /// Capture backtraces for significant events
+    pub(crate) backtrace: bool,
+
     /// Log execution output to STDOUT
     pub(crate) log: bool,
 }
@@ -46,6 +49,7 @@ impl<'bump> Execution<'bump> {
             objects: object::Store::new(id, bump),
             raw_allocations: HashMap::new(),
             max_threads,
+            backtrace: false,
             log: false,
         }
     }
@@ -198,6 +202,16 @@ impl<'bump> Execution<'bump> {
 
     pub(crate) fn unset_critical(&mut self) {
         self.threads.active_mut().critical = false;
+    }
+
+    // Never inline so we can ensure loom shows up at the top of the backtrace.
+    #[inline(never)]
+    pub(crate) fn backtrace(&self) -> Option<Backtrace> {
+        if self.backtrace {
+            Some(Backtrace::capture())
+        } else {
+            None
+        }
     }
 }
 

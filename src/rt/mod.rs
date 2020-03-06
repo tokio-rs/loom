@@ -10,6 +10,9 @@ pub(crate) use self::arc::Arc;
 mod atomic;
 pub(crate) use self::atomic::{fence, Atomic};
 
+mod backtrace;
+pub(crate) use self::backtrace::Backtrace;
+
 mod condvar;
 pub(crate) use self::condvar::Condvar;
 

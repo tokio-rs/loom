@@ -1,3 +1,20 @@
+# 0.2.15 (February 25, 2019)
+
+### Fixed
+- avoid global happens-before with `SeqCst` ordering (#108).
+
+# 0.2.14 (November 19, 2019)
+
+### Fixed
+- internal `async/await` Waker leak (#102).
+
+### Changed
+- speed up model runs (#98, #94)
+
+### Added
+- `Send` impl for `AtomicWaker`, `Atomic*`
+- `AtomicWaker::take_waker` (#103).
+
 # 0.2.13 (November 6, 2019)
 
 ### Changed

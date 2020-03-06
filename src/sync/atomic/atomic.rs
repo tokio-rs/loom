@@ -12,6 +12,9 @@ pub struct Atomic<T> {
     values: Mutex<Vec<T>>,
 }
 
+unsafe impl<T> Send for Atomic<T> {}
+unsafe impl<T> Sync for Atomic<T> {}
+
 impl<T> Atomic<T>
 where
     T: Copy + PartialEq,
