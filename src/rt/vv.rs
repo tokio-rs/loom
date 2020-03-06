@@ -11,26 +11,8 @@ pub(crate) struct VersionVec<'bump> {
 
 impl VersionVec<'_> {
     pub(crate) fn new_in(max_threads: usize, bump: &Bump) -> VersionVec<'_> {
-        // TODO: use method provided by Bump when https://github.com/fitzgen/bumpalo/issues/41
-        // gets done.
-        let layout = std::alloc::Layout::from_size_align(
-            std::mem::size_of::<usize>()
-                .checked_mul(max_threads)
-                .unwrap(),
-            std::mem::align_of::<usize>(),
-        )
-        .unwrap();
-
-        let ptr = bump.alloc_layout(layout).cast::<usize>();
-
-        unsafe {
-            for i in 0..max_threads {
-                std::ptr::write(ptr.as_ptr().add(i), 0);
-            }
-
-            VersionVec {
-                versions: std::slice::from_raw_parts_mut(ptr.as_ptr(), max_threads),
-            }
+        VersionVec {
+            versions: bump.alloc_slice_fill_copy(max_threads, 0),
         }
     }
 
