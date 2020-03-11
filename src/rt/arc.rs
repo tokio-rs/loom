@@ -1,11 +1,11 @@
-use crate::rt::object::Object;
-use crate::rt::{self, Access, Backtrace, Synchronize, VersionVec};
+use crate::rt::object;
+use crate::rt::{self, Access, Location, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub(crate) struct Arc {
-    obj: Object,
+    state: object::Ref<State>,
 }
 
 #[derive(Debug)]
@@ -13,8 +13,8 @@ pub(super) struct State {
     /// Reference count
     ref_cnt: usize,
 
-    /// Backtrace where the arc was allocated
-    allocated: Option<Backtrace>,
+    /// Location where the arc was allocated
+    allocated: Location,
 
     /// Causality transfers between threads
     ///
@@ -45,35 +45,35 @@ pub(super) enum Action {
 }
 
 impl Arc {
-    pub(crate) fn new() -> Arc {
+    pub(crate) fn new(location: Location) -> Arc {
         rt::execution(|execution| {
-            let obj = execution.objects.insert_arc(State {
+            let state = execution.objects.insert(State {
                 ref_cnt: 1,
-                allocated: execution.backtrace(),
-                synchronize: Synchronize::new(execution.max_threads),
+                allocated: location,
+                synchronize: Synchronize::new(),
                 last_ref_inc: None,
                 last_ref_dec: None,
             });
 
-            Arc { obj }
+            Arc { state }
         })
     }
 
-    pub(crate) fn ref_inc(self) {
-        self.obj.branch(Action::RefInc);
+    pub(crate) fn ref_inc(&self) {
+        self.branch(Action::RefInc);
 
         rt::execution(|execution| {
-            let state = self.obj.arc_mut(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
             state.ref_cnt = state.ref_cnt.checked_add(1).expect("overflow");
         })
     }
 
     /// Validate a `get_mut` call
-    pub(crate) fn get_mut(self) -> bool {
-        self.obj.branch(Action::RefDec);
+    pub(crate) fn get_mut(&self) -> bool {
+        self.branch(Action::RefDec);
 
         rt::execution(|execution| {
-            let state = self.obj.arc_mut(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
 
             assert!(state.ref_cnt >= 1, "Arc is released");
 
@@ -89,11 +89,11 @@ impl Arc {
     }
 
     /// Returns true if the memory should be dropped.
-    pub(crate) fn ref_dec(self) -> bool {
-        self.obj.branch(Action::RefDec);
+    pub(crate) fn ref_dec(&self) -> bool {
+        self.branch(Action::RefDec);
 
         rt::execution(|execution| {
-            let state = self.obj.arc_mut(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
 
             assert!(state.ref_cnt >= 1, "Arc is already released");
 
@@ -117,15 +117,23 @@ impl Arc {
             }
         })
     }
+
+    fn branch(&self, action: Action) {
+        let r = self.state;
+        r.branch_action(action);
+        assert!(r.ref_eq(self.state), "Internal state mutated during branch. This is \
+                usually due to a bug in the algorithm being tested writing in \
+                an invalid memory location.");
+    }
 }
 
 impl State {
     pub(super) fn check_for_leaks(&self) {
         if self.ref_cnt != 0 {
-            if let Some(backtrace) = &self.allocated {
+            if self.allocated.is_captured() {
                 panic!(
-                    "Arc leaked.\n------------\nAllocated:\n\n{}\n------------\n",
-                    backtrace
+                    "Arc leaked.\n  Allocated: {}",
+                    self.allocated
                 );
             } else {
                 panic!("Arc leaked.");

@@ -12,16 +12,6 @@ impl AtomicBool {
         AtomicBool(Atomic::new(v))
     }
 
-    /// Returns a mutable reference to the underlying bool.
-    ///
-    /// # Panics
-    ///
-    /// This function panics if the access is invalid under the Rust memory
-    /// model.
-    pub fn get_mut(&mut self) -> &mut bool {
-        self.0.get_mut()
-    }
-
     /// Load the value without any synchronization.
     pub unsafe fn unsync_load(&self) -> bool {
         self.0.unsync_load()

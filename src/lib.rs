@@ -1,6 +1,6 @@
 #![doc(html_root_url = "https://docs.rs/loom/0.2.15")]
 #![deny(missing_debug_implementations, missing_docs, rust_2018_idioms)]
-#![cfg_attr(test, deny(warnings))]
+#![cfg_attr(loom_nightly, feature(track_caller))]
 
 //! Loom is a tool for testing concurrent programs.
 //!
@@ -139,10 +139,12 @@ macro_rules! dbg {
     };
 }
 
+#[macro_use]
+mod rt;
+
 pub mod alloc;
 pub mod cell;
 pub mod model;
-mod rt;
 pub mod sync;
 pub mod thread;
 

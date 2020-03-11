@@ -17,9 +17,9 @@ impl<T> AtomicPtr<T> {
         self.0.unsync_load()
     }
 
-    /// Get a mutable reference to the pointer.
-    pub fn get_mut(&mut self) -> &mut *mut T {
-        self.0.get_mut()
+    /// Get access to a mutable reference to the inner value.
+    pub fn with_mut<R>(&mut self, f: impl FnOnce(&mut *mut T) -> R) -> R {
+        self.0.with_mut(f)
     }
 
     /// Loads a value from the pointer.

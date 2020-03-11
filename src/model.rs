@@ -154,6 +154,7 @@ impl Builder {
         if let Some(ref path) = self.checkpoint_file {
             if path.exists() {
                 execution.path = checkpoint::load_execution_path(path);
+                execution.path.set_max_branches(self.max_branches);
             }
         }
 

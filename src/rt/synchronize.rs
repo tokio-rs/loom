@@ -14,14 +14,8 @@ pub(crate) struct Synchronize {
 }
 
 impl Synchronize {
-    pub fn new(max_threads: usize) -> Self {
-        let happens_before = VersionVec::new(max_threads);
-
-        Synchronize { happens_before }
-    }
-
-    pub fn version_vec(&self) -> &VersionVec {
-        &self.happens_before
+    pub fn new() -> Self {
+        Synchronize { happens_before: VersionVec::new() }
     }
 
     pub fn sync_load(&mut self, threads: &mut thread::Set, order: Ordering) {

@@ -1,7 +1,8 @@
 use crate::rt::alloc::Allocation;
-use crate::rt::{object, thread, Backtrace, Path};
+use crate::rt::{object, thread, Path};
 
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::fmt;
 
 pub(crate) struct Execution {
@@ -47,11 +48,15 @@ impl Execution {
         let id = Id::new();
         let threads = thread::Set::new(id, max_threads);
 
+        let preemption_bound = preemption_bound.map(|bound| {
+            bound.try_into().expect("preemption_bound too big")
+        });
+
         Execution {
             id,
             path: Path::new(max_branches, preemption_bound),
             threads,
-            objects: object::Store::new(id),
+            objects: object::Store::with_capacity(max_branches),
             raw_allocations: HashMap::new(),
             max_threads,
             max_history: 7,
@@ -91,12 +96,12 @@ impl Execution {
 
         let mut threads = self.threads;
 
-        objects.clear();
-        raw_allocations.clear();
-
         if !path.step() {
             return None;
         }
+
+        objects.clear();
+        raw_allocations.clear();
 
         threads.clear(id);
 
@@ -134,7 +139,11 @@ impl Execution {
                     continue;
                 }
 
-                self.path.backtrack(access.path_id(), th_id);
+                // Get the point to backtrack to
+                let point = access.path_id();
+
+                // Track backtracking point
+                self.path.backtrack(point, th_id);
             }
         }
 
@@ -236,24 +245,6 @@ impl Execution {
     pub(crate) fn check_for_leaks(&self) {
         self.objects.check_for_leaks();
     }
-
-    pub(crate) fn set_critical(&mut self) {
-        self.threads.active_mut().critical = true;
-    }
-
-    pub(crate) fn unset_critical(&mut self) {
-        self.threads.active_mut().critical = false;
-    }
-
-    // Never inline so we can ensure loom shows up at the top of the backtrace.
-    #[inline(never)]
-    pub(crate) fn backtrace(&self) -> Option<Backtrace> {
-        if self.backtrace {
-            Some(Backtrace::capture())
-        } else {
-            None
-        }
-    }
 }
 
 impl fmt::Debug for Execution {
@@ -270,7 +261,9 @@ impl Id {
         use std::sync::atomic::AtomicUsize;
         use std::sync::atomic::Ordering::Relaxed;
 
-        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+        // The number picked here is arbitrary. It is mostly to avoid colission
+        // with "zero" to aid with debugging.
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(46_413_762);
 
         let next = NEXT_ID.fetch_add(1, Relaxed);
 
