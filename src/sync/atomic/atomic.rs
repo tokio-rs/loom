@@ -15,9 +15,7 @@ where
     pub(crate) fn new(value: T) -> Atomic<T> {
         let state = rt::Atomic::new(value);
 
-        Atomic {
-            state,
-        }
+        Atomic { state }
     }
 
     pub(crate) unsafe fn unsync_load(&self) -> T {
@@ -79,17 +77,13 @@ where
         success: Ordering,
         failure: Ordering,
     ) -> Result<T, T> {
-        self.try_rmw(
-            success,
-            failure,
-            |actual| {
-                if actual == current {
-                    Ok(new)
-                } else {
-                    Err(actual)
-                }
-            },
-        )
+        self.try_rmw(success, failure, |actual| {
+            if actual == current {
+                Ok(new)
+            } else {
+                Err(actual)
+            }
+        })
     }
 }
 

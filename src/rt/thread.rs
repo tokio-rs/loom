@@ -273,9 +273,7 @@ impl Set {
 
     pub(crate) fn clear(&mut self, execution_id: execution::Id) {
         self.threads.clear();
-        self.threads.push(Thread::new(
-            Id::new(execution_id, 0),
-        ));
+        self.threads.push(Thread::new(Id::new(execution_id, 0)));
 
         self.execution_id = execution_id;
         self.active = Some(0);
@@ -290,7 +288,9 @@ impl Set {
             .map(move |(id, thread)| (Id::new(execution_id, id), thread))
     }
 
-    pub(crate) fn iter_mut<'a>(&'a mut self) -> impl ExactSizeIterator<Item = (Id, &'a mut Thread)> {
+    pub(crate) fn iter_mut<'a>(
+        &'a mut self,
+    ) -> impl ExactSizeIterator<Item = (Id, &'a mut Thread)> {
         let execution_id = self.execution_id;
         self.threads
             .iter_mut()

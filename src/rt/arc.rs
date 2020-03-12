@@ -121,9 +121,12 @@ impl Arc {
     fn branch(&self, action: Action) {
         let r = self.state;
         r.branch_action(action);
-        assert!(r.ref_eq(self.state), "Internal state mutated during branch. This is \
+        assert!(
+            r.ref_eq(self.state),
+            "Internal state mutated during branch. This is \
                 usually due to a bug in the algorithm being tested writing in \
-                an invalid memory location.");
+                an invalid memory location."
+        );
     }
 }
 
@@ -131,10 +134,7 @@ impl State {
     pub(super) fn check_for_leaks(&self) {
         if self.ref_cnt != 0 {
             if self.allocated.is_captured() {
-                panic!(
-                    "Arc leaked.\n  Allocated: {}",
-                    self.allocated
-                );
+                panic!("Arc leaked.\n  Allocated: {}", self.allocated);
             } else {
                 panic!("Arc leaked.");
             }

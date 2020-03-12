@@ -1,5 +1,5 @@
-use crate::rt::{self, object, thread, VersionVec};
 use crate::rt::location::{self, Location, LocationSet};
+use crate::rt::{self, object, thread, VersionVec};
 
 /// Tracks immutable and mutable access to a single memory cell.
 #[derive(Debug)]
@@ -74,9 +74,7 @@ impl Cell {
             state.read_locations.track(location, &execution.threads);
             state.track_read(&execution.threads);
 
-            Reset {
-                state: self.state,
-            }
+            Reset { state: self.state }
         });
 
         f()
@@ -161,18 +159,24 @@ impl State {
             location::panic("Causality violation: Concurrent write accesses to `UnsafeCell`.")
                 .location("created", self.created_location)
                 .thread("write one", other, self.write_locations[other])
-                .thread("write two", threads.active_id(), self.write_locations[threads])
+                .thread(
+                    "write two",
+                    threads.active_id(),
+                    self.write_locations[threads],
+                )
                 .fire();
         }
 
         // Check that there are no concurrent immutable accesss, i.e., every
         // immutable access must happen-before this mutable access.
         if let Some(reader) = current.ahead(&self.read_access) {
-            location::panic("Causality violation: Concurrent read and write accesses to `UnsafeCell`.")
-                .location("created", self.created_location)
-                .thread("read", reader, self.read_locations[reader])
-                .thread("write", threads.active_id(), self.write_locations[threads])
-                .fire();
+            location::panic(
+                "Causality violation: Concurrent read and write accesses to `UnsafeCell`.",
+            )
+            .location("created", self.created_location)
+            .thread("read", reader, self.read_locations[reader])
+            .thread("write", threads.active_id(), self.write_locations[threads])
+            .fire();
         }
 
         self.write_access.join(current);

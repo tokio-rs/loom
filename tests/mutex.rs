@@ -1,8 +1,8 @@
 #![deny(warnings, rust_2018_idioms)]
 
 use loom::cell::UnsafeCell;
-use loom::sync::Mutex;
 use loom::sync::atomic::AtomicUsize;
+use loom::sync::Mutex;
 use loom::thread;
 
 use std::rc::Rc;

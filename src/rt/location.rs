@@ -79,15 +79,23 @@ impl PanicBuilder {
         self
     }
 
-    pub(super) fn thread(&mut self, key: &str, thread: impl Into<usize>, location: Location) -> &mut Self {
-        self.locations.push((key.to_string(), Some(thread.into()), location));
+    pub(super) fn thread(
+        &mut self,
+        key: &str,
+        thread: impl Into<usize>,
+        location: Location,
+    ) -> &mut Self {
+        self.locations
+            .push((key.to_string(), Some(thread.into()), location));
         self
     }
 
     pub(super) fn fire(&self) {
         let mut msg = self.msg.clone();
 
-        let width = self.locations.iter()
+        let width = self
+            .locations
+            .iter()
             .filter(|(_, _, location)| location.is_captured())
             .map(|(key, ..)| key.len())
             .max();
@@ -95,7 +103,7 @@ impl PanicBuilder {
         if let Some(width) = width {
             msg = format!("\n{}", msg);
             for (key, thread, location) in &self.locations {
-                let spaces: String = (0..width-key.len()).map(|_| " ").collect();
+                let spaces: String = (0..width - key.len()).map(|_| " ").collect();
 
                 let th = thread
                     .map(|th| format!("thread #{} @ ", th))

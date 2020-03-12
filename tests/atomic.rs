@@ -3,7 +3,7 @@
 use loom::sync::atomic::AtomicUsize;
 use loom::thread;
 
-use std::sync::atomic::Ordering::{AcqRel, Acquire, Release, Relaxed};
+use std::sync::atomic::Ordering::{AcqRel, Acquire, Relaxed, Release};
 use std::sync::Arc;
 
 #[test]

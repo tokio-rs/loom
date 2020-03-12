@@ -48,9 +48,8 @@ impl Execution {
         let id = Id::new();
         let threads = thread::Set::new(id, max_threads);
 
-        let preemption_bound = preemption_bound.map(|bound| {
-            bound.try_into().expect("preemption_bound too big")
-        });
+        let preemption_bound =
+            preemption_bound.map(|bound| bound.try_into().expect("preemption_bound too big"));
 
         Execution {
             id,

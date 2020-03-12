@@ -26,7 +26,6 @@ pub(super) trait Object: Sized {
 
     /// Convert a mutable entry ref into a mutable object ref
     fn get_mut(entry: &mut Self::Entry) -> Option<&mut Self>;
-
 }
 
 /// References an object in the store.
@@ -170,7 +169,7 @@ impl<T> Store<T> {
 
     pub(super) fn iter_ref<'a, O>(&'a self) -> impl DoubleEndedIterator<Item = Ref<O>> + 'a
     where
-        O: Object<Entry = T>
+        O: Object<Entry = T>,
     {
         self.entries
             .iter()
@@ -182,9 +181,10 @@ impl<T> Store<T> {
             })
     }
 
-    pub(super) fn iter_mut<'a, O: Object<Entry = T> + 'a>(&'a mut self) -> impl DoubleEndedIterator<Item = &mut O> {
-        self.entries.iter_mut()
-            .filter_map(O::get_mut)
+    pub(super) fn iter_mut<'a, O: Object<Entry = T> + 'a>(
+        &'a mut self,
+    ) -> impl DoubleEndedIterator<Item = &mut O> {
+        self.entries.iter_mut().filter_map(O::get_mut)
     }
 }
 
@@ -196,7 +196,10 @@ impl Store {
             Entry::Mutex(entry) => entry.last_dependent_access(),
             Entry::Condvar(entry) => entry.last_dependent_access(),
             Entry::Notify(entry) => entry.last_dependent_access(),
-            obj => panic!("object is not branchable {:?}; ref = {:?}", obj, operation.obj),
+            obj => panic!(
+                "object is not branchable {:?}; ref = {:?}",
+                obj, operation.obj
+            ),
         }
     }
 
@@ -233,7 +236,7 @@ impl<T> Ref<T> {
     pub(super) fn erase(self) -> Ref<()> {
         Ref {
             index: self.index,
-            _p: PhantomData
+            _p: PhantomData,
         }
     }
 
@@ -245,15 +248,13 @@ impl<T> Ref<T> {
 impl<T: Object> Ref<T> {
     /// Get a reference to the object associated with this reference from the store
     pub(super) fn get(self, store: &Store<T::Entry>) -> &T {
-        T::get_ref(&store.entries[self.index])
-            .expect("unexpected object stored at reference")
+        T::get_ref(&store.entries[self.index]).expect("unexpected object stored at reference")
     }
 
     /// Get a mutable reference to the object associated with this reference
     /// from the store
     pub(super) fn get_mut(self, store: &mut Store<T::Entry>) -> &mut T {
-        T::get_mut(&mut store.entries[self.index])
-            .expect("unexpected object stored at reference")
+        T::get_mut(&mut store.entries[self.index]).expect("unexpected object stored at reference")
     }
 }
 
@@ -270,11 +271,9 @@ impl Ref {
     where
         T: Object,
     {
-        T::get_ref(&store.entries[self.index]).map(|_| {
-            Ref {
-                index: self.index,
-                _p: PhantomData,
-            }
+        T::get_ref(&store.entries[self.index]).map(|_| Ref {
+            index: self.index,
+            _p: PhantomData,
         })
     }
 }
@@ -326,9 +325,13 @@ impl<T: Object<Entry = Entry>> Ref<T> {
         assert!(
             T::get_ref(&execution.objects.entries[self.index]).is_some(),
             "failed to get object for ref {:?}",
-            self);
+            self
+        );
 
-        execution.threads.active_mut().operation = Some(Operation { obj: self.erase(), action });
+        execution.threads.active_mut().operation = Some(Operation {
+            obj: self.erase(),
+            action,
+        });
     }
 }
 

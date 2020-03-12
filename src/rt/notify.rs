@@ -78,7 +78,6 @@ impl Notify {
 
     pub(crate) fn wait(self) {
         let (notified, spurious) = rt::execution(|execution| {
-
             let spurious = if self.state.get(&execution.objects).might_spur() {
                 execution.path.branch_spurious()
             } else {

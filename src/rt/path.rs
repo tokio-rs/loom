@@ -97,7 +97,7 @@ macro_rules! assert_path_len {
              by an algorithm requiring the processor to make progress, e.g. \
              spin locks.",
         );
-    }}
+    }};
 }
 
 impl Path {
@@ -112,7 +112,8 @@ impl Path {
     }
 
     pub(crate) fn set_max_branches(&mut self, max_branches: usize) {
-        self.branches.reserve_exact(max_branches - self.branches.len());
+        self.branches
+            .reserve_exact(max_branches - self.branches.len());
     }
 
     /// Returns `true` if the execution has reached a point where the known path
@@ -126,10 +127,7 @@ impl Path {
     }
 
     /// Push a new atomic-load branch
-    pub(super) fn push_load(
-        &mut self,
-        seed: &[u8],
-    ) {
+    pub(super) fn push_load(&mut self, seed: &[u8]) {
         assert_path_len!(self.branches);
 
         let load_ref = self.branches.insert(Load {
@@ -141,8 +139,18 @@ impl Path {
         let load = load_ref.get_mut(&mut self.branches);
 
         for (i, &store) in seed.iter().enumerate() {
-            assert!(store < MAX_ATOMIC_HISTORY as u8, "store = {}; max = {}", store, MAX_ATOMIC_HISTORY);
-            assert!(i < MAX_ATOMIC_HISTORY, "i = {}; max = {}", i, MAX_ATOMIC_HISTORY);
+            assert!(
+                store < MAX_ATOMIC_HISTORY as u8,
+                "store = {}; max = {}",
+                store,
+                MAX_ATOMIC_HISTORY
+            );
+            assert!(
+                i < MAX_ATOMIC_HISTORY,
+                "i = {}; max = {}",
+                i,
+                MAX_ATOMIC_HISTORY
+            );
 
             load.values[i] = store as u8;
             load.len += 1;
@@ -150,9 +158,7 @@ impl Path {
     }
 
     /// Returns the atomic write to read
-    pub(super) fn branch_load(
-        &mut self,
-    ) -> u8 {
+    pub(super) fn branch_load(&mut self) -> u8 {
         assert!(!self.is_traversed());
 
         let load = object::Ref::from_usize(self.pos)
@@ -250,7 +256,9 @@ impl Path {
 
             debug_assert!(
                 self.preemption_bound.is_none() || Some(preemptions) <= self.preemption_bound,
-                "max = {:?}; curr = {}", self.preemption_bound, preemptions,
+                "max = {:?}; curr = {}",
+                self.preemption_bound,
+                preemptions,
             );
 
             let schedule = schedule_ref.get_mut(&mut self.branches);
@@ -273,23 +281,20 @@ impl Path {
             .map(|(i, _)| thread::Id::new(execution_id, i))
     }
 
-    pub(super) fn backtrack(
-        &mut self,
-        point: usize,
-        thread_id: thread::Id
-    ) {
+    pub(super) fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
         let schedule = object::Ref::from_usize(point)
             .downcast::<Schedule>(&self.branches)
             .unwrap();
 
         // Exhaustive DPOR only requires adding this backtrack point
-        schedule.get_mut(&mut self.branches)
+        schedule
+            .get_mut(&mut self.branches)
             .backtrack(thread_id, self.preemption_bound);
 
         if self.preemption_bound.is_some() {
             for j in (0..point).rev() {
-                let maybe_schedule = object::Ref::from_usize(j)
-                    .downcast::<Schedule>(&self.branches);
+                let maybe_schedule =
+                    object::Ref::from_usize(j).downcast::<Schedule>(&self.branches);
 
                 // If the branching point is not a thread schedule, skip it
                 let curr = match maybe_schedule {
@@ -304,12 +309,14 @@ impl Path {
                     let active_b = prev.get(&self.branches).active_thread_index();
 
                     if active_a != active_b {
-                        curr.get_mut(&mut self.branches).backtrack(thread_id, self.preemption_bound);
+                        curr.get_mut(&mut self.branches)
+                            .backtrack(thread_id, self.preemption_bound);
                         return;
                     }
                 } else {
                     // This is the very first schedule
-                    curr.get_mut(&mut self.branches).backtrack(thread_id, self.preemption_bound);
+                    curr.get_mut(&mut self.branches)
+                        .backtrack(thread_id, self.preemption_bound);
                     return;
                 }
             }
@@ -390,8 +397,7 @@ impl Path {
 impl Schedule {
     /// Returns the index of the currently active thread
     fn active_thread_index(&self) -> Option<u8> {
-        self
-            .threads
+        self.threads
             .iter()
             .enumerate()
             .find(|(_, th)| th.is_active())
@@ -411,7 +417,12 @@ impl Schedule {
 
     fn backtrack(&mut self, thread_id: thread::Id, preemption_bound: Option<u8>) {
         if let Some(bound) = preemption_bound {
-            assert!(self.preemptions <= bound, "actual = {}, bound = {}", self.preemptions, bound);
+            assert!(
+                self.preemptions <= bound,
+                "actual = {}, bound = {}",
+                self.preemptions,
+                bound
+            );
 
             if self.preemptions == bound {
                 return;

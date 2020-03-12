@@ -15,7 +15,9 @@ pub(crate) struct Synchronize {
 
 impl Synchronize {
     pub fn new() -> Self {
-        Synchronize { happens_before: VersionVec::new() }
+        Synchronize {
+            happens_before: VersionVec::new(),
+        }
     }
 
     pub fn sync_load(&mut self, threads: &mut thread::Set, order: Ordering) {

@@ -1,4 +1,3 @@
-
 /// Numeric-like type can be represented by a `u64`.
 ///
 /// Used by `Atomic` to store values.
@@ -40,7 +39,11 @@ impl<T> Numeric for *mut T {
 
 impl Numeric for bool {
     fn into_u64(self) -> u64 {
-        if self { 1 } else { 0 }
+        if self {
+            1
+        } else {
+            0
+        }
     }
 
     fn from_u64(src: u64) -> bool {

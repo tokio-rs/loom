@@ -1,5 +1,7 @@
-use crate::rt::{self, thread, Access, Numeric, Synchronize, VersionVec, MAX_ATOMIC_HISTORY, MAX_THREADS};
 use crate::rt::object;
+use crate::rt::{
+    self, thread, Access, Numeric, Synchronize, VersionVec, MAX_ATOMIC_HISTORY, MAX_THREADS,
+};
 
 use std::cmp;
 use std::marker::PhantomData;
@@ -122,18 +124,19 @@ impl<T: Numeric> Atomic<T> {
         super::synchronize(|execution| {
             // An atomic store counts as a read access to the underlying memory
             // cell.
-            self.state.get_mut(&mut execution.objects).track_load(&execution.threads);
+            self.state
+                .get_mut(&mut execution.objects)
+                .track_load(&execution.threads);
 
             // If necessary, generate the list of stores to permute through
             if execution.path.is_traversed() {
                 let mut seed = [0; MAX_ATOMIC_HISTORY];
 
-                let n = self.state.get(&execution.objects)
-                    .match_load_to_stores(
-                        &execution.threads,
-                        &mut seed[..],
-                        ordering
-                    );
+                let n = self.state.get(&execution.objects).match_load_to_stores(
+                    &execution.threads,
+                    &mut seed[..],
+                    ordering,
+                );
 
                 execution.path.push_load(&seed[..n]);
             }
@@ -148,7 +151,9 @@ impl<T: Numeric> Atomic<T> {
             let index = index(state.cnt - ago as u16 - 1);
 
             state.stores[index].first_seen.touch(&execution.threads);
-            state.stores[index].sync.sync_load(&mut execution.threads, ordering);
+            state.stores[index]
+                .sync
+                .sync_load(&mut execution.threads, ordering);
             T::from_u64(state.stores[index].value)
         })
     }
@@ -192,11 +197,10 @@ impl<T: Numeric> Atomic<T> {
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
 
-            state.rmw(
-                &mut execution.threads,
-                success,
-                failure,
-                |num| f(T::from_u64(num)).map(T::into_u64))
+            state
+                .rmw(&mut execution.threads, success, failure, |num| {
+                    f(T::from_u64(num)).map(T::into_u64)
+                })
                 .map(T::from_u64)
         })
     }
@@ -248,9 +252,12 @@ impl<T: Numeric> Atomic<T> {
     fn branch(&self, action: Action) {
         let r = self.state;
         r.branch_action(action);
-        assert!(r.ref_eq(self.state), "Internal state mutated during branch. This is \
+        assert!(
+            r.ref_eq(self.state),
+            "Internal state mutated during branch. This is \
                 usually due to a bug in the algorithm being tested writing in \
-                an invalid memory location.");
+                an invalid memory location."
+        );
     }
 }
 
@@ -351,7 +358,8 @@ impl State {
         assert!(
             self.unsync_mut_at <= *current,
             "Causality violation: \
-             Concurrent load and mut accesses");
+             Concurrent load and mut accesses"
+        );
 
         self.loaded_at.join(current);
     }
@@ -365,12 +373,14 @@ impl State {
         assert!(
             self.unsync_mut_at <= *current,
             "Causality violation: \
-             Concurrent `unsync_load` and mut accesses");
+             Concurrent `unsync_load` and mut accesses"
+        );
 
         assert!(
             self.stored_at <= *current,
             "Causality violation: \
-             Concurrent `unsync_load` and atomic store");
+             Concurrent `unsync_load` and atomic store"
+        );
 
         self.unsync_loaded_at.join(current);
     }
@@ -384,12 +394,14 @@ impl State {
         assert!(
             self.unsync_mut_at <= *current,
             "Causality violation: \
-             Concurrent atomic store and mut accesses");
+             Concurrent atomic store and mut accesses"
+        );
 
         assert!(
             self.unsync_loaded_at <= *current,
             "Causality violation: \
-             Concurrent `unsync_load` and atomic store");
+             Concurrent `unsync_load` and atomic store"
+        );
 
         self.stored_at.join(current);
     }
@@ -403,22 +415,26 @@ impl State {
         assert!(
             self.loaded_at <= *current,
             "Causality violation: \
-             Concurrent atomic load and unsync mut accesses");
+             Concurrent atomic load and unsync mut accesses"
+        );
 
         assert!(
             self.unsync_loaded_at <= *current,
             "Causality violation: \
-             Concurrent `unsync_load` and unsync mut accesses");
+             Concurrent `unsync_load` and unsync mut accesses"
+        );
 
         assert!(
             self.stored_at <= *current,
             "Causality violation: \
-             Concurrent atomic store and unsync mut accesses");
+             Concurrent atomic store and unsync mut accesses"
+        );
 
         assert!(
             self.unsync_mut_at <= *current,
             "Causality violation: \
-             Concurrent unsync mut accesses");
+             Concurrent unsync mut accesses"
+        );
 
         self.unsync_mut_at.join(current);
     }
@@ -434,7 +450,8 @@ impl State {
         let mut first = true;
 
         // TODO: refactor this.
-        let matching = self.stores()
+        let matching = self
+            .stores()
             .rev()
             .enumerate()
             // Explore all writes that are not within the actor's causality as
@@ -522,7 +539,7 @@ impl FirstSeen {
     fn is_seen_by_current(&self, threads: &thread::Set) -> bool {
         for (thread_id, version) in threads.active().causality.versions(threads.execution_id()) {
             match self.0[thread_id.as_usize()] {
-                u16::MAX => {},
+                u16::MAX => {}
                 v if v <= version => return true,
                 _ => {}
             }
@@ -561,7 +578,13 @@ fn range(cnt: u16) -> (usize, usize) {
         end = MAX_ATOMIC_HISTORY;
     }
 
-    assert!(start <= end, "cnt = {}; start = {}; end = {}", cnt, start, end);
+    assert!(
+        start <= end,
+        "cnt = {}; start = {}; end = {}",
+        cnt,
+        start,
+        end
+    );
 
     (start, end)
 }
