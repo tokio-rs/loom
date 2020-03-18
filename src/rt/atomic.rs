@@ -1,7 +1,43 @@
+//! An atomic cell
+//!
+//! # Coherence
+//!
+//! The coherence rules are implemented as follows.
+//!
+//! - Read-Read:
+//!
+//!   On `load`, all stores are iterated, finding stores that were read by
+//!   actions in the current thread's causality. These loads happen-before the
+//!   current load. The `motification_order` of these happen-before loads are
+//!   joined into the current load's `modification_order`.
+//!
+//! - Write-Read:
+//!
+//!   On `load`, all stores are iterated, finding stores that happens-before the
+//!   current thread's causality. The `modification_order` of these stores are
+//!   joined into the current load's `modification_order`.
+//!
+//! - Read-Write:
+//!
+//!   On `store`, find all existing stores that were read in the current
+//!   thread's causality. Join these stores' `modification_order` into the new
+//!   store's modification order.
+//!
+//! - Write-Write:
+//!
+//!   The `modification_order` is initialized to the thread's causality. Any
+//!   store that happened in the thread causality will be earlier in the
+//!   modification order.
+//!
+//! - SeqCst: ???
+//!
+//! - RMW: ???
+
 use crate::rt::object;
 use crate::rt::{
     self, thread, Access, Numeric, Synchronize, VersionVec, MAX_ATOMIC_HISTORY, MAX_THREADS,
 };
+use crate::rt::location::Location;
 
 use std::cmp;
 use std::marker::PhantomData;
@@ -16,6 +52,9 @@ pub(crate) struct Atomic<T> {
 
 #[derive(Debug)]
 pub(super) struct State {
+    /// Where the atomic was created
+    created_location: Location,
+
     /// Transitive closure of all atomic loads from the cell.
     loaded_at: VersionVec,
 
@@ -65,6 +104,13 @@ struct Store {
     /// The stored value. All atomic types can be converted to `u64`.
     value: u64,
 
+    /// The causality of the thread when it stores the value.
+    happens_before: VersionVec,
+
+    /// Tracks the modification order. Order is tracked as a partially-ordered
+    /// set.
+    modification_order: VersionVec,
+
     /// Manages causality transfers between threads
     sync: Synchronize,
 
@@ -79,11 +125,12 @@ struct Store {
 struct FirstSeen([u16; MAX_THREADS]);
 
 /// Implements atomic fence behavior
-pub(crate) fn fence(order: Ordering) {
+pub(crate) fn fence(ordering: Ordering) {
+    /*
     use std::sync::atomic::Ordering::Acquire;
 
     assert_eq!(
-        order, Acquire,
+        ordering, Acquire,
         "only Acquire fences are currently supported"
     );
 
@@ -101,13 +148,15 @@ pub(crate) fn fence(order: Ordering) {
             }
         }
     });
+    */
+    unimplemented!();
 }
 
 impl<T: Numeric> Atomic<T> {
     /// Create a new, atomic cell initialized with the provided value
-    pub(crate) fn new(value: T) -> Atomic<T> {
+    pub(crate) fn new(value: T, location: Location) -> Atomic<T> {
         rt::execution(|execution| {
-            let state = State::new(&mut execution.threads, value.into_u64());
+            let state = State::new(&mut execution.threads, value.into_u64(), location);
             let state = execution.objects.insert(state);
 
             Atomic {
@@ -146,15 +195,10 @@ impl<T: Numeric> Atomic<T> {
             // This is the nth oldest store (in loom execution order).
             let ago = execution.path.branch_load();
 
-            // Track that the thread is loading this store
+            // Get the state
             let state = self.state.get_mut(&mut execution.objects);
-            let index = index(state.cnt - ago as u16 - 1);
 
-            state.stores[index].first_seen.touch(&execution.threads);
-            state.stores[index]
-                .sync
-                .sync_load(&mut execution.threads, ordering);
-            T::from_u64(state.stores[index].value)
+            T::from_u64(state.load(&mut execution.threads, ago as u16, ordering))
         })
     }
 
@@ -173,7 +217,7 @@ impl<T: Numeric> Atomic<T> {
     }
 
     /// Stores a value into the atomic cell.
-    pub(crate) fn store(&self, val: T, order: Ordering) {
+    pub(crate) fn store(&self, val: T, ordering: Ordering) {
         self.branch(Action::Store);
 
         super::synchronize(|execution| {
@@ -184,7 +228,7 @@ impl<T: Numeric> Atomic<T> {
             state.track_store(&execution.threads);
 
             // Do the store
-            state.store(&mut execution.threads, val.into_u64(), order)
+            state.store(&mut execution.threads, val.into_u64(), ordering)
         })
     }
 
@@ -264,8 +308,9 @@ impl<T: Numeric> Atomic<T> {
 // ===== impl State =====
 
 impl State {
-    fn new(threads: &mut thread::Set, value: u64) -> State {
+    fn new(threads: &mut thread::Set, value: u64, location: Location) -> State {
         let mut state = State {
+            created_location: location,
             loaded_at: VersionVec::new(),
             unsync_loaded_at: VersionVec::new(),
             stored_at: VersionVec::new(),
@@ -291,14 +336,62 @@ impl State {
         state
     }
 
+    fn load(&mut self, threads: &mut thread::Set, ago: u16, ordering: Ordering) -> u64 {
+        let index = index(self.cnt - ago - 1);
+
+        // Apply coherence rules
+        for i in 0..self.stores.len() {
+            // Skip if the is current.
+            if index == i {
+                continue;
+            }
+
+            // READ-READ coherence
+            if self.stores[i].first_seen.is_seen_by_current(threads) {
+                let mo = self.stores[i].modification_order;
+                self.stores[index].modification_order.join(&mo);
+            }
+
+            // WRITE-READ coherence
+            if self.stores[i].happens_before < threads.active().causality {
+                let mo = self.stores[i].modification_order;
+                self.stores[index].modification_order.join(&mo);
+            }
+        }
+
+        let store = &mut self.stores[index];
+
+        store.first_seen.touch(threads);
+        store.sync.sync_load(threads, ordering);
+        store.value
+    }
+
     fn store(&mut self, threads: &mut thread::Set, value: u64, ordering: Ordering) {
         let index = index(self.cnt);
 
         // Increment the count
         self.cnt += 1;
 
+        // The modification order is initialized to the thread's current
+        // causality. All reads / writes that happen before this store are
+        // ordered before the store.
+        let happens_before = threads.active().causality.clone();
+
+        // Starting with the thread's causality covers WRITE-WRITE coherence
+        let mut modification_order = happens_before;
+
+        // Apply coherence rules
+        for i in 0..self.stores.len() {
+            // READ-WRITE coherence
+            if self.stores[i].first_seen.is_seen_by_current(threads) {
+                let mo = self.stores[i].modification_order;
+                modification_order.join(&mo);
+            }
+        }
+
         let mut sync = Synchronize::new();
         sync.sync_store(threads, ordering);
+        println!("   + sync = {:?}", sync);
 
         let mut first_seen = FirstSeen::new();
         first_seen.touch(threads);
@@ -306,6 +399,8 @@ impl State {
         // Track the store
         self.stores[index] = Store {
             value,
+            happens_before,
+            modification_order,
             sync,
             first_seen,
             seq_cst: is_seq_cst(ordering),
@@ -319,8 +414,10 @@ impl State {
         failure: Ordering,
         f: impl FnOnce(u64) -> Result<u64, E>,
     ) -> Result<u64, E> {
+        /*
         // TODO: This shouldn't *always* pull the last store
         let index = index(self.cnt - 1);
+        println!(" + RMW; index = {}; self = {:p}", index, self);
 
         // Track the load operation happened on the cell.
         self.track_load(threads);
@@ -335,6 +432,7 @@ impl State {
                 // Track a store operation happened
                 self.track_store(threads);
 
+                println!(" + SYNC LOAD {:?} @ {}", self.stores[index].sync, self.created_location);
                 // Synchronize the load
                 self.stores[index].sync.sync_load(threads, success);
 
@@ -347,6 +445,8 @@ impl State {
                 Err(e)
             }
         }
+        */
+        unimplemented!();
     }
 
     /// Track an atomic load
@@ -446,8 +546,19 @@ impl State {
         dst: &mut [u8],
         ordering: Ordering,
     ) -> usize {
+        // We only need to consider loads as old as the **most** recent load
+        // seen by each thread in the current causality.
+
+        for store in self.stores().rev() {
+            unimplemented!();
+        }
+
+        /*
         let mut in_causality = false;
         let mut first = true;
+
+        println!(" ===> MATCHING LOADS @ {}", self.created_location);
+        println!("   active = {:?}", threads.active().causality);
 
         // TODO: refactor this.
         let matching = self
@@ -456,10 +567,13 @@ impl State {
             .enumerate()
             // Explore all writes that are not within the actor's causality as
             // well as the latest one.
-            .take_while(move |&(_, ref store)| {
+            .take_while(move |&(i, ref store)| {
+                println!("      + check {}; in_causality = {:?}", i, in_causality);
+                println!("        first_seen = {:?}", store.first_seen);
                 let ret = in_causality;
 
                 if store.first_seen.is_seen_before_yield(&threads) {
+                    println!("       + some yield BS");
                     let ret = first;
                     in_causality = true;
                     first = false;
@@ -478,11 +592,14 @@ impl State {
         let mut n = 0;
 
         for index in matching {
+            println!("       + {}", index);
             dst[n] = index;
             n += 1;
         }
 
         n
+        */
+        unimplemented!();
     }
 
     fn stores(&self) -> impl DoubleEndedIterator<Item = &Store> {
@@ -516,6 +633,8 @@ impl Default for Store {
     fn default() -> Store {
         Store {
             value: 0,
+            happens_before: VersionVec::new(),
+            modification_order: VersionVec::new(),
             sync: Synchronize::new(),
             first_seen: FirstSeen::new(),
             seq_cst: false,
