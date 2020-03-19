@@ -126,7 +126,6 @@ struct FirstSeen([u16; MAX_THREADS]);
 
 /// Implements atomic fence behavior
 pub(crate) fn fence(ordering: Ordering) {
-    /*
     use std::sync::atomic::Ordering::Acquire;
 
     assert_eq!(
@@ -144,12 +143,10 @@ pub(crate) fn fence(ordering: Ordering) {
                     continue;
                 }
 
-                store.sync.sync_load(&mut execution.threads, order);
+                store.sync.sync_load(&mut execution.threads, ordering);
             }
         }
     });
-    */
-    unimplemented!();
 }
 
 impl<T: Numeric> Atomic<T> {
@@ -171,12 +168,6 @@ impl<T: Numeric> Atomic<T> {
         self.branch(Action::Load);
 
         super::synchronize(|execution| {
-            // An atomic store counts as a read access to the underlying memory
-            // cell.
-            self.state
-                .get_mut(&mut execution.objects)
-                .track_load(&execution.threads);
-
             // If necessary, generate the list of stores to permute through
             if execution.path.is_traversed() {
                 let mut seed = [0; MAX_ATOMIC_HISTORY];
@@ -191,14 +182,12 @@ impl<T: Numeric> Atomic<T> {
             }
 
             // Get the store to return from this load.
-            //
-            // This is the nth oldest store (in loom execution order).
-            let ago = execution.path.branch_load();
+            let index = execution.path.branch_load();
 
             // Get the state
             let state = self.state.get_mut(&mut execution.objects);
 
-            T::from_u64(state.load(&mut execution.threads, ago as u16, ordering))
+            T::from_u64(state.load(&mut execution.threads, index, ordering))
         })
     }
 
@@ -228,7 +217,7 @@ impl<T: Numeric> Atomic<T> {
             state.track_store(&execution.threads);
 
             // Do the store
-            state.store(&mut execution.threads, val.into_u64(), ordering)
+            state.store(&mut execution.threads, val.into_u64(), ordering);
         })
     }
 
@@ -241,8 +230,19 @@ impl<T: Numeric> Atomic<T> {
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
 
+            // If necessary, generate the list of stores to permute through
+            if execution.path.is_traversed() {
+                let mut seed = [0; MAX_ATOMIC_HISTORY];
+
+                let n = state.match_rmw_to_stores(&mut seed[..]);
+                execution.path.push_load(&seed[..n]);
+            }
+
+            // Get the store to use for the read portion of the rmw operation.
+            let index = execution.path.branch_load();
+
             state
-                .rmw(&mut execution.threads, success, failure, |num| {
+                .rmw(&mut execution.threads, index, success, failure, |num| {
                     f(T::from_u64(num)).map(T::into_u64)
                 })
                 .map(T::from_u64)
@@ -336,28 +336,12 @@ impl State {
         state
     }
 
-    fn load(&mut self, threads: &mut thread::Set, ago: u16, ordering: Ordering) -> u64 {
-        let index = index(self.cnt - ago - 1);
+    fn load(&mut self, threads: &mut thread::Set, index: usize, ordering: Ordering) -> u64 {
+        // Validate memory safety
+        self.track_load(threads);
 
         // Apply coherence rules
-        for i in 0..self.stores.len() {
-            // Skip if the is current.
-            if index == i {
-                continue;
-            }
-
-            // READ-READ coherence
-            if self.stores[i].first_seen.is_seen_by_current(threads) {
-                let mo = self.stores[i].modification_order;
-                self.stores[index].modification_order.join(&mo);
-            }
-
-            // WRITE-READ coherence
-            if self.stores[i].happens_before < threads.active().causality {
-                let mo = self.stores[i].modification_order;
-                self.stores[index].modification_order.join(&mo);
-            }
-        }
+        self.apply_load_coherence(threads, index);
 
         let store = &mut self.stores[index];
 
@@ -391,7 +375,6 @@ impl State {
 
         let mut sync = Synchronize::new();
         sync.sync_store(threads, ordering);
-        println!("   + sync = {:?}", sync);
 
         let mut first_seen = FirstSeen::new();
         first_seen.touch(threads);
@@ -410,19 +393,19 @@ impl State {
     fn rmw<E>(
         &mut self,
         threads: &mut thread::Set,
+        index: usize,
         success: Ordering,
         failure: Ordering,
         f: impl FnOnce(u64) -> Result<u64, E>,
     ) -> Result<u64, E> {
-        /*
-        // TODO: This shouldn't *always* pull the last store
-        let index = index(self.cnt - 1);
-        println!(" + RMW; index = {}; self = {:p}", index, self);
 
-        // Track the load operation happened on the cell.
+        // Track the load is happening in order to ensure correct
+        // synchronization to the underlying cell.
         self.track_load(threads);
 
-        // Track that the thread has seen the specific store
+        // Apply coherence rules.
+        self.apply_load_coherence(threads, index);
+
         self.stores[index].first_seen.touch(threads);
 
         let prev = self.stores[index].value;
@@ -432,12 +415,12 @@ impl State {
                 // Track a store operation happened
                 self.track_store(threads);
 
-                println!(" + SYNC LOAD {:?} @ {}", self.stores[index].sync, self.created_location);
-                // Synchronize the load
+                // Perform load synchronization using the `success` ordering.
                 self.stores[index].sync.sync_load(threads, success);
 
                 // Store the new value
                 self.store(threads, next, success);
+
                 Ok(prev)
             }
             Err(e) => {
@@ -445,8 +428,27 @@ impl State {
                 Err(e)
             }
         }
-        */
-        unimplemented!();
+    }
+
+    fn apply_load_coherence(&mut self, threads: &mut thread::Set, index: usize) {
+        for i in 0..self.stores.len() {
+            // Skip if the is current.
+            if index == i {
+                continue;
+            }
+
+            // READ-READ coherence
+            if self.stores[i].first_seen.is_seen_by_current(threads) {
+                let mo = self.stores[i].modification_order;
+                self.stores[index].modification_order.join(&mo);
+            }
+
+            // WRITE-READ coherence
+            if self.stores[i].happens_before < threads.active().causality {
+                let mo = self.stores[i].modification_order;
+                self.stores[index].modification_order.join(&mo);
+            }
+        }
     }
 
     /// Track an atomic load
@@ -546,67 +548,97 @@ impl State {
         dst: &mut [u8],
         ordering: Ordering,
     ) -> usize {
-        // We only need to consider loads as old as the **most** recent load
-        // seen by each thread in the current causality.
-
-        for store in self.stores().rev() {
-            unimplemented!();
-        }
-
-        /*
-        let mut in_causality = false;
-        let mut first = true;
-
-        println!(" ===> MATCHING LOADS @ {}", self.created_location);
-        println!("   active = {:?}", threads.active().causality);
-
-        // TODO: refactor this.
-        let matching = self
-            .stores()
-            .rev()
-            .enumerate()
-            // Explore all writes that are not within the actor's causality as
-            // well as the latest one.
-            .take_while(move |&(i, ref store)| {
-                println!("      + check {}; in_causality = {:?}", i, in_causality);
-                println!("        first_seen = {:?}", store.first_seen);
-                let ret = in_causality;
-
-                if store.first_seen.is_seen_before_yield(&threads) {
-                    println!("       + some yield BS");
-                    let ret = first;
-                    in_causality = true;
-                    first = false;
-                    return ret;
-                }
-
-                first = false;
-
-                in_causality |= is_seq_cst(ordering) && store.seq_cst;
-                in_causality |= store.first_seen.is_seen_by_current(&threads);
-
-                !ret
-            })
-            .map(|(i, _)| i as u8);
-
         let mut n = 0;
 
-        for index in matching {
-            println!("       + {}", index);
-            dst[n] = index;
+        // We only need to consider loads as old as the **most** recent load
+        // seen by each thread in the current causality.
+        //
+        // This probably isn't the smartest way to implement this, but someone
+        // else can figure out how to improve on it if it turns out to be a
+        // bottleneck.
+        //
+        // Add all stores **unless** a newer store has already been seen by the
+        // current thread's causality.
+        'outer:
+        for i in 0..self.stores.len() {
+            let store_i = &self.stores[i];
+
+            if store_i.happens_before.is_zero() {
+                // Not a real store
+                continue;
+            }
+
+            for j in 0..self.stores.len() {
+                let store_j = &self.stores[j];
+
+                if i == j || store_j.happens_before.is_zero() {
+                    continue;
+                }
+
+                let mo_i = store_i.modification_order;
+                let mo_j = store_j.modification_order;
+
+                assert_ne!(mo_i, mo_j);
+
+                if mo_i < mo_j {
+                    if store_j.first_seen.is_seen_by_current(threads) {
+                        // Store `j` is newer, so don't store the current one.
+                        continue 'outer;
+                    }
+
+                    if is_seq_cst(ordering) && store_i.seq_cst && store_j.seq_cst {
+                        // There is a newer SeqCst store
+                        continue 'outer;
+                    }
+                }
+            }
+
+            // The load may return this store
+            dst[n] = i as u8;
             n += 1;
         }
 
         n
-        */
-        unimplemented!();
     }
 
-    fn stores(&self) -> impl DoubleEndedIterator<Item = &Store> {
-        let (start, end) = range(self.cnt);
-        let (two, one) = self.stores[..end].split_at(start);
+    fn match_rmw_to_stores(&self, dst: &mut [u8]) -> usize {
+        let mut n = 0;
 
-        one.iter().chain(two.iter())
+        // Unlike `match_load_to_stores`, rmw operations only load "newest"
+        // stores, in terms of modification order.
+        'outer:
+        for i in 0..self.stores.len() {
+            let store_i = &self.stores[i];
+
+            if store_i.happens_before.is_zero() {
+                // Not a real store
+                continue;
+            }
+
+            for j in 0..self.stores.len() {
+                let store_j = &self.stores[j];
+
+                if i == j || store_j.happens_before.is_zero() {
+                    continue;
+                }
+
+                let mo_i = store_i.modification_order;
+                let mo_j = store_j.modification_order;
+
+                assert_ne!(mo_i, mo_j);
+
+                if mo_i < mo_j {
+                    // There is a newer store.
+                    continue 'outer;
+                }
+            }
+
+            // The load may return this store
+            dst[n] = i as u8;
+            n += 1;
+        }
+
+        n
     }
 
     fn stores_mut(&mut self) -> impl DoubleEndedIterator<Item = &mut Store> {
@@ -667,6 +699,7 @@ impl FirstSeen {
         false
     }
 
+    /*
     fn is_seen_before_yield(&self, threads: &thread::Set) -> bool {
         let thread_id = threads.active_id();
 
@@ -680,6 +713,7 @@ impl FirstSeen {
             v => v <= last_yield,
         }
     }
+    */
 }
 
 fn is_seq_cst(order: Ordering) -> bool {

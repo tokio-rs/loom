@@ -158,7 +158,7 @@ impl Path {
     }
 
     /// Returns the atomic write to read
-    pub(super) fn branch_load(&mut self) -> u8 {
+    pub(super) fn branch_load(&mut self) -> usize {
         assert!(!self.is_traversed());
 
         let load = object::Ref::from_usize(self.pos)
@@ -168,7 +168,7 @@ impl Path {
 
         self.pos += 1;
 
-        load.values[load.pos as usize]
+        load.values[load.pos as usize] as usize
     }
 
     /// Branch on spurious notifications
