@@ -8,7 +8,7 @@ use std::sync::atomic::Ordering::{self, *};
 /// loads, the thread's causality is updated using the synchronization point's
 /// stored causality. On stores, the synchronization point's causality is
 /// updated with the threads.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Synchronize {
     happens_before: VersionVec,
 }

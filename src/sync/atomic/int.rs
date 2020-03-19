@@ -5,13 +5,14 @@ use std::sync::atomic::Ordering;
 macro_rules! atomic_int {
     ($name: ident, $atomic_type: ty) => {
         /// Mock implementation of `std::sync::atomic::$name`.
-        #[derive(Debug, Default)]
+        #[derive(Debug)]
         pub struct $name(Atomic<$atomic_type>);
 
         impl $name {
             /// Creates a new instance of `$name`.
+            #[cfg_attr(loom_nightly, track_caller)]
             pub fn new(v: $atomic_type) -> Self {
-                Self(Atomic::new(v))
+                Self(Atomic::new(v, location!()))
             }
 
             /// Get access to a mutable reference to the inner value.
@@ -94,6 +95,12 @@ macro_rules! atomic_int {
             /// Bitwise "xor" with the current value.
             pub fn fetch_xor(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
                 self.0.rmw(|v| v ^ val, order)
+            }
+        }
+
+        impl Default for $name {
+            fn default() -> $name {
+                $name::new(Default::default())
             }
         }
     };

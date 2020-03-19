@@ -102,8 +102,8 @@ where
     F: FnOnce(&mut Execution) -> R,
 {
     execution(|execution| {
-        let ret = f(execution);
         execution.threads.active_causality_inc();
+        let ret = f(execution);
         ret
     })
 }

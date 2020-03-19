@@ -8,8 +8,9 @@ pub struct AtomicPtr<T>(Atomic<*mut T>);
 
 impl<T> AtomicPtr<T> {
     /// Creates a new instance of `AtomicPtr`.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn new(v: *mut T) -> AtomicPtr<T> {
-        AtomicPtr(Atomic::new(v))
+        AtomicPtr(Atomic::new(v, location!()))
     }
 
     /// Load the value without any synchronization.
@@ -67,6 +68,7 @@ impl<T> AtomicPtr<T> {
 
 impl<T> Default for AtomicPtr<T> {
     fn default() -> AtomicPtr<T> {
-        AtomicPtr::new(std::ptr::null_mut())
+        use std::ptr;
+        AtomicPtr::new(ptr::null_mut())
     }
 }

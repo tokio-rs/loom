@@ -12,8 +12,8 @@ impl<T> Atomic<T>
 where
     T: rt::Numeric,
 {
-    pub(crate) fn new(value: T) -> Atomic<T> {
-        let state = rt::Atomic::new(value);
+    pub(crate) fn new(value: T, location: rt::Location) -> Atomic<T> {
+        let state = rt::Atomic::new(value, location);
 
         Atomic { state }
     }
@@ -84,14 +84,5 @@ where
                 Err(actual)
             }
         })
-    }
-}
-
-impl<T> Default for Atomic<T>
-where
-    T: rt::Numeric + Default,
-{
-    fn default() -> Atomic<T> {
-        Atomic::new(T::default())
     }
 }
