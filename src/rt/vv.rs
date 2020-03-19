@@ -18,10 +18,6 @@ impl VersionVec {
         }
     }
 
-    pub(crate) fn is_zero(&self) -> bool {
-        self.versions.iter().all(|&v| v == 0)
-    }
-
     pub(crate) fn versions<'a>(
         &'a self,
         execution_id: execution::Id,

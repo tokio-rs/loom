@@ -549,6 +549,7 @@ impl State {
         ordering: Ordering,
     ) -> usize {
         let mut n = 0;
+        let cnt = self.cnt as usize;
 
         // We only need to consider loads as old as the **most** recent load
         // seen by each thread in the current causality.
@@ -563,7 +564,7 @@ impl State {
         for i in 0..self.stores.len() {
             let store_i = &self.stores[i];
 
-            if store_i.happens_before.is_zero() {
+            if i >= cnt {
                 // Not a real store
                 continue;
             }
@@ -571,7 +572,7 @@ impl State {
             for j in 0..self.stores.len() {
                 let store_j = &self.stores[j];
 
-                if i == j || store_j.happens_before.is_zero() {
+                if i == j || j >= cnt {
                     continue;
                 }
 
@@ -583,6 +584,12 @@ impl State {
                 if mo_i < mo_j {
                     if store_j.first_seen.is_seen_by_current(threads) {
                         // Store `j` is newer, so don't store the current one.
+                        continue 'outer;
+                    }
+
+                    if store_i.first_seen.is_seen_before_yield(threads) {
+                        // Saw this load before the previous yield. In order to
+                        // advance the model, don't return it again.
                         continue 'outer;
                     }
 
@@ -603,6 +610,7 @@ impl State {
 
     fn match_rmw_to_stores(&self, dst: &mut [u8]) -> usize {
         let mut n = 0;
+        let cnt = self.cnt as usize;
 
         // Unlike `match_load_to_stores`, rmw operations only load "newest"
         // stores, in terms of modification order.
@@ -610,7 +618,7 @@ impl State {
         for i in 0..self.stores.len() {
             let store_i = &self.stores[i];
 
-            if store_i.happens_before.is_zero() {
+            if i >= cnt {
                 // Not a real store
                 continue;
             }
@@ -618,7 +626,7 @@ impl State {
             for j in 0..self.stores.len() {
                 let store_j = &self.stores[j];
 
-                if i == j || store_j.happens_before.is_zero() {
+                if i == j || j >= cnt {
                     continue;
                 }
 
@@ -699,7 +707,6 @@ impl FirstSeen {
         false
     }
 
-    /*
     fn is_seen_before_yield(&self, threads: &thread::Set) -> bool {
         let thread_id = threads.active_id();
 
@@ -713,7 +720,6 @@ impl FirstSeen {
             v => v <= last_yield,
         }
     }
-    */
 }
 
 fn is_seq_cst(order: Ordering) -> bool {
