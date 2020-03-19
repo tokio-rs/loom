@@ -168,11 +168,13 @@ impl<T: Numeric> Atomic<T> {
         self.branch(Action::Load);
 
         super::synchronize(|execution| {
+            let state = self.state.get_mut(&mut execution.objects);
+
             // If necessary, generate the list of stores to permute through
             if execution.path.is_traversed() {
                 let mut seed = [0; MAX_ATOMIC_HISTORY];
 
-                let n = self.state.get(&execution.objects).match_load_to_stores(
+                let n = state.match_load_to_stores(
                     &execution.threads,
                     &mut seed[..],
                     ordering,
@@ -183,9 +185,6 @@ impl<T: Numeric> Atomic<T> {
 
             // Get the store to return from this load.
             let index = execution.path.branch_load();
-
-            // Get the state
-            let state = self.state.get_mut(&mut execution.objects);
 
             T::from_u64(state.load(&mut execution.threads, index, ordering))
         })
@@ -217,7 +216,7 @@ impl<T: Numeric> Atomic<T> {
             state.track_store(&execution.threads);
 
             // Do the store
-            state.store(&mut execution.threads, val.into_u64(), ordering);
+            state.store(&mut execution.threads, Synchronize::new(), val.into_u64(), ordering);
         })
     }
 
@@ -331,7 +330,7 @@ impl State {
         // creation of this atomic cell.
         //
         // This is verified using `cell`.
-        state.store(threads, value, Ordering::Release);
+        state.store(threads, Synchronize::new(), value, Ordering::Release);
 
         state
     }
@@ -350,7 +349,7 @@ impl State {
         store.value
     }
 
-    fn store(&mut self, threads: &mut thread::Set, value: u64, ordering: Ordering) {
+    fn store(&mut self, threads: &mut thread::Set, mut sync: Synchronize, value: u64, ordering: Ordering) {
         let index = index(self.cnt);
 
         // Increment the count
@@ -373,7 +372,6 @@ impl State {
             }
         }
 
-        let mut sync = Synchronize::new();
         sync.sync_store(threads, ordering);
 
         let mut first_seen = FirstSeen::new();
@@ -418,8 +416,11 @@ impl State {
                 // Perform load synchronization using the `success` ordering.
                 self.stores[index].sync.sync_load(threads, success);
 
-                // Store the new value
-                self.store(threads, next, success);
+                // Store the new value, initializing with the `sync` value from
+                // the load. This is our (hacky) way to establish a release
+                // sequence.
+                let sync = self.stores[index].sync;
+                self.store(threads, sync, next, success);
 
                 Ok(prev)
             }
