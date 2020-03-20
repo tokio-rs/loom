@@ -28,10 +28,6 @@
 //!   The `modification_order` is initialized to the thread's causality. Any
 //!   store that happened in the thread causality will be earlier in the
 //!   modification order.
-//!
-//! - SeqCst: ???
-//!
-//! - RMW: ???
 
 use crate::rt::object;
 use crate::rt::{
@@ -78,6 +74,9 @@ pub(super) struct State {
     /// Last time the atomic was accessed. This tracks the dependent access for
     /// the DPOR algorithm.
     last_access: Option<Access>,
+
+    /// Last time the atomic was accessed for a store or rmw operation.
+    last_non_load_access: Option<Access>,
 
     /// Currently tracked stored values. This is the `MAX_ATOMIC_HISTORY` most
     /// recent stores to the atomic cell in loom execution order.
@@ -316,6 +315,7 @@ impl State {
             unsync_mut_at: VersionVec::new(),
             is_mutating: false,
             last_access: None,
+            last_non_load_access: None,
             stores: Default::default(),
             cnt: 0,
         };
@@ -658,13 +658,25 @@ impl State {
     }
 
     /// Returns the last dependent access
-    pub(super) fn last_dependent_access(&self) -> Option<&Access> {
-        self.last_access.as_ref()
+    pub(super) fn last_dependent_access(&self, action: Action) -> Option<&Access> {
+        match action {
+            Action::Load => self.last_non_load_access.as_ref(),
+            _ => self.last_access.as_ref(),
+        }
     }
 
     /// Sets the last dependent access
-    pub(super) fn set_last_access(&mut self, path_id: usize, version: &VersionVec) {
+    pub(super) fn set_last_access(&mut self, action: Action, path_id: usize, version: &VersionVec) {
+        // Always set `last_access`
         Access::set_or_create(&mut self.last_access, path_id, version);
+
+        match action {
+            Action::Load => {}
+            _ => {
+                // Stores / RMWs
+                Access::set_or_create(&mut self.last_non_load_access, path_id, version);
+            }
+        }
     }
 }
 
