@@ -284,24 +284,20 @@ impl Path {
     pub(super) fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
         let schedule = object::Ref::from_usize(point)
             .downcast::<Schedule>(&self.branches)
-            .unwrap();
+            .unwrap()
+            .get_mut(&mut self.branches);
 
         // Exhaustive DPOR only requires adding this backtrack point
-        schedule
-            .get_mut(&mut self.branches)
-            .backtrack(thread_id, self.preemption_bound);
+        schedule.backtrack(thread_id, self.preemption_bound);
+
+        let mut curr = if let Some(curr) = schedule.prev {
+            curr
+        } else {
+            return;
+        };
 
         if self.preemption_bound.is_some() {
-            for j in (0..point).rev() {
-                let maybe_schedule =
-                    object::Ref::from_usize(j).downcast::<Schedule>(&self.branches);
-
-                // If the branching point is not a thread schedule, skip it
-                let curr = match maybe_schedule {
-                    Some(schedule) => schedule,
-                    None => continue,
-                };
-
+            loop {
                 // Preemption bounded DPOR requires conservatively adding
                 // another backtrack point to cover cases missed by the bounds.
                 if let Some(prev) = curr.get(&self.branches).prev {
@@ -313,6 +309,8 @@ impl Path {
                             .backtrack(thread_id, self.preemption_bound);
                         return;
                     }
+
+                    curr = prev;
                 } else {
                     // This is the very first schedule
                     curr.get_mut(&mut self.branches)
