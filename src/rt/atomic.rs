@@ -29,11 +29,11 @@
 //!   store that happened in the thread causality will be earlier in the
 //!   modification order.
 
+use crate::rt::location::Location;
 use crate::rt::object;
 use crate::rt::{
     self, thread, Access, Numeric, Synchronize, VersionVec, MAX_ATOMIC_HISTORY, MAX_THREADS,
 };
-use crate::rt::location::Location;
 
 use std::cmp;
 use std::marker::PhantomData;
@@ -173,11 +173,7 @@ impl<T: Numeric> Atomic<T> {
             if execution.path.is_traversed() {
                 let mut seed = [0; MAX_ATOMIC_HISTORY];
 
-                let n = state.match_load_to_stores(
-                    &execution.threads,
-                    &mut seed[..],
-                    ordering,
-                );
+                let n = state.match_load_to_stores(&execution.threads, &mut seed[..], ordering);
 
                 execution.path.push_load(&seed[..n]);
             }
@@ -215,7 +211,12 @@ impl<T: Numeric> Atomic<T> {
             state.track_store(&execution.threads);
 
             // Do the store
-            state.store(&mut execution.threads, Synchronize::new(), val.into_u64(), ordering);
+            state.store(
+                &mut execution.threads,
+                Synchronize::new(),
+                val.into_u64(),
+                ordering,
+            );
         })
     }
 
@@ -349,7 +350,13 @@ impl State {
         store.value
     }
 
-    fn store(&mut self, threads: &mut thread::Set, mut sync: Synchronize, value: u64, ordering: Ordering) {
+    fn store(
+        &mut self,
+        threads: &mut thread::Set,
+        mut sync: Synchronize,
+        value: u64,
+        ordering: Ordering,
+    ) {
         let index = index(self.cnt);
 
         // Increment the count
@@ -396,7 +403,6 @@ impl State {
         failure: Ordering,
         f: impl FnOnce(u64) -> Result<u64, E>,
     ) -> Result<u64, E> {
-
         // Track the load is happening in order to ensure correct
         // synchronization to the underlying cell.
         self.track_load(threads);
@@ -561,8 +567,7 @@ impl State {
         //
         // Add all stores **unless** a newer store has already been seen by the
         // current thread's causality.
-        'outer:
-        for i in 0..self.stores.len() {
+        'outer: for i in 0..self.stores.len() {
             let store_i = &self.stores[i];
 
             if i >= cnt {
@@ -615,8 +620,7 @@ impl State {
 
         // Unlike `match_load_to_stores`, rmw operations only load "newest"
         // stores, in terms of modification order.
-        'outer:
-        for i in 0..self.stores.len() {
+        'outer: for i in 0..self.stores.len() {
             let store_i = &self.stores[i];
 
             if i >= cnt {

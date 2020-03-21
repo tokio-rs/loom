@@ -211,7 +211,9 @@ impl Store {
     ) {
         match &mut self.entries[operation.obj.index] {
             Entry::Arc(entry) => entry.set_last_access(operation.action.into(), path_id, dpor_vv),
-            Entry::Atomic(entry) => entry.set_last_access(operation.action.into(), path_id, dpor_vv),
+            Entry::Atomic(entry) => {
+                entry.set_last_access(operation.action.into(), path_id, dpor_vv)
+            }
             Entry::Mutex(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::Condvar(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::Notify(entry) => entry.set_last_access(path_id, dpor_vv),
