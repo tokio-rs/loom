@@ -225,7 +225,10 @@ impl Path {
                 schedule.threads[i] = v;
 
                 if v.is_active() {
-                    assert!(active.is_none(), "[loom internal bug] only one thread should start as active");
+                    assert!(
+                        active.is_none(),
+                        "[loom internal bug] only one thread should start as active"
+                    );
                     active = Some(i as u8);
                 }
             }
