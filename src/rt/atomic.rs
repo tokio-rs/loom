@@ -756,7 +756,7 @@ fn range(cnt: u16) -> (usize, usize) {
 
     assert!(
         start <= end,
-        "cnt = {}; start = {}; end = {}",
+        "[loom internal bug] cnt = {}; start = {}; end = {}",
         cnt,
         start,
         end
