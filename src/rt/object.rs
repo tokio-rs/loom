@@ -181,9 +181,10 @@ impl<T> Store<T> {
             })
     }
 
-    pub(super) fn iter_mut<'a, O: Object<Entry = T> + 'a>(
-        &'a mut self,
-    ) -> impl DoubleEndedIterator<Item = &mut O> {
+    pub(super) fn iter_mut<'a, O>(&'a mut self) -> impl DoubleEndedIterator<Item = &mut O> 
+    where
+        O: Object<Entry = T> + 'a,
+    {
         self.entries.iter_mut().filter_map(O::get_mut)
     }
 }
