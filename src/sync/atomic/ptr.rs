@@ -8,8 +8,9 @@ pub struct AtomicPtr<T>(Atomic<*mut T>);
 
 impl<T> AtomicPtr<T> {
     /// Creates a new instance of `AtomicPtr`.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn new(v: *mut T) -> AtomicPtr<T> {
-        AtomicPtr(Atomic::new(v))
+        AtomicPtr(Atomic::new(v, location!()))
     }
 
     /// Load the value without any synchronization.
@@ -17,9 +18,9 @@ impl<T> AtomicPtr<T> {
         self.0.unsync_load()
     }
 
-    /// Get a mutable reference to the pointer.
-    pub fn get_mut(&mut self) -> &mut *mut T {
-        self.0.get_mut()
+    /// Get access to a mutable reference to the inner value.
+    pub fn with_mut<R>(&mut self, f: impl FnOnce(&mut *mut T) -> R) -> R {
+        self.0.with_mut(f)
     }
 
     /// Loads a value from the pointer.
@@ -67,6 +68,7 @@ impl<T> AtomicPtr<T> {
 
 impl<T> Default for AtomicPtr<T> {
     fn default() -> AtomicPtr<T> {
-        AtomicPtr::new(std::ptr::null_mut())
+        use std::ptr;
+        AtomicPtr::new(ptr::null_mut())
     }
 }

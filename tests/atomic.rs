@@ -3,46 +3,30 @@
 use loom::sync::atomic::AtomicUsize;
 use loom::thread;
 
-use std::cell::UnsafeCell;
-use std::sync::atomic::Ordering::{AcqRel, Acquire, Release, SeqCst};
+use std::sync::atomic::Ordering::{AcqRel, Acquire, Relaxed, Release};
 use std::sync::Arc;
 
 #[test]
-fn valid_get_mut() {
-    loom::model(|| {
-        let v1 = Arc::new(UnsafeCell::new(AtomicUsize::new(0)));
-        let v2 = v1.clone();
-
-        let th = thread::spawn(move || unsafe {
-            (*v2.get()).store(1, SeqCst);
-        });
-
-        th.join().unwrap();
-
-        let v = unsafe { *(*v1.get()).get_mut() };
-        assert_eq!(1, v);
-    });
-}
-
-#[test]
 #[should_panic]
-fn invalid_get_mut() {
+fn invalid_unsync_load_relaxed() {
     loom::model(|| {
-        let v1 = Arc::new(UnsafeCell::new(AtomicUsize::new(0)));
-        let v2 = v1.clone();
+        let a = Arc::new(AtomicUsize::new(0));
+        let b = a.clone();
 
-        thread::spawn(move || unsafe {
-            (*v2.get()).store(1, SeqCst);
+        let thread = thread::spawn(move || {
+            unsafe { a.unsync_load() };
         });
 
-        let _ = unsafe { *(*v1.get()).get_mut() };
+        b.store(1, Relaxed);
+
+        thread.join().unwrap();
     });
 }
 
 #[test]
 #[ignore]
 #[should_panic]
-fn wut() {
+fn compare_and_swap_reads_old_values() {
     loom::model(|| {
         let a = Arc::new(AtomicUsize::new(0));
         let b = Arc::new(AtomicUsize::new(0));

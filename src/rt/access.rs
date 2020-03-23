@@ -16,7 +16,7 @@ impl Access {
 
     pub(crate) fn set(&mut self, path_id: usize, version: &VersionVec) {
         self.path_id = path_id;
-        self.dpor_vv.set(version);
+        self.dpor_vv = version.clone();
     }
 
     pub(crate) fn set_or_create(access: &mut Option<Self>, path_id: usize, version: &VersionVec) {

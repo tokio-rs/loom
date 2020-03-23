@@ -22,7 +22,10 @@ where
     let notify = Arc::new(rt::Notify::new(false, true));
 
     let mut waker = unsafe {
-        mem::ManuallyDrop::new(Waker::from_raw(RawWaker::new(&*notify as *const _ as *const (), waker_vtable())))
+        mem::ManuallyDrop::new(Waker::from_raw(RawWaker::new(
+            &*notify as *const _ as *const (),
+            waker_vtable(),
+        )))
     };
 
     let mut cx = Context::from_waker(&mut waker);

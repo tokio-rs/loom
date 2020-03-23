@@ -3,23 +3,14 @@ use super::Atomic;
 use std::sync::atomic::Ordering;
 
 /// Mock implementation of `std::sync::atomic::AtomicBool`.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct AtomicBool(Atomic<bool>);
 
 impl AtomicBool {
     /// Creates a new instance of `AtomicBool`.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn new(v: bool) -> AtomicBool {
-        AtomicBool(Atomic::new(v))
-    }
-
-    /// Returns a mutable reference to the underlying bool.
-    ///
-    /// # Panics
-    ///
-    /// This function panics if the access is invalid under the Rust memory
-    /// model.
-    pub fn get_mut(&mut self) -> &mut bool {
-        self.0.get_mut()
+        AtomicBool(Atomic::new(v, location!()))
     }
 
     /// Load the value without any synchronization.
@@ -87,5 +78,11 @@ impl AtomicBool {
     /// Logical "xor" with the current value.
     pub fn fetch_xor(&self, val: bool, order: Ordering) -> bool {
         self.0.rmw(|v| v ^ val, order)
+    }
+}
+
+impl Default for AtomicBool {
+    fn default() -> AtomicBool {
+        AtomicBool::new(Default::default())
     }
 }

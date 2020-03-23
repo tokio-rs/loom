@@ -18,8 +18,8 @@ macro_rules! test_int {
                     let atomic = <$atomic>::new(a);
                     let prev = atomic.fetch_xor(b, SeqCst);
 
-                    assert_eq!(a, prev);
-                    assert_eq!(a ^ b, atomic.load(SeqCst));
+                    assert_eq!(a, prev, "prev did not match");
+                    assert_eq!(a ^ b, atomic.load(SeqCst), "load failed");
                 });
             }
 

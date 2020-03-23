@@ -1,13 +1,13 @@
 #![deny(warnings, rust_2018_idioms)]
 
-use loom::cell::CausalCell;
+use loom::cell::UnsafeCell;
 use loom::sync::atomic::AtomicBool;
 use loom::sync::atomic::Ordering::{Acquire, Release};
 use loom::sync::Arc;
 use loom::thread;
 
 struct State {
-    data: CausalCell<usize>,
+    data: UnsafeCell<usize>,
     guard: AtomicBool,
 }
 
@@ -23,7 +23,7 @@ impl Drop for State {
 fn basic_usage() {
     loom::model(|| {
         let num = Arc::new(State {
-            data: CausalCell::new(0),
+            data: UnsafeCell::new(0),
             guard: AtomicBool::new(false),
         });
 
@@ -50,7 +50,7 @@ fn basic_usage() {
 fn sync_in_drop() {
     loom::model(|| {
         let num = Arc::new(State {
-            data: CausalCell::new(0),
+            data: UnsafeCell::new(0),
             guard: AtomicBool::new(false),
         });
 
@@ -70,7 +70,7 @@ fn sync_in_drop() {
 fn detect_mem_leak() {
     loom::model(|| {
         let num = Arc::new(State {
-            data: CausalCell::new(0),
+            data: UnsafeCell::new(0),
             guard: AtomicBool::new(false),
         });
 

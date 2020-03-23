@@ -5,23 +5,19 @@ use std::sync::atomic::Ordering;
 macro_rules! atomic_int {
     ($name: ident, $atomic_type: ty) => {
         /// Mock implementation of `std::sync::atomic::$name`.
-        #[derive(Debug, Default)]
+        #[derive(Debug)]
         pub struct $name(Atomic<$atomic_type>);
 
         impl $name {
             /// Creates a new instance of `$name`.
+            #[cfg_attr(loom_nightly, track_caller)]
             pub fn new(v: $atomic_type) -> Self {
-                Self(Atomic::new(v))
+                Self(Atomic::new(v, location!()))
             }
 
-            /// Returns a mutable reference to the underlying integer.
-            ///
-            /// # Panics
-            ///
-            /// This function panics if the access is invalid under the Rust memory
-            /// model.
-            pub fn get_mut(&mut self) -> &mut $atomic_type {
-                self.0.get_mut()
+            /// Get access to a mutable reference to the inner value.
+            pub fn with_mut<R>(&mut self, f: impl FnOnce(&mut $atomic_type) -> R) -> R {
+                self.0.with_mut(f)
             }
 
             /// Load the value without any synchronization.
@@ -101,11 +97,19 @@ macro_rules! atomic_int {
                 self.0.rmw(|v| v ^ val, order)
             }
         }
+
+        impl Default for $name {
+            fn default() -> $name {
+                $name::new(Default::default())
+            }
+        }
     };
 }
 
 atomic_int!(AtomicU8, u8);
 atomic_int!(AtomicU16, u16);
 atomic_int!(AtomicU32, u32);
-atomic_int!(AtomicU64, u64);
 atomic_int!(AtomicUsize, usize);
+
+#[cfg(target_pointer_width = "64")]
+atomic_int!(AtomicU64, u64);

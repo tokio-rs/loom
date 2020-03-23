@@ -1,5 +1,5 @@
-use rt::{self, ThreadHandle};
 use _futures::executor;
+use rt::{self, ThreadHandle};
 
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::Relaxed;

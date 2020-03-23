@@ -12,6 +12,3 @@ pub use self::mutex::{Mutex, MutexGuard};
 pub use self::notify::Notify;
 
 pub use std::sync::{LockResult, TryLockResult};
-
-// TODO: deprecate
-pub use super::cell::{CausalCell, CausalCheck};

@@ -1,11 +1,11 @@
-use crate::rt::object::{self, Object};
+use crate::rt::object;
 use crate::rt::{self, Access, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Notify {
-    obj: Object,
+    state: object::Ref<State>,
 }
 
 #[derive(Debug)]
@@ -32,36 +32,34 @@ pub(super) struct State {
 impl Notify {
     pub(crate) fn new(seq_cst: bool, spurious: bool) -> Notify {
         super::execution(|execution| {
-            let obj = execution.objects.insert_notify(State {
+            let state = execution.objects.insert(State {
                 spurious,
                 did_spur: false,
                 seq_cst,
                 notified: false,
                 last_access: None,
-                synchronize: Synchronize::new(execution.max_threads),
+                synchronize: Synchronize::new(),
             });
 
-            Notify { obj }
+            Notify { state }
         })
     }
 
     pub(crate) fn notify(self) {
-        self.obj.branch_opaque();
+        self.state.branch_opaque();
 
         rt::execution(|execution| {
-            {
-                let state = self.get_state(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
 
-                state
-                    .synchronize
-                    .sync_store(&mut execution.threads, Release);
+            state
+                .synchronize
+                .sync_store(&mut execution.threads, Release);
 
-                if state.seq_cst {
-                    execution.threads.seq_cst();
-                }
-
-                state.notified = true;
+            if state.seq_cst {
+                execution.threads.seq_cst();
             }
+
+            state.notified = true;
 
             let (active, inactive) = execution.threads.split_active();
 
@@ -71,7 +69,7 @@ impl Notify {
                     .as_ref()
                     .map(|operation| operation.object());
 
-                if obj == Some(self.obj) {
+                if obj == Some(self.state.erase()) {
                     thread.unpark(active);
                 }
             }
@@ -80,13 +78,13 @@ impl Notify {
 
     pub(crate) fn wait(self) {
         let (notified, spurious) = rt::execution(|execution| {
-            let state = self.get_state(&mut execution.objects);
-
-            let spurious = if state.spurious && !state.did_spur {
+            let spurious = if self.state.get(&execution.objects).might_spur() {
                 execution.path.branch_spurious()
             } else {
                 false
             };
+
+            let state = self.state.get_mut(&mut execution.objects);
 
             if spurious {
                 state.did_spur = true;
@@ -101,15 +99,15 @@ impl Notify {
         }
 
         if notified {
-            self.obj.branch_opaque();
+            self.state.branch_opaque();
         } else {
             // This should become branch_disable
-            self.obj.branch_acquire(true)
+            self.state.branch_acquire(true)
         }
 
         // Thread was notified
         super::execution(|execution| {
-            let state = self.get_state(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
 
             assert!(state.notified);
 
@@ -123,13 +121,13 @@ impl Notify {
             state.notified = false;
         });
     }
-
-    fn get_state<'a>(self, store: &'a mut object::Store) -> &'a mut State {
-        self.obj.notify_mut(store).unwrap()
-    }
 }
 
 impl State {
+    pub(crate) fn might_spur(&self) -> bool {
+        self.spurious && !self.did_spur
+    }
+
     pub(crate) fn last_dependent_access(&self) -> Option<&Access> {
         self.last_access.as_ref()
     }

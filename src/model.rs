@@ -45,14 +45,14 @@ pub struct Builder {
     /// Defaults to `LOOM_CHECKPOINT_INTERVAL` environment variable.
     pub checkpoint_interval: usize,
 
-    /// When `true`, backtraces are captured on each loom operation.
+    /// When `true`, locations are captured on each loom operation.
     ///
     /// Note that is is **very** expensive. It is recommended to first isolate a
-    /// failing iteration using `LOOM_CHECKPOINT_FILE`, then enable backtrace
-    /// collection.
+    /// failing iteration using `LOOM_CHECKPOINT_FILE`, then enable location
+    /// tracking.
     ///
-    /// Defaults to `LOOM_BACKTRACE` environment variable.
-    pub backtrace: bool,
+    /// Defaults to `LOOM_LOCATION` environment variable.
+    pub location: bool,
 
     /// Log execution output to stdout.
     ///
@@ -84,7 +84,7 @@ impl Builder {
             })
             .unwrap_or(DEFAULT_MAX_BRANCHES);
 
-        let backtrace = env::var("LOOM_BACKTRACE").is_ok();
+        let location = env::var("LOOM_LOCATION").is_ok();
 
         let log = env::var("LOOM_LOG").is_ok();
 
@@ -130,7 +130,7 @@ impl Builder {
             preemption_bound,
             checkpoint_file,
             checkpoint_interval,
-            backtrace,
+            location,
             log,
             _p: (),
         }
@@ -154,11 +154,12 @@ impl Builder {
         if let Some(ref path) = self.checkpoint_file {
             if path.exists() {
                 execution.path = checkpoint::load_execution_path(path);
+                execution.path.set_max_branches(self.max_branches);
             }
         }
 
         execution.log = self.log;
-        execution.backtrace = self.backtrace;
+        execution.location = self.location;
 
         let f = Arc::new(f);
 
