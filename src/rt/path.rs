@@ -141,13 +141,13 @@ impl Path {
         for (i, &store) in seed.iter().enumerate() {
             assert!(
                 store < MAX_ATOMIC_HISTORY as u8,
-                "store = {}; max = {}",
+                "[loom internal bug] store = {}; max = {}",
                 store,
                 MAX_ATOMIC_HISTORY
             );
             assert!(
                 i < MAX_ATOMIC_HISTORY,
-                "i = {}; max = {}",
+                "[loom internal bug] i = {}; max = {}",
                 i,
                 MAX_ATOMIC_HISTORY
             );
@@ -159,7 +159,7 @@ impl Path {
 
     /// Returns the atomic write to read
     pub(super) fn branch_load(&mut self) -> usize {
-        assert!(!self.is_traversed());
+        assert!(!self.is_traversed(), "[loom internal bug]");
 
         let load = object::Ref::from_usize(self.pos)
             .downcast::<Load>(&self.branches)
@@ -215,7 +215,7 @@ impl Path {
             // Get a reference to the branch in the object store.
             let schedule = schedule_ref.get_mut(&mut self.branches);
 
-            assert!(seed.len() <= MAX_THREADS);
+            assert!(seed.len() <= MAX_THREADS, "[loom internal bug]");
 
             // Currently active thread
             let mut active = None;
@@ -225,7 +225,7 @@ impl Path {
                 schedule.threads[i] = v;
 
                 if v.is_active() {
-                    assert!(active.is_none(), "only one thread should start as active");
+                    assert!(active.is_none(), "[loom internal bug] only one thread should start as active");
                     active = Some(i as u8);
                 }
             }
@@ -256,7 +256,7 @@ impl Path {
 
             debug_assert!(
                 self.preemption_bound.is_none() || Some(preemptions) <= self.preemption_bound,
-                "max = {:?}; curr = {}",
+                "[loom internal bug] max = {:?}; curr = {}",
                 self.preemption_bound,
                 preemptions,
             );
