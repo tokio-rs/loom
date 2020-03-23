@@ -251,13 +251,15 @@ impl<T> Ref<T> {
 impl<T: Object> Ref<T> {
     /// Get a reference to the object associated with this reference from the store
     pub(super) fn get(self, store: &Store<T::Entry>) -> &T {
-        T::get_ref(&store.entries[self.index]).expect("unexpected object stored at reference")
+        T::get_ref(&store.entries[self.index])
+            .expect("[loom internal bug] unexpected object stored at reference")
     }
 
     /// Get a mutable reference to the object associated with this reference
     /// from the store
     pub(super) fn get_mut(self, store: &mut Store<T::Entry>) -> &mut T {
-        T::get_mut(&mut store.entries[self.index]).expect("unexpected object stored at reference")
+        T::get_mut(&mut store.entries[self.index])
+            .expect("[loom internal bug] unexpected object stored at reference")
     }
 }
 
