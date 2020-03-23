@@ -1,6 +1,10 @@
 use crate::rt;
 
 /// A checked version of `std::cell::UnsafeCell`.
+///
+/// Instead of providing a `get()` API, this version of `UnsafeCell` provides
+/// `with` and `with_mut`. Both functions take a closure in order to track the
+/// start and end of the access to the underlying cell.
 #[derive(Debug)]
 pub struct UnsafeCell<T> {
     /// Causality associated with the cell
