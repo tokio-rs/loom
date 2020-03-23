@@ -417,7 +417,7 @@ impl Schedule {
         if let Some(bound) = preemption_bound {
             assert!(
                 self.preemptions <= bound,
-                "actual = {}, bound = {}",
+                "[loom internal bug] actual = {}, bound = {}",
                 self.preemptions,
                 bound
             );
