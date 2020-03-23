@@ -380,7 +380,7 @@ impl Path {
                     return true;
                 }
             } else {
-                panic!();
+                unreachable!();
             }
         }
 
