@@ -112,6 +112,12 @@
 //! **read** from the same atomic variable, loom does not attempt another
 //! execution given that the order in which two threads read from the same
 //! atomic cannot impact the execution.
+//!
+//! # Additional reading
+//!
+//! For more usage details, see the [README]
+//!
+//! [README]: https://github.com/tokio-rs/loom
 
 macro_rules! if_futures {
     ($($t:tt)*) => {
