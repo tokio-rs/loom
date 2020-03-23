@@ -25,8 +25,8 @@ pub(crate) struct Execution {
 
     pub(super) max_history: usize,
 
-    /// Capture backtraces for significant events
-    pub(crate) backtrace: bool,
+    /// Capture locations for significant events
+    pub(crate) location: bool,
 
     /// Log execution output to STDOUT
     pub(crate) log: bool,
@@ -59,7 +59,7 @@ impl Execution {
             raw_allocations: HashMap::new(),
             max_threads,
             max_history: 7,
-            backtrace: false,
+            location: false,
             log: false,
         }
     }
@@ -87,7 +87,7 @@ impl Execution {
         let id = Id::new();
         let max_threads = self.max_threads;
         let max_history = self.max_history;
-        let backtrace = self.backtrace;
+        let location = self.location;
         let log = self.log;
         let mut path = self.path;
         let mut objects = self.objects;
@@ -112,7 +112,7 @@ impl Execution {
             raw_allocations,
             max_threads,
             max_history,
-            backtrace,
+            location,
             log,
         })
     }

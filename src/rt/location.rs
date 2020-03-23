@@ -2,7 +2,7 @@ pub(crate) use cfg::Location;
 
 macro_rules! location {
     () => {{
-        let enabled = crate::rt::execution(|execution| execution.backtrace);
+        let enabled = crate::rt::execution(|execution| execution.location);
 
         if enabled {
             #[cfg(loom_nightly)]
