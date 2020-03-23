@@ -8,6 +8,16 @@ model. It uses state reduction techniques to avoid combinatorial explosion.
 
 [Documentation](https://docs.rs/loom)
 
+## Overview
+
+Loom is an implementation of techniques described in [CDSChecker: Checking
+Concurrent Data Structures Written with C/C++ Atomics][cdschecker]. It is a
+library for writing unit tests where all possible thread interleavings are
+checked. It also is check all possible atomic cell behaviors and validate
+correct access to `UnsafeCell`.
+
+[cdschecker]: http://demsky.eecs.uci.edu/publications/c11modelcheck.pdf
+
 ## Getting started
 
 To use `loom`, first add this to your `Cargo.toml`:
@@ -208,33 +218,6 @@ LOOM_LOG=1 \
     [other env vars] \
     cargo test --test loom_my_struct [failing test]
 ```
-
-## Overview
-
-Loom is an implementation of techniques described in [CDSChecker: Checking
-Concurrent Data Structures Written with C/C++ Atomics][cdschecker].
-
-[cdschecker]: http://demsky.eecs.uci.edu/publications/c11modelcheck.pdf
-
-### Thread ordering
-
-TODO
-
-### Atomics
-
-In the C++11 memory model, stores to a single atomic cell are totally ordered.
-This is the modification order. Loom permutes the modification order of each
-atomic cell within the bounds of the coherence rules.
-
-
-## Limitations
-
-While already very useful, loom is in its early stages and has a number of
-limitations.
-
-* Execution is slow (#5).
-* The full C11 memory model is not implemented (#6).
-* No fence support (#7).
 
 ## License
 
