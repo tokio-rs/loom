@@ -8,7 +8,7 @@
 //!
 //!   On `load`, all stores are iterated, finding stores that were read by
 //!   actions in the current thread's causality. These loads happen-before the
-//!   current load. The `motification_order` of these happen-before loads are
+//!   current load. The `modification_order` of these happen-before loads are
 //!   joined into the current load's `modification_order`.
 //!
 //! - Write-Read:
