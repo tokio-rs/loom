@@ -29,7 +29,7 @@
 //!   store that happened in the thread causality will be earlier in the
 //!   modification order.
 
-use crate::rt::location::Location;
+use crate::rt::location::{self, Location, LocationSet};
 use crate::rt::object;
 use crate::rt::{
     self, thread, Access, Numeric, Synchronize, VersionVec, MAX_ATOMIC_HISTORY, MAX_THREADS,
@@ -54,11 +54,20 @@ pub(super) struct State {
     /// Transitive closure of all atomic loads from the cell.
     loaded_at: VersionVec,
 
+    /// Location for the *last* time a thread atomically loaded from the cell.
+    loaded_locations: LocationSet,
+
     /// Transitive closure of all **unsynchronized** loads from the cell.
     unsync_loaded_at: VersionVec,
 
+    /// Location for the *last* time a thread read **synchronized** from the cell.
+    unsync_loaded_locations: LocationSet,
+
     /// Transitive closure of all atomic stores to the cell.
     stored_at: VersionVec,
+
+    /// Location for the *last* time a thread atomically stored to the cell.
+    stored_locations: LocationSet,
 
     /// Version of the most recent **unsynchronized** mutable access to the
     /// cell.
@@ -66,6 +75,9 @@ pub(super) struct State {
     /// This includes the initialization of the cell as well as any calls to
     /// `get_mut`.
     unsync_mut_at: VersionVec,
+
+    /// Location for the *last* time a thread `with_mut` from the cell.
+    unsync_mut_locations: LocationSet,
 
     /// `true` when in a `with_mut` closure. If this is set, there can be no
     /// access to the cell.
@@ -163,7 +175,7 @@ impl<T: Numeric> Atomic<T> {
     }
 
     /// Loads a value from the atomic cell.
-    pub(crate) fn load(&self, ordering: Ordering) -> T {
+    pub(crate) fn load(&self, location: Location, ordering: Ordering) -> T {
         self.branch(Action::Load);
 
         super::synchronize(|execution| {
@@ -181,14 +193,18 @@ impl<T: Numeric> Atomic<T> {
             // Get the store to return from this load.
             let index = execution.path.branch_load();
 
-            T::from_u64(state.load(&mut execution.threads, index, ordering))
+            T::from_u64(state.load(&mut execution.threads, index, location, ordering))
         })
     }
 
     /// Loads a value from the atomic cell without performing synchronization
-    pub(crate) fn unsync_load(&self) -> T {
+    pub(crate) fn unsync_load(&self, location: Location) -> T {
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
+
+            state
+                .unsync_loaded_locations
+                .track(location, &execution.threads);
 
             // An unsync load counts as a "read" access
             state.track_unsync_load(&execution.threads);
@@ -200,11 +216,13 @@ impl<T: Numeric> Atomic<T> {
     }
 
     /// Stores a value into the atomic cell.
-    pub(crate) fn store(&self, val: T, ordering: Ordering) {
+    pub(crate) fn store(&self, location: Location, val: T, ordering: Ordering) {
         self.branch(Action::Store);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
+
+            state.stored_locations.track(location, &execution.threads);
 
             // An atomic store counts as a read access to the underlying memory
             // cell.
@@ -220,7 +238,13 @@ impl<T: Numeric> Atomic<T> {
         })
     }
 
-    pub(crate) fn rmw<F, E>(&self, success: Ordering, failure: Ordering, f: F) -> Result<T, E>
+    pub(crate) fn rmw<F, E>(
+        &self,
+        location: Location,
+        success: Ordering,
+        failure: Ordering,
+        f: F,
+    ) -> Result<T, E>
     where
         F: FnOnce(T) -> Result<T, E>,
     {
@@ -241,9 +265,14 @@ impl<T: Numeric> Atomic<T> {
             let index = execution.path.branch_load();
 
             state
-                .rmw(&mut execution.threads, index, success, failure, |num| {
-                    f(T::from_u64(num)).map(T::into_u64)
-                })
+                .rmw(
+                    &mut execution.threads,
+                    index,
+                    location,
+                    success,
+                    failure,
+                    |num| f(T::from_u64(num)).map(T::into_u64),
+                )
                 .map(T::from_u64)
         })
     }
@@ -251,10 +280,13 @@ impl<T: Numeric> Atomic<T> {
     /// Access a mutable reference to value most recently stored.
     ///
     /// `with_mut` must happen-after all stores to the cell.
-    pub(crate) fn with_mut<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
+    pub(crate) fn with_mut<R>(&mut self, location: Location, f: impl FnOnce(&mut T) -> R) -> R {
         let value = super::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
 
+            state
+                .unsync_mut_locations
+                .track(location, &execution.threads);
             // Verify the mutation may happen
             state.track_unsync_mut(&execution.threads);
             state.is_mutating = true;
@@ -311,9 +343,13 @@ impl State {
         let mut state = State {
             created_location: location,
             loaded_at: VersionVec::new(),
+            loaded_locations: LocationSet::new(),
             unsync_loaded_at: VersionVec::new(),
+            unsync_loaded_locations: LocationSet::new(),
             stored_at: VersionVec::new(),
+            stored_locations: LocationSet::new(),
             unsync_mut_at: VersionVec::new(),
+            unsync_mut_locations: LocationSet::new(),
             is_mutating: false,
             last_access: None,
             last_non_load_access: None,
@@ -336,7 +372,14 @@ impl State {
         state
     }
 
-    fn load(&mut self, threads: &mut thread::Set, index: usize, ordering: Ordering) -> u64 {
+    fn load(
+        &mut self,
+        threads: &mut thread::Set,
+        index: usize,
+        location: Location,
+        ordering: Ordering,
+    ) -> u64 {
+        self.loaded_locations.track(location, threads);
         // Validate memory safety
         self.track_load(threads);
 
@@ -399,10 +442,13 @@ impl State {
         &mut self,
         threads: &mut thread::Set,
         index: usize,
+        location: Location,
         success: Ordering,
         failure: Ordering,
         f: impl FnOnce(u64) -> Result<u64, E>,
     ) -> Result<u64, E> {
+        self.loaded_locations.track(location, threads);
+
         // Track the load is happening in order to ensure correct
         // synchronization to the underlying cell.
         self.track_load(threads);
@@ -416,6 +462,7 @@ impl State {
 
         match f(prev) {
             Ok(next) => {
+                self.stored_locations.track(location, threads);
                 // Track a store operation happened
                 self.track_store(threads);
 
@@ -464,11 +511,17 @@ impl State {
 
         let current = &threads.active().causality;
 
-        assert!(
-            self.unsync_mut_at <= *current,
-            "Causality violation: \
-             Concurrent load and mut accesses"
-        );
+        if let Some(mut_at) = current.ahead(&self.unsync_mut_at) {
+            location::panic("Causality violation: Concurrent load and mut accesses.")
+                .location("created", self.created_location)
+                .thread("with_mut", mut_at, self.unsync_mut_locations[mut_at])
+                .thread(
+                    "load",
+                    threads.active_id(),
+                    self.unsync_mut_locations[threads],
+                )
+                .fire();
+        }
 
         self.loaded_at.join(current);
     }
@@ -479,17 +532,29 @@ impl State {
 
         let current = &threads.active().causality;
 
-        assert!(
-            self.unsync_mut_at <= *current,
-            "Causality violation: \
-             Concurrent `unsync_load` and mut accesses"
-        );
+        if let Some(loaded) = current.ahead(&self.unsync_loaded_at) {
+            location::panic("Causality violation: Concurrent `unsync_load` and mut accesses.")
+                .location("created", self.created_location)
+                .thread("mut", loaded, self.unsync_loaded_locations[loaded])
+                .thread(
+                    "unsync_load",
+                    threads.active_id(),
+                    self.unsync_loaded_locations[threads],
+                )
+                .fire();
+        }
 
-        assert!(
-            self.stored_at <= *current,
-            "Causality violation: \
-             Concurrent `unsync_load` and atomic store"
-        );
+        if let Some(stored) = current.ahead(&self.stored_at) {
+            location::panic("Causality violation: Concurrent `unsync_load` and atomic store.")
+                .location("created", self.created_location)
+                .thread("atomic store", stored, self.stored_locations[stored])
+                .thread(
+                    "unsync_load",
+                    threads.active_id(),
+                    self.unsync_loaded_locations[threads],
+                )
+                .fire();
+        }
 
         self.unsync_loaded_at.join(current);
     }
@@ -500,17 +565,31 @@ impl State {
 
         let current = &threads.active().causality;
 
-        assert!(
-            self.unsync_mut_at <= *current,
-            "Causality violation: \
-             Concurrent atomic store and mut accesses"
-        );
+        if let Some(mut_at) = current.ahead(&self.unsync_mut_at) {
+            location::panic("Causality violation: Concurrent atomic store and mut accesses.")
+                .location("created", self.created_location)
+                .thread("with_mut", mut_at, self.unsync_mut_locations[mut_at])
+                .thread(
+                    "atomic store",
+                    threads.active_id(),
+                    self.stored_locations[threads],
+                )
+                .fire();
+        }
 
-        assert!(
-            self.unsync_loaded_at <= *current,
-            "Causality violation: \
-             Concurrent `unsync_load` and atomic store"
-        );
+        if let Some(loaded) = current.ahead(&self.unsync_loaded_at) {
+            location::panic(
+                "Causality violation: Concurrent atomic store and `unsync_load` accesses.",
+            )
+            .location("created", self.created_location)
+            .thread("unsync_load", loaded, self.unsync_loaded_locations[loaded])
+            .thread(
+                "atomic store",
+                threads.active_id(),
+                self.stored_locations[threads],
+            )
+            .fire();
+        }
 
         self.stored_at.join(current);
     }
@@ -521,29 +600,57 @@ impl State {
 
         let current = &threads.active().causality;
 
-        assert!(
-            self.loaded_at <= *current,
-            "Causality violation: \
-             Concurrent atomic load and unsync mut accesses"
-        );
+        if let Some(loaded) = current.ahead(&self.loaded_at) {
+            location::panic("Causality violation: Concurrent atomic load and unsync mut accesses.")
+                .location("created", self.created_location)
+                .thread("atomic load", loaded, self.loaded_locations[loaded])
+                .thread(
+                    "with_mut",
+                    threads.active_id(),
+                    self.unsync_mut_locations[threads],
+                )
+                .fire();
+        }
 
-        assert!(
-            self.unsync_loaded_at <= *current,
-            "Causality violation: \
-             Concurrent `unsync_load` and unsync mut accesses"
-        );
+        if let Some(loaded) = current.ahead(&self.unsync_loaded_at) {
+            location::panic(
+                "Causality violation: Concurrent `unsync_load` and unsync mut accesses.",
+            )
+            .location("created", self.created_location)
+            .thread("unsync_load", loaded, self.unsync_loaded_locations[loaded])
+            .thread(
+                "with_mut",
+                threads.active_id(),
+                self.unsync_mut_locations[threads],
+            )
+            .fire();
+        }
 
-        assert!(
-            self.stored_at <= *current,
-            "Causality violation: \
-             Concurrent atomic store and unsync mut accesses"
-        );
+        if let Some(stored) = current.ahead(&self.stored_at) {
+            location::panic(
+                "Causality violation: Concurrent atomic store and unsync mut accesses.",
+            )
+            .location("created", self.created_location)
+            .thread("atomic store", stored, self.stored_locations[stored])
+            .thread(
+                "with_mut",
+                threads.active_id(),
+                self.unsync_mut_locations[threads],
+            )
+            .fire();
+        }
 
-        assert!(
-            self.unsync_mut_at <= *current,
-            "Causality violation: \
-             Concurrent unsync mut accesses"
-        );
+        if let Some(mut_at) = current.ahead(&self.unsync_mut_at) {
+            location::panic("Causality violation: Concurrent unsync mut accesses.")
+                .location("created", self.created_location)
+                .thread("with_mut one", mut_at, self.unsync_mut_locations[mut_at])
+                .thread(
+                    "with_mut two",
+                    threads.active_id(),
+                    self.unsync_mut_locations[threads],
+                )
+                .fire();
+        }
 
         self.unsync_mut_at.join(current);
     }
