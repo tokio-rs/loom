@@ -1,4 +1,18 @@
-# 0.2.15 (February 25, 2019)
+# 0.3.0 (March 24, 2020)
+
+### Breaking
+- `CausalCell` is renamed `UnsafeCell`
+- `Atomic*::get_mut()` is removed in favor of `with` and `with_mut` fns.
+- The max threads setting is removed.
+
+### Fixed
+- Atomic coherence checking better matches the spec.
+
+### Added
+- Models execute much faster
+- Loom types are able to perform location tracking for improved error output.
+
+# 0.2.15 (February 25, 2020)
 
 ### Fixed
 - avoid global happens-before with `SeqCst` ordering (#108).

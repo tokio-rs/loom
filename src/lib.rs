@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/loom/0.2.15")]
+#![doc(html_root_url = "https://docs.rs/loom/0.3.0")]
 #![deny(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 #![cfg_attr(loom_nightly, feature(track_caller))]
 
