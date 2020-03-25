@@ -103,6 +103,9 @@ impl PanicBuilder {
         if let Some(width) = width {
             msg = format!("\n{}", msg);
             for (key, thread, location) in &self.locations {
+                if !location.is_captured() {
+                    continue;
+                }
                 let spaces: String = (0..width - key.len()).map(|_| " ").collect();
 
                 let th = thread
