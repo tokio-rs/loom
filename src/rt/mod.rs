@@ -32,6 +32,9 @@ pub(crate) use self::num::Numeric;
 #[macro_use]
 pub(crate) mod object;
 
+mod mpsc;
+pub(crate) use self::mpsc::Channel;
+
 mod mutex;
 pub(crate) use self::mutex::Mutex;
 

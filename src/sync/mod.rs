@@ -3,6 +3,7 @@
 mod arc;
 pub mod atomic;
 mod condvar;
+pub mod mpsc;
 mod mutex;
 mod notify;
 mod rwlock;
