@@ -12,6 +12,24 @@ pub struct UnsafeCell<T: ?Sized> {
     data: std::cell::UnsafeCell<T>,
 }
 
+/// Token for tracking immutable access to the wrapped value.
+///
+/// This token must be held for as long as the access lasts.
+#[derive(Debug)]
+pub struct UnsafeCellRefToken<T: ?Sized> {
+    data: *const T,
+    token: rt::CellRefToken,
+}
+
+/// Token for tracking mutable access to the wrapped value.
+///
+/// This token must be held for as long as the access lasts.
+#[derive(Debug)]
+pub struct UnsafeCellMutToken<T: ?Sized> {
+    data: *mut T,
+    token: rt::CellMutToken,
+}
+
 impl<T> UnsafeCell<T> {
     /// Constructs a new instance of `UnsafeCell` which will wrap the specified value.
     #[cfg_attr(loom_nightly, track_caller)]
@@ -54,6 +72,36 @@ impl<T: ?Sized> UnsafeCell<T> {
     {
         self.state.with_mut(location!(), || f(self.data.get()))
     }
+
+    /// Get an `UnsafeCellRefToken` that provides scoped immutable access to the
+    /// wrapped value.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the access is not valid under the Rust memory
+    /// model.
+    pub unsafe fn guard_ref_access(&self) -> UnsafeCellRefToken<T> {
+        let token = self.state.guard_ref_access(location!());
+        UnsafeCellRefToken {
+            data: self.data.get() as *const T,
+            token,
+        }
+    }
+
+    /// Get an `UnsafeCellMutToken` that provides scoped mutable access to the
+    /// wrapped value.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the access is not valid under the Rust memory
+    /// model.
+    pub unsafe fn guard_mut_access(&self) -> UnsafeCellMutToken<T> {
+        let token = self.state.guard_mut_access(location!());
+        UnsafeCellMutToken {
+            data: self.data.get(),
+            token,
+        }
+    }
 }
 
 impl<T: Default> Default for UnsafeCell<T> {
@@ -65,5 +113,19 @@ impl<T: Default> Default for UnsafeCell<T> {
 impl<T> From<T> for UnsafeCell<T> {
     fn from(src: T) -> UnsafeCell<T> {
         UnsafeCell::new(src)
+    }
+}
+
+impl<T: ?Sized> UnsafeCellRefToken<T> {
+    /// Get an immutable pointer to the wrapped value.
+    pub const fn get(&self) -> *const T {
+        self.data
+    }
+}
+
+impl<T: ?Sized> UnsafeCellMutToken<T> {
+    /// Get a mutable pointer to the wrapped value.
+    pub const fn get(&self) -> *mut T {
+        self.data
     }
 }
