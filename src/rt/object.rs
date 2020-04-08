@@ -120,6 +120,9 @@ objects! {
     // State associated with a modeled thread notifier.
     Notify(rt::notify::State),
 
+    // State associated with an RwLock
+    RwLock(rt::rwlock::State),
+
     // Tracks access to a memory cell
     Cell(rt::cell::State),
 }
@@ -197,6 +200,7 @@ impl Store {
             Entry::Mutex(entry) => entry.last_dependent_access(),
             Entry::Condvar(entry) => entry.last_dependent_access(),
             Entry::Notify(entry) => entry.last_dependent_access(),
+            Entry::RwLock(entry) => entry.last_dependent_access(),
             obj => panic!(
                 "object is not branchable {:?}; ref = {:?}",
                 obj, operation.obj
@@ -218,6 +222,7 @@ impl Store {
             Entry::Mutex(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::Condvar(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::Notify(entry) => entry.set_last_access(path_id, dpor_vv),
+            Entry::RwLock(entry) => entry.set_last_access(path_id, dpor_vv),
             _ => panic!("object is not branchable"),
         }
     }
