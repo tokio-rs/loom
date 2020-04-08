@@ -65,7 +65,7 @@ impl Cell {
         }
 
         // Enter the read closure
-        let _reset = rt::execution(|execution| {
+        let _reset = rt::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
 
             assert!(!state.is_writing, "currently writing to cell");
@@ -101,7 +101,7 @@ impl Cell {
         }
 
         // Enter the read closure
-        let _reset = rt::execution(|execution| {
+        let _reset = rt::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
 
             assert!(state.is_reading == 0, "currently reading from cell");
