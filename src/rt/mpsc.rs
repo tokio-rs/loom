@@ -1,4 +1,5 @@
 use crate::rt::{object, Access, Synchronize, VersionVec};
+use std::collections::VecDeque;
 use std::sync::atomic::Ordering::{Acquire, Release};
 
 #[derive(Debug)]
@@ -16,8 +17,25 @@ pub(super) struct State {
     /// Last access that was a receive operation.
     last_recv_access: Option<Access>,
 
-    /// Causality transfers between threads
-    synchronize: Synchronize,
+    /// A synchronization point for synchronizing the sending threads and the
+    /// channel.
+    ///
+    /// The `mpsc` channels have a guarantee that the messages will be received
+    /// in the same order in which they were sent. Therefore, if thread `t1`
+    /// managed to send `m1` before `t2` sent `m2`, the thread that received
+    /// `m2` can be sure that `m1` was already sent and received. In other
+    /// words, it is sound for the receiver of `m2` to know that `m1` happened
+    /// before `m2`. That is why we have a single `sender_synchronize` for
+    /// senders which we use to "timestamp" each message put in the channel.
+    /// However, in our example, the receiver of `m1` does not know whether `m2`
+    /// was already sent or not and, therefore, by reading from the channel it
+    /// should not learn any facts about `happens_before(send(m2), recv(m1))`.
+    /// That is why we cannot use single `Synchronize` for the entire channel
+    /// and on the receiver side we need to use `Synchronize` per message.
+    sender_synchronize: Synchronize,
+    /// A synchronization point per message synchronizing the receiving thread
+    /// with the channel state at the point when the received message was sent.
+    receiver_synchronize: VecDeque<Synchronize>,
 }
 
 /// Actions performed on the Channel.
@@ -36,7 +54,8 @@ impl Channel {
                 msg_cnt: 0,
                 last_send_access: None,
                 last_recv_access: None,
-                synchronize: Synchronize::new(),
+                sender_synchronize: Synchronize::new(),
+                receiver_synchronize: VecDeque::new(),
             });
             Self { state }
         })
@@ -49,8 +68,11 @@ impl Channel {
             state.msg_cnt = state.msg_cnt.checked_add(1).expect("overflow");
 
             state
-                .synchronize
+                .sender_synchronize
                 .sync_store(&mut execution.threads, Release);
+            state
+                .receiver_synchronize
+                .push_back(state.sender_synchronize.clone());
 
             if state.msg_cnt == 1 {
                 // Unblock all threads that are blocked waiting on this channel
@@ -82,7 +104,8 @@ impl Channel {
                 .msg_cnt
                 .checked_sub(1)
                 .expect("expected to be able to read the message");
-            dbg!(state.synchronize.sync_load(&mut execution.threads, Acquire));
+            let mut synchronize = state.receiver_synchronize.pop_front().unwrap();
+            dbg!(synchronize.sync_load(&mut execution.threads, Acquire));
             if state.msg_cnt == 0 {
                 // Block all **other** threads attempting to read from the channel
                 for (id, thread) in execution.threads.iter_mut() {
