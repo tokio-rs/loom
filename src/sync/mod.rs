@@ -2,6 +2,7 @@
 
 mod arc;
 pub mod atomic;
+mod barrier;
 mod condvar;
 pub mod mpsc;
 mod mutex;
@@ -9,6 +10,7 @@ mod notify;
 mod rwlock;
 
 pub use self::arc::Arc;
+pub use self::barrier::Barrier;
 pub use self::condvar::{Condvar, WaitTimeoutResult};
 pub use self::mutex::{Mutex, MutexGuard};
 pub use self::notify::Notify;
