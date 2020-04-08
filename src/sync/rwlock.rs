@@ -103,6 +103,11 @@ impl<T> RwLock<T> {
             Err(TryLockError::WouldBlock)
         }
     }
+
+    /// Consumes this `RwLock`, returning the underlying data.
+    pub fn into_inner(self) -> LockResult<T> {
+        unimplemented!()
+    }
 }
 
 impl<'a, T> ops::Deref for RwLockReadGuard<'a, T> {
