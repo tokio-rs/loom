@@ -1,95 +1,69 @@
 use crate::rt;
 
 use std::sync::atomic::Ordering;
-use std::sync::Mutex;
 
 #[derive(Debug)]
-pub struct Atomic<T> {
+pub(crate) struct Atomic<T> {
     /// Atomic object
-    object: rt::Atomic,
-
-    /// All stores to the atomic
-    values: Mutex<Vec<T>>,
+    state: rt::Atomic<T>,
 }
-
-unsafe impl<T> Send for Atomic<T> {}
-unsafe impl<T> Sync for Atomic<T> {}
 
 impl<T> Atomic<T>
 where
-    T: Copy + PartialEq,
+    T: rt::Numeric,
 {
-    pub fn new(value: T) -> Atomic<T> {
-        Atomic {
-            object: rt::Atomic::new(),
-            values: Mutex::new(vec![value]),
-        }
+    pub(crate) fn new(value: T, location: rt::Location) -> Atomic<T> {
+        let state = rt::Atomic::new(value, location);
+
+        Atomic { state }
     }
 
-    pub fn get_mut(&mut self) -> &mut T {
-        self.object.get_mut();
-        self.values.get_mut().unwrap().last_mut().unwrap()
+    #[cfg_attr(loom_nightly, track_caller)]
+    pub(crate) unsafe fn unsync_load(&self) -> T {
+        self.state.unsync_load(location!())
     }
 
-    pub unsafe fn unsync_load(&self) -> T {
-        self.object.get_mut();
-        *self.values.lock().unwrap().last().unwrap()
+    #[cfg_attr(loom_nightly, track_caller)]
+    pub(crate) fn load(&self, order: Ordering) -> T {
+        self.state.load(location!(), order)
     }
 
-    pub fn load(&self, order: Ordering) -> T {
-        let object = self.object;
-        let index = self.object.load(order);
-        assert!(object == self.object, "atomic instance changed mid schedule, most likely due to a bug in the algorithm being checked");
-        self.values.lock().unwrap()[index]
+    #[cfg_attr(loom_nightly, track_caller)]
+    pub(crate) fn store(&self, value: T, order: Ordering) {
+        self.state.store(location!(), value, order)
     }
 
-    pub fn store(&self, value: T, order: Ordering) {
-        let object = self.object;
-        self.object.store(order);
-        assert!(object == self.object, "atomic instance changed mid schedule, most likely due to a bug in the algorithm being checked");
-        self.values.lock().unwrap().push(value);
+    #[cfg_attr(loom_nightly, track_caller)]
+    pub(crate) fn with_mut<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
+        self.state.with_mut(location!(), f)
     }
 
     /// Read-modify-write
     ///
     /// Always reads the most recent write
-    pub fn rmw<F>(&self, f: F, order: Ordering) -> T
+    #[cfg_attr(loom_nightly, track_caller)]
+    pub(crate) fn rmw<F>(&self, f: F, order: Ordering) -> T
     where
         F: FnOnce(T) -> T,
     {
-        self.try_rmw(|v| Ok::<_, ()>(f(v)), order, order).unwrap()
+        self.try_rmw::<_, ()>(order, order, |v| Ok(f(v))).unwrap()
     }
 
-    fn try_rmw<F, E>(&self, f: F, success: Ordering, failure: Ordering) -> Result<T, E>
+    #[cfg_attr(loom_nightly, track_caller)]
+    fn try_rmw<F, E>(&self, success: Ordering, failure: Ordering, f: F) -> Result<T, E>
     where
         F: FnOnce(T) -> Result<T, E>,
     {
-        let object = self.object;
-        let index = self.object.rmw(
-            |index| {
-                let v = f(self.values.lock().unwrap()[index]);
-                match v {
-                    Ok(next) => {
-                        self.values.lock().unwrap().push(next);
-                        Ok(())
-                    }
-                    Err(e) => Err(e),
-                }
-            },
-            success,
-            failure,
-        )?;
-
-        assert!(object == self.object, "atomic instance changed mid schedule, most likely due to a bug in the algorithm being checked");
-
-        Ok(self.values.lock().unwrap()[index])
+        self.state.rmw(location!(), success, failure, f)
     }
 
-    pub fn swap(&self, val: T, order: Ordering) -> T {
+    #[cfg_attr(loom_nightly, track_caller)]
+    pub(crate) fn swap(&self, val: T, order: Ordering) -> T {
         self.rmw(|_| val, order)
     }
 
-    pub fn compare_and_swap(&self, current: T, new: T, order: Ordering) -> T {
+    #[cfg_attr(loom_nightly, track_caller)]
+    pub(crate) fn compare_and_swap(&self, current: T, new: T, order: Ordering) -> T {
         use self::Ordering::*;
 
         let failure = match order {
@@ -104,32 +78,20 @@ where
         }
     }
 
-    pub fn compare_exchange(
+    #[cfg_attr(loom_nightly, track_caller)]
+    pub(crate) fn compare_exchange(
         &self,
         current: T,
         new: T,
         success: Ordering,
         failure: Ordering,
     ) -> Result<T, T> {
-        self.try_rmw(
-            |actual| {
-                if actual == current {
-                    Ok(new)
-                } else {
-                    Err(actual)
-                }
-            },
-            success,
-            failure,
-        )
-    }
-}
-
-impl<T> Default for Atomic<T>
-where
-    T: Default + Copy + PartialEq,
-{
-    fn default() -> Atomic<T> {
-        Atomic::new(T::default())
+        self.try_rmw(success, failure, |actual| {
+            if actual == current {
+                Ok(new)
+            } else {
+                Err(actual)
+            }
+        })
     }
 }

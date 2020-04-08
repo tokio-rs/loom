@@ -1,16 +1,15 @@
-use crate::rt::{execution, thread};
+use crate::rt::{execution, object, thread, MAX_ATOMIC_HISTORY, MAX_THREADS};
 
 #[cfg(feature = "checkpoint")]
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
 
 /// An execution path
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub(crate) struct Path {
-    preemption_bound: Option<usize>,
+    preemption_bound: Option<u8>,
 
-    /// Current execution's position in the branch index.
+    /// Current execution's position in the branches vec.
     ///
     /// When the execution starts, this is zero, but `branches` might not be
     /// empty.
@@ -19,47 +18,56 @@ pub(crate) struct Path {
     /// set of branches.
     pos: usize,
 
-    /// Sequence of all decisions in a loom execution that can be permuted.
+    /// List of all branches in the execution.
     ///
-    /// This vec tracks the branch kind and index into one of the vecs below.
-    /// Each branch kind is tracked separately to make backtracking algorithms
-    /// simpler.
-    branches: Vec<Branch>,
-
-    /// Tracks threads to be scheduled
-    schedules: Vec<Schedule>,
-
-    /// Atomic writes
-    writes: Vec<VecDeque<usize>>,
-
-    /// Tracks spurious notifications
-    spurious: Vec<VecDeque<bool>>,
-
-    /// Maximum number of branches to explore
-    max_branches: usize,
-}
-
-#[derive(Debug, Clone, Copy)]
-#[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
-enum Branch {
-    Schedule(usize),
-    Write(usize),
-    Spurious(usize),
+    /// A branch is of type `Schedule`, `Load`, or `Spurious`
+    branches: object::Store<Entry>,
 }
 
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub(crate) struct Schedule {
-    pub(crate) preemptions: usize,
+    /// Number of times the thread leading to this branch point has been
+    /// pre-empted.
+    preemptions: u8,
 
-    pub(crate) initial_active: Option<usize>,
+    /// The thread that was active first
+    initial_active: Option<u8>,
 
-    pub(crate) threads: Vec<Thread>,
+    /// State of each thread
+    threads: [Thread; MAX_THREADS],
 
-    init_threads: Vec<Thread>,
+    /// The previous schedule branch
+    prev: Option<object::Ref<Schedule>>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug)]
+#[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
+pub(crate) struct Load {
+    /// All possible values
+    values: [u8; MAX_ATOMIC_HISTORY],
+
+    /// Current value
+    pos: u8,
+
+    /// Number of values in list
+    len: u8,
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
+pub(crate) struct Spurious(bool);
+
+objects! {
+    #[derive(Debug)]
+    #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
+    Entry,
+    Schedule(Schedule),
+    Load(Load),
+    Spurious(Spurious),
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub(crate) enum Thread {
     /// The thread is currently disabled
@@ -81,257 +89,341 @@ pub(crate) enum Thread {
     Visited,
 }
 
+macro_rules! assert_path_len {
+    ($branches:expr) => {{
+        assert!(
+            $branches.len() < $branches.capacity(),
+            "Model exeeded maximum number of branches. This is often caused \
+             by an algorithm requiring the processor to make progress, e.g. \
+             spin locks.",
+        );
+    }};
+}
+
 impl Path {
-    /// New Path
-    pub(crate) fn new(max_branches: usize, preemption_bound: Option<usize>) -> Path {
+    /// Create a new, blank, configured to branch at most `max_branches` times
+    /// and at most `preemption_bound` thread preemptions.
+    pub(crate) fn new(max_branches: usize, preemption_bound: Option<u8>) -> Path {
         Path {
             preemption_bound,
-            branches: vec![],
             pos: 0,
-            schedules: vec![],
-            writes: vec![],
-            spurious: vec![],
-            max_branches,
+            branches: object::Store::with_capacity(max_branches),
         }
     }
 
-    pub(crate) fn pos(&self) -> usize {
+    pub(crate) fn set_max_branches(&mut self, max_branches: usize) {
+        self.branches
+            .reserve_exact(max_branches - self.branches.len());
+    }
+
+    /// Returns `true` if the execution has reached a point where the known path
+    /// has been traversed and has reached a new branching point.
+    pub(super) fn is_traversed(&self) -> bool {
+        self.pos == self.branches.len()
+    }
+
+    pub(super) fn pos(&self) -> usize {
         self.pos
     }
 
-    /// Returns the atomic write to read
-    pub(crate) fn branch_write<I>(&mut self, seed: I) -> usize
-    where
-        I: Iterator<Item = usize>,
-    {
-        use self::Branch::Write;
+    /// Push a new atomic-load branch
+    pub(super) fn push_load(&mut self, seed: &[u8]) {
+        assert_path_len!(self.branches);
 
-        assert!(
-            self.branches.len() < self.max_branches,
-            "actual = {}",
-            self.branches.len()
-        );
+        let load_ref = self.branches.insert(Load {
+            values: [0; MAX_ATOMIC_HISTORY],
+            pos: 0,
+            len: 0,
+        });
 
-        if self.pos == self.branches.len() {
-            let i = self.writes.len();
+        let load = load_ref.get_mut(&mut self.branches);
 
-            let writes: VecDeque<_> = seed.collect();
-            self.writes.push(writes);
-            self.branches.push(Branch::Write(i));
+        for (i, &store) in seed.iter().enumerate() {
+            assert!(
+                store < MAX_ATOMIC_HISTORY as u8,
+                "[loom internal bug] store = {}; max = {}",
+                store,
+                MAX_ATOMIC_HISTORY
+            );
+            assert!(
+                i < MAX_ATOMIC_HISTORY,
+                "[loom internal bug] i = {}; max = {}",
+                i,
+                MAX_ATOMIC_HISTORY
+            );
+
+            load.values[i] = store as u8;
+            load.len += 1;
         }
+    }
 
-        let i = match self.branches[self.pos] {
-            Write(i) => i,
-            _ => panic!("path entry {} is not a write", self.pos),
-        };
+    /// Returns the atomic write to read
+    pub(super) fn branch_load(&mut self) -> usize {
+        assert!(!self.is_traversed(), "[loom internal bug]");
+
+        let load = object::Ref::from_usize(self.pos)
+            .downcast::<Load>(&self.branches)
+            .expect("Reached unexpected exploration state. Is the model fully determistic?")
+            .get(&self.branches);
 
         self.pos += 1;
 
-        self.writes[i][0]
+        load.values[load.pos as usize] as usize
     }
 
     /// Branch on spurious notifications
-    pub(crate) fn branch_spurious(&mut self) -> bool {
-        use self::Branch::Spurious;
+    pub(super) fn branch_spurious(&mut self) -> bool {
+        if self.is_traversed() {
+            assert_path_len!(self.branches);
 
-        assert!(
-            self.branches.len() < self.max_branches,
-            "actual = {}",
-            self.branches.len()
-        );
-
-        if self.pos == self.branches.len() {
-            let i = self.spurious.len();
-
-            let spurious: VecDeque<_> = vec![false, true].into();
-            self.spurious.push(spurious);
-            self.branches.push(Branch::Spurious(i));
+            self.branches.insert(Spurious(false));
         }
 
-        let i = match self.branches[self.pos] {
-            Spurious(i) => i,
-            _ => panic!("path entry {} is not a spurious wait", self.pos),
-        };
+        let spurious = object::Ref::from_usize(self.pos)
+            .downcast::<Spurious>(&self.branches)
+            .expect("Reached unexpected exploration state. Is the model fully determistic?")
+            .get(&self.branches)
+            .0;
 
         self.pos += 1;
-        self.spurious[i][0]
+        spurious
     }
 
     /// Returns the thread identifier to schedule
-    pub(crate) fn branch_thread<I>(
+    pub(super) fn branch_thread(
         &mut self,
         execution_id: execution::Id,
-        seed: I,
-    ) -> Option<thread::Id>
-    where
-        I: Iterator<Item = Thread>,
-    {
-        assert!(
-            self.branches.len() < self.max_branches,
-            "actual = {}",
-            self.branches.len()
-        );
+        seed: impl ExactSizeIterator<Item = Thread>,
+    ) -> Option<thread::Id> {
+        if self.is_traversed() {
+            assert_path_len!(self.branches);
 
-        if self.pos == self.branches.len() {
+            // Find the last thread scheduling branch in the path
+            let prev = self.last_schedule();
+
             // Entering a new exploration space.
+            //
+            // Initialize a  new branch. The initial field values don't matter
+            // as they will be updated below.
+            let schedule_ref = self.branches.insert(Schedule {
+                preemptions: 0,
+                initial_active: None,
+                threads: [Thread::Disabled; MAX_THREADS],
+                prev,
+            });
 
-            let i = self.schedules.len();
+            // Get a reference to the branch in the object store.
+            let schedule = schedule_ref.get_mut(&mut self.branches);
 
-            let mut threads: Vec<_> = seed.collect();
+            assert!(seed.len() <= MAX_THREADS, "[loom internal bug]");
 
-            let num_active = threads.iter().filter(|th| th.is_active()).count();
-            assert!(num_active <= 1, "num_active = {}", num_active);
+            // Currently active thread
+            let mut active = None;
+
+            for (i, v) in seed.enumerate() {
+                // Initialize thread states
+                schedule.threads[i] = v;
+
+                if v.is_active() {
+                    assert!(
+                        active.is_none(),
+                        "[loom internal bug] only one thread should start as active"
+                    );
+                    active = Some(i as u8);
+                }
+            }
 
             // Ensure at least one thread is active, otherwise toggle a yielded
             // thread.
-            if num_active == 0 {
-                for th in &mut threads {
+            if active.is_none() {
+                for (i, th) in schedule.threads.iter_mut().enumerate() {
                     if *th == Thread::Yield {
                         *th = Thread::Active;
+                        active = Some(i as u8);
+                        break;
                     }
                 }
             }
 
-            let curr_active = active(&threads);
+            let mut initial_active = active;
 
-            let initial_active = if let Some(prev) = self.schedules.last() {
-                if curr_active == active(&prev.threads) {
-                    curr_active
-                } else {
-                    None
+            if let Some(prev) = prev {
+                if initial_active != prev.get(&self.branches).active_thread_index() {
+                    initial_active = None;
                 }
-            } else {
-                curr_active
-            };
+            }
 
-            let preemptions = if let Some(prev) = self.schedules.last() {
-                let mut preemptions = prev.preemptions;
+            let preemptions = prev
+                .map(|prev| prev.get(&self.branches).preemptions())
+                .unwrap_or(0);
 
-                if prev.initial_active.is_some() && prev.initial_active != active(&prev.threads) {
-                    preemptions += 1;
-                }
-
-                preemptions
-            } else {
-                0
-            };
-
-            let threads_clone = threads.clone();
-            self.schedules.push(Schedule {
+            debug_assert!(
+                self.preemption_bound.is_none() || Some(preemptions) <= self.preemption_bound,
+                "[loom internal bug] max = {:?}; curr = {}",
+                self.preemption_bound,
                 preemptions,
-                threads,
-                initial_active,
-                init_threads: threads_clone,
-            });
+            );
 
-            self.branches.push(Branch::Schedule(i));
+            let schedule = schedule_ref.get_mut(&mut self.branches);
+            schedule.initial_active = initial_active;
+            schedule.preemptions = preemptions;
         }
 
-        let i = match self.branches[self.pos] {
-            Branch::Schedule(i) => i,
-            _ => panic!(),
-        };
+        let schedule = object::Ref::from_usize(self.pos)
+            .downcast::<Schedule>(&self.branches)
+            .expect("Reached unexpected exploration state. Is the model fully determistic?")
+            .get(&self.branches);
 
         self.pos += 1;
 
-        let threads = &mut self.schedules[i].threads;
-
-        threads
-            .iter_mut()
+        schedule
+            .threads
+            .iter()
             .enumerate()
             .find(|&(_, ref th)| th.is_active())
             .map(|(i, _)| thread::Id::new(execution_id, i))
     }
 
-    pub(crate) fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
-        let index = match self.branches[point] {
-            Branch::Schedule(index) => index,
-            _ => panic!(),
-        };
+    pub(super) fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
+        let schedule = object::Ref::from_usize(point)
+            .downcast::<Schedule>(&self.branches)
+            .unwrap()
+            .get_mut(&mut self.branches);
 
         // Exhaustive DPOR only requires adding this backtrack point
-        self.schedules[index].backtrack(thread_id, self.preemption_bound);
+        schedule.backtrack(thread_id, self.preemption_bound);
+
+        let mut curr = if let Some(curr) = schedule.prev {
+            curr
+        } else {
+            return;
+        };
 
         if self.preemption_bound.is_some() {
-            if index > 0 {
-                for j in (1..index).rev() {
-                    // Preemption bounded DPOR requires conservatively adding another
-                    // backtrack point to cover cases missed by the bounds.
-                    if active(&self.schedules[j].threads) != active(&self.schedules[j - 1].threads)
-                    {
-                        self.schedules[j].backtrack(thread_id, self.preemption_bound);
+            loop {
+                // Preemption bounded DPOR requires conservatively adding
+                // another backtrack point to cover cases missed by the bounds.
+                if let Some(prev) = curr.get(&self.branches).prev {
+                    let active_a = curr.get(&self.branches).active_thread_index();
+                    let active_b = prev.get(&self.branches).active_thread_index();
+
+                    if active_a != active_b {
+                        curr.get_mut(&mut self.branches)
+                            .backtrack(thread_id, self.preemption_bound);
                         return;
                     }
-                }
 
-                self.schedules[0].backtrack(thread_id, self.preemption_bound);
+                    curr = prev;
+                } else {
+                    // This is the very first schedule
+                    curr.get_mut(&mut self.branches)
+                        .backtrack(thread_id, self.preemption_bound);
+                    return;
+                }
             }
         }
     }
 
-    /// Returns `false` if there are no more paths to explore
-    pub(crate) fn step(&mut self) -> bool {
-        use self::Branch::*;
-
+    /// Reset the path to prepare for the next exploration of the model.
+    ///
+    /// This function will also trim the object store, dropping any objects that
+    /// are created in pruned sections of the path.
+    pub(super) fn step(&mut self) -> bool {
+        // Reset the position to zero, the path will start traversing from the
+        // beginning
         self.pos = 0;
 
-        while self.branches.len() > 0 {
-            match self.branches.last().unwrap() {
-                &Schedule(i) => {
-                    // Transition the active thread to visited.
-                    self.schedules[i]
-                        .threads
-                        .iter_mut()
-                        .find(|th| th.is_active())
-                        .map(|th| *th = Thread::Visited);
+        // Set the final branch to try the next option. If all options have been
+        // traversed, pop the final branch and try again w/ the one under it.
+        //
+        // This is depth-first tree traversal.
+        //
+        for last in (0..self.branches.len()).rev() {
+            let last = object::Ref::from_usize(last);
 
-                    // Find a pending thread and transition it to active
-                    let rem = self.schedules[i]
-                        .threads
-                        .iter_mut()
-                        .find(|th| th.is_pending())
-                        .map(|th| {
-                            *th = Thread::Active;
-                        })
-                        .is_some();
+            // Remove all objects that were created **after** this branch
+            self.branches.truncate(last);
 
-                    if !rem {
-                        self.branches.pop();
-                        self.schedules.pop();
-                        continue;
-                    }
+            if let Some(schedule_ref) = last.downcast::<Schedule>(&self.branches) {
+                let schedule = schedule_ref.get_mut(&mut self.branches);
+
+                // Transition the active thread to visited.
+                schedule
+                    .threads
+                    .iter_mut()
+                    .find(|th| th.is_active())
+                    .map(|th| *th = Thread::Visited);
+
+                // Find a pending thread and transition it to active
+                let rem = schedule
+                    .threads
+                    .iter_mut()
+                    .find(|th| th.is_pending())
+                    .map(|th| {
+                        *th = Thread::Active;
+                    })
+                    .is_some();
+
+                if rem {
+                    return true;
                 }
-                &Write(i) => {
-                    self.writes[i].pop_front();
+            } else if let Some(load_ref) = last.downcast::<Load>(&self.branches) {
+                let load = load_ref.get_mut(&mut self.branches);
 
-                    if self.writes[i].is_empty() {
-                        self.branches.pop();
-                        self.writes.pop();
-                        continue;
-                    }
-                }
-                &Spurious(i) => {
-                    self.spurious[i].pop_front();
+                load.pos += 1;
 
-                    if self.spurious[i].is_empty() {
-                        self.branches.pop();
-                        self.spurious.pop();
-                        continue;
-                    }
+                if load.pos < load.len {
+                    return true;
                 }
+            } else if let Some(spurious_ref) = last.downcast::<Spurious>(&self.branches) {
+                let spurious = spurious_ref.get_mut(&mut self.branches);
+
+                if !spurious.0 {
+                    spurious.0 = true;
+                    return true;
+                }
+            } else {
+                unreachable!();
             }
-
-            return true;
         }
 
         false
     }
+
+    fn last_schedule(&self) -> Option<object::Ref<Schedule>> {
+        self.branches.iter_ref::<Schedule>().rev().next()
+    }
 }
 
 impl Schedule {
-    fn backtrack(&mut self, thread_id: thread::Id, preemption_bound: Option<usize>) {
+    /// Returns the index of the currently active thread
+    fn active_thread_index(&self) -> Option<u8> {
+        self.threads
+            .iter()
+            .enumerate()
+            .find(|(_, th)| th.is_active())
+            .map(|(index, _)| index as u8)
+    }
+
+    /// Compute the number of preemptions for the current state of the branch
+    fn preemptions(&self) -> u8 {
+        if self.initial_active.is_some() {
+            if self.initial_active != self.active_thread_index() {
+                return self.preemptions + 1;
+            }
+        }
+
+        self.preemptions
+    }
+
+    fn backtrack(&mut self, thread_id: thread::Id, preemption_bound: Option<u8>) {
         if let Some(bound) = preemption_bound {
-            assert!(self.preemptions <= bound, "actual = {}", self.preemptions);
+            assert!(
+                self.preemptions <= bound,
+                "[loom internal bug] actual = {}, bound = {}",
+                self.preemptions,
+                bound
+            );
 
             if self.preemptions == bound {
                 return;
@@ -385,13 +477,4 @@ impl Thread {
     fn is_disabled(&self) -> bool {
         *self == Thread::Disabled
     }
-}
-
-fn active(threads: &[Thread]) -> Option<usize> {
-    // Get the index of the currently active thread
-    threads
-        .iter()
-        .enumerate()
-        .find(|(_, th)| th.is_active())
-        .map(|(index, _)| index)
 }

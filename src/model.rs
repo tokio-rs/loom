@@ -15,25 +15,48 @@ pub struct Builder {
     pub max_threads: usize,
 
     /// Maximum number of thread switches per permutation.
+    ///
+    /// Defaults to `LOOM_MAX_BRANCHES` environment variable.
     pub max_branches: usize,
 
     /// Maximum number of permutations to explore.
+    ///
+    /// Defaults to `LOOM_MAX_PERMUTATIONS` environment variable.
     pub max_permutations: Option<usize>,
 
     /// Maximum amount of time to spend on checking
+    ///
+    /// Defaults to `LOOM_MAX_DURATION` environment variable.
     pub max_duration: Option<Duration>,
 
     /// Maximum number of thread preemptions to explore
+    ///
+    /// Defaults to `LOOM_MAX_PREEMPTIONS` environment variable.
     pub preemption_bound: Option<usize>,
 
     /// When doing an exhaustive check, uses the file to store and load the
     /// check progress
+    ///
+    /// Defaults to `LOOM_CHECKPOINT_FILE` environment variable.
     pub checkpoint_file: Option<PathBuf>,
 
     /// How often to write the checkpoint file
+    ///
+    /// Defaults to `LOOM_CHECKPOINT_INTERVAL` environment variable.
     pub checkpoint_interval: usize,
 
+    /// When `true`, locations are captured on each loom operation.
+    ///
+    /// Note that is is **very** expensive. It is recommended to first isolate a
+    /// failing iteration using `LOOM_CHECKPOINT_FILE`, then enable location
+    /// tracking.
+    ///
+    /// Defaults to `LOOM_LOCATION` environment variable.
+    pub location: bool,
+
     /// Log execution output to stdout.
+    ///
+    /// Defaults to existance of `LOOM_LOG` environment variable.
     pub log: bool,
 
     // Support adding more fields in the future
@@ -60,6 +83,8 @@ impl Builder {
                     .expect("invalid value for `LOOM_MAX_BRANCHES`")
             })
             .unwrap_or(DEFAULT_MAX_BRANCHES);
+
+        let location = env::var("LOOM_LOCATION").is_ok();
 
         let log = env::var("LOOM_LOG").is_ok();
 
@@ -105,6 +130,7 @@ impl Builder {
             preemption_bound,
             checkpoint_file,
             checkpoint_interval,
+            location,
             log,
             _p: (),
         }
@@ -128,10 +154,12 @@ impl Builder {
         if let Some(ref path) = self.checkpoint_file {
             if path.exists() {
                 execution.path = checkpoint::load_execution_path(path);
+                execution.path.set_max_branches(self.max_branches);
             }
         }
 
         execution.log = self.log;
+        execution.location = self.location;
 
         let f = Arc::new(f);
 
@@ -184,6 +212,9 @@ impl Builder {
 }
 
 /// Run all concurrent permutations of the provided closure.
+///
+/// Uses a default [`Builder`](crate::model::Builder) which can be affected
+/// by environment variables.
 pub fn model<F>(f: F)
 where
     F: Fn() + Sync + Send + 'static,

@@ -22,7 +22,7 @@ pub(crate) struct Thread {
     pub dpor_vv: VersionVec,
 
     /// Version at which the thread last yielded
-    pub last_yield: Option<usize>,
+    pub last_yield: Option<u16>,
 
     /// Number of times the thread yielded
     pub yield_count: usize,
@@ -70,14 +70,14 @@ struct LocalKeyId(usize);
 struct LocalValue(Option<Box<dyn Any>>);
 
 impl Thread {
-    fn new(id: Id, max_threads: usize) -> Thread {
+    fn new(id: Id) -> Thread {
         Thread {
             id,
             state: State::Runnable,
             critical: false,
             operation: None,
-            causality: VersionVec::new(max_threads),
-            dpor_vv: VersionVec::new(max_threads),
+            causality: VersionVec::new(),
+            dpor_vv: VersionVec::new(),
             last_yield: None,
             yield_count: 0,
             locals: HashMap::new(),
@@ -176,13 +176,13 @@ impl Set {
         let mut threads = Vec::with_capacity(max_threads);
 
         // Push initial thread
-        threads.push(Thread::new(Id::new(execution_id, 0), max_threads));
+        threads.push(Thread::new(Id::new(execution_id, 0)));
 
         Set {
             execution_id,
             threads,
             active: Some(0),
-            seq_cst_causality: VersionVec::new(max_threads),
+            seq_cst_causality: VersionVec::new(),
         }
     }
 
@@ -196,11 +196,10 @@ impl Set {
 
         // Get the identifier for the thread about to be created
         let id = self.threads.len();
-        let max_threads = self.threads.capacity();
 
         // Push the thread onto the stack
         self.threads
-            .push(Thread::new(Id::new(self.execution_id, id), max_threads));
+            .push(Thread::new(Id::new(self.execution_id, id)));
 
         Id::new(self.execution_id, id)
     }
@@ -250,7 +249,7 @@ impl Set {
         self.active_mut().causality.inc(id);
     }
 
-    pub(crate) fn active_atomic_version(&self) -> usize {
+    pub(crate) fn active_atomic_version(&self) -> u16 {
         let id = self.active_id();
         self.active().causality[id]
     }
@@ -267,26 +266,21 @@ impl Set {
 
     /// Insert a point of sequential consistency
     pub(crate) fn seq_cst(&mut self) {
-        self.threads[self.active.unwrap()]
-            .causality
-            .join(&self.seq_cst_causality);
-        self.seq_cst_causality
-            .join(&self.threads[self.active.unwrap()].causality);
+        // The previous implementation of sequential consistency was incorrect.
+        // As a quick fix, just disable it. This may fail to model correct code,
+        // but will not silently allow bugs.
     }
 
     pub(crate) fn clear(&mut self, execution_id: execution::Id) {
         self.threads.clear();
-        self.threads.push(Thread::new(
-            Id::new(execution_id, 0),
-            self.threads.capacity(),
-        ));
+        self.threads.push(Thread::new(Id::new(execution_id, 0)));
 
         self.execution_id = execution_id;
         self.active = Some(0);
-        self.seq_cst_causality = VersionVec::new(self.max());
+        self.seq_cst_causality = VersionVec::new();
     }
 
-    pub(crate) fn iter<'a>(&'a self) -> impl Iterator<Item = (Id, &'a Thread)> + 'a {
+    pub(crate) fn iter<'a>(&'a self) -> impl ExactSizeIterator<Item = (Id, &'a Thread)> + 'a {
         let execution_id = self.execution_id;
         self.threads
             .iter()
@@ -294,7 +288,9 @@ impl Set {
             .map(move |(id, thread)| (Id::new(execution_id, id), thread))
     }
 
-    pub(crate) fn iter_mut<'a>(&'a mut self) -> impl Iterator<Item = (Id, &'a mut Thread)> {
+    pub(crate) fn iter_mut<'a>(
+        &'a mut self,
+    ) -> impl ExactSizeIterator<Item = (Id, &'a mut Thread)> {
         let execution_id = self.execution_id;
         self.threads
             .iter_mut()
@@ -358,6 +354,12 @@ impl Id {
 
     pub(crate) fn as_usize(self) -> usize {
         self.id
+    }
+}
+
+impl From<Id> for usize {
+    fn from(src: Id) -> usize {
+        src.id
     }
 }
 

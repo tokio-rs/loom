@@ -1,11 +1,11 @@
-use crate::rt::object::{self, Object};
+use crate::rt::object;
 use crate::rt::{self, thread, Access, Mutex, VersionVec};
 
 use std::collections::VecDeque;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub(crate) struct Condvar {
-    obj: Object,
+    state: object::Ref<State>,
 }
 
 #[derive(Debug)]
@@ -21,21 +21,21 @@ impl Condvar {
     /// Create a new condition variable object
     pub(crate) fn new() -> Condvar {
         super::execution(|execution| {
-            let obj = execution.objects.insert_condvar(State {
+            let state = execution.objects.insert(State {
                 last_access: None,
                 waiters: VecDeque::new(),
             });
 
-            Condvar { obj }
+            Condvar { state }
         })
     }
 
     /// Blocks the current thread until this condition variable receives a notification.
     pub(crate) fn wait(&self, mutex: &Mutex) {
-        self.obj.branch_opaque();
+        self.state.branch_opaque();
 
         rt::execution(|execution| {
-            let state = self.get_state(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
 
             // Track the current thread as a waiter
             state.waiters.push_back(execution.threads.active_id());
@@ -53,10 +53,10 @@ impl Condvar {
 
     /// Wakes up one blocked thread on this condvar.
     pub(crate) fn notify_one(&self) {
-        self.obj.branch_opaque();
+        self.state.branch_opaque();
 
         rt::execution(|execution| {
-            let state = self.get_state(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
 
             // Notify the first waiter
             let thread = state.waiters.pop_front();
@@ -69,19 +69,15 @@ impl Condvar {
 
     /// Wakes up all blocked threads on this condvar.
     pub(crate) fn notify_all(&self) {
-        self.obj.branch_opaque();
+        self.state.branch_opaque();
 
         rt::execution(|execution| {
-            let state = self.get_state(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
 
             for thread in state.waiters.drain(..) {
                 execution.threads.unpark(thread);
             }
         })
-    }
-
-    fn get_state<'a>(&self, store: &'a mut object::Store) -> &'a mut State {
-        self.obj.condvar_mut(store).unwrap()
     }
 }
 

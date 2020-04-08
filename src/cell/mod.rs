@@ -1,5 +1,5 @@
 //! Shareable mutable containers.
 
-mod causal;
+mod unsafe_cell;
 
-pub use self::causal::{CausalCell, CausalCheck};
+pub use self::unsafe_cell::UnsafeCell;

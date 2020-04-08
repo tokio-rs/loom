@@ -10,6 +10,13 @@ pub(crate) use self::arc::Arc;
 mod atomic;
 pub(crate) use self::atomic::{fence, Atomic};
 
+#[macro_use]
+mod location;
+pub(crate) use self::location::Location;
+
+mod cell;
+pub(crate) use self::cell::Cell;
+
 mod condvar;
 pub(crate) use self::condvar::Condvar;
 
@@ -19,6 +26,10 @@ pub(crate) use self::execution::Execution;
 mod notify;
 pub(crate) use self::notify::Notify;
 
+mod num;
+pub(crate) use self::num::Numeric;
+
+#[macro_use]
 pub(crate) mod object;
 
 mod mutex;
@@ -40,6 +51,12 @@ pub(crate) mod thread;
 
 mod vv;
 pub(crate) use self::vv::VersionVec;
+
+/// Maximum number of threads that can be included in a model.
+pub(crate) const MAX_THREADS: usize = 4;
+
+/// Maximum number of atomic store history to track per-cell.
+pub(crate) const MAX_ATOMIC_HISTORY: usize = 7;
 
 pub fn spawn<F>(f: F)
 where
@@ -88,8 +105,8 @@ where
     F: FnOnce(&mut Execution) -> R,
 {
     execution(|execution| {
-        let ret = f(execution);
         execution.threads.active_causality_inc();
+        let ret = f(execution);
         ret
     })
 }
@@ -108,30 +125,6 @@ pub fn yield_now() {
     if switch {
         Scheduler::switch();
     }
-}
-
-/// Critical section, may not branch.
-pub fn critical<F, R>(f: F) -> R
-where
-    F: FnOnce() -> R,
-{
-    struct Reset;
-
-    impl Drop for Reset {
-        fn drop(&mut self) {
-            execution(|execution| {
-                execution.unset_critical();
-            });
-        }
-    }
-
-    let _reset = Reset;
-
-    execution(|execution| {
-        execution.set_critical();
-    });
-
-    f()
 }
 
 pub(crate) fn execution<F, R>(f: F) -> R

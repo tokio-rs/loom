@@ -14,6 +14,3 @@ pub use self::notify::Notify;
 pub use self::rwlock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 pub use std::sync::{LockResult, TryLockResult};
-
-// TODO: deprecate
-pub use super::cell::{CausalCell, CausalCheck};

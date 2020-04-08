@@ -1,15 +1,12 @@
-use crate::rt::{
-    execution,
-    object::{self, Object},
-    thread, Access, Synchronize, VersionVec,
-};
+use crate::rt::object;
+use crate::rt::{thread, Access, Execution, Synchronize, VersionVec};
 
 use std::collections::HashSet;
 use std::sync::atomic::Ordering::{Acquire, Release};
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub(crate) struct RwLock {
-    obj: Object,
+    state: object::Ref<State>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -35,20 +32,20 @@ impl RwLock {
     /// Common RwLock function
     pub(crate) fn new() -> RwLock {
         super::execution(|execution| {
-            let obj = execution.objects.insert_rwlock(State {
+            let state = execution.objects.insert(State {
                 lock: None,
                 last_access: None,
-                synchronize: Synchronize::new(execution.max_threads),
+                synchronize: Synchronize::new(),
             });
 
-            RwLock { obj }
+            RwLock { state }
         })
     }
 
     /// Acquire the read lock.
     /// Fail to acquire read lock if already *write* locked.
     pub(crate) fn acquire_read_lock(&self) {
-        self.obj.branch_acquire(self.is_write_locked());
+        self.state.branch_acquire(self.is_write_locked());
         assert!(
             self.post_acquire_read_lock(),
             "expected to be able to acquire read lock"
@@ -58,7 +55,7 @@ impl RwLock {
     /// Acquire write lock.
     /// Fail to acquire write lock if either read or write locked.
     pub(crate) fn acquire_write_lock(&self) {
-        self.obj
+        self.state
             .branch_acquire(self.is_write_locked() || self.is_read_locked());
         assert!(
             self.post_acquire_write_lock(),
@@ -67,18 +64,18 @@ impl RwLock {
     }
 
     pub(crate) fn try_acquire_read_lock(&self) -> bool {
-        self.obj.branch_opaque();
+        self.state.branch_opaque();
         self.post_acquire_read_lock()
     }
 
     pub(crate) fn try_acquire_write_lock(&self) -> bool {
-        self.obj.branch_opaque();
+        self.state.branch_opaque();
         self.post_acquire_write_lock()
     }
 
     pub(crate) fn release_read_lock(&self) {
         super::execution(|execution| {
-            let state = self.get_state(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
 
             state.lock = None;
 
@@ -97,7 +94,7 @@ impl RwLock {
 
     pub(crate) fn release_write_lock(&self) {
         super::execution(|execution| {
-            let state = self.get_state(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
 
             state.lock = None;
 
@@ -114,7 +111,7 @@ impl RwLock {
         });
     }
 
-    fn lock_out_threads(&self, execution: &mut execution::Execution, thread_id: thread::Id) {
+    fn lock_out_threads(&self, execution: &mut Execution, thread_id: thread::Id) {
         // TODO: This and the following function look very similar.
         // Refactor the two to DRY the code.
         for (id, thread) in execution.threads.iter_mut() {
@@ -127,13 +124,13 @@ impl RwLock {
                 .as_ref()
                 .map(|operation| operation.object());
 
-            if obj == Some(self.obj) {
+            if obj == Some(self.state.erase()) {
                 thread.set_blocked();
             }
         }
     }
 
-    fn unlock_threads(&self, execution: &mut execution::Execution, thread_id: thread::Id) {
+    fn unlock_threads(&self, execution: &mut Execution, thread_id: thread::Id) {
         // TODO: This and the above function look very similar.
         // Refactor the two to DRY the code.
         for (id, thread) in execution.threads.iter_mut() {
@@ -146,20 +143,16 @@ impl RwLock {
                 .as_ref()
                 .map(|operation| operation.object());
 
-            if obj == Some(self.obj) {
+            if obj == Some(self.state.erase()) {
                 thread.set_runnable();
             }
         }
     }
 
-    fn get_state<'a>(&self, objects: &'a mut object::Store) -> &'a mut State {
-        self.obj.rwlock_mut(objects).unwrap()
-    }
-
     /// Returns `true` if RwLock is read locked
     fn is_read_locked(&self) -> bool {
         super::execution(
-            |execution| match self.get_state(&mut execution.objects).lock {
+            |execution| match self.state.get(&mut execution.objects).lock {
                 Some(Locked::Read(_)) => true,
                 _ => false,
             },
@@ -169,7 +162,7 @@ impl RwLock {
     /// Returns `true` if RwLock is write locked.
     fn is_write_locked(&self) -> bool {
         super::execution(
-            |execution| match self.get_state(&mut execution.objects).lock {
+            |execution| match self.state.get(&mut execution.objects).lock {
                 Some(Locked::Write(_)) => true,
                 _ => false,
             },
@@ -178,7 +171,7 @@ impl RwLock {
 
     fn post_acquire_read_lock(&self) -> bool {
         super::execution(|execution| {
-            let mut state = self.get_state(&mut execution.objects);
+            let mut state = self.state.get_mut(&mut execution.objects);
             let thread_id = execution.threads.active_id();
 
             // Set the lock to the current thread
@@ -217,7 +210,7 @@ impl RwLock {
 
     fn post_acquire_write_lock(&self) -> bool {
         super::execution(|execution| {
-            let state = self.get_state(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
             let thread_id = execution.threads.active_id();
 
             // Set the lock to the current thread
@@ -239,7 +232,7 @@ impl RwLock {
 }
 
 impl State {
-    pub(crate) fn last_dependent_accesses<'a>(&'a self) -> Option<&Access> {
+    pub(crate) fn last_dependent_access(&self) -> Option<&Access> {
         self.last_access.as_ref()
     }
 

@@ -1,11 +1,11 @@
-use crate::rt::object::{self, Object};
+use crate::rt::object;
 use crate::rt::{thread, Access, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub(crate) struct Mutex {
-    obj: Object,
+    state: object::Ref<State>,
 }
 
 #[derive(Debug)]
@@ -27,30 +27,30 @@ pub(super) struct State {
 impl Mutex {
     pub(crate) fn new(seq_cst: bool) -> Mutex {
         super::execution(|execution| {
-            let obj = execution.objects.insert_mutex(State {
+            let state = execution.objects.insert(State {
                 seq_cst,
                 lock: None,
                 last_access: None,
-                synchronize: Synchronize::new(execution.max_threads),
+                synchronize: Synchronize::new(),
             });
 
-            Mutex { obj }
+            Mutex { state }
         })
     }
 
     pub(crate) fn acquire_lock(&self) {
-        self.obj.branch_acquire(self.is_locked());
+        self.state.branch_acquire(self.is_locked());
         assert!(self.post_acquire(), "expected to be able to acquire lock");
     }
 
     pub(crate) fn try_acquire_lock(&self) -> bool {
-        self.obj.branch_opaque();
+        self.state.branch_opaque();
         self.post_acquire()
     }
 
     pub(crate) fn release_lock(&self) {
         super::execution(|execution| {
-            let state = self.get_state(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
 
             // Release the lock flag
             state.lock = None;
@@ -76,7 +76,7 @@ impl Mutex {
                     .as_ref()
                     .map(|operation| operation.object());
 
-                if obj == Some(self.obj) {
+                if obj == Some(self.state.erase()) {
                     thread.set_runnable();
                 }
             }
@@ -85,7 +85,7 @@ impl Mutex {
 
     fn post_acquire(&self) -> bool {
         super::execution(|execution| {
-            let state = self.get_state(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
             let thread_id = execution.threads.active_id();
 
             if state.lock.is_some() {
@@ -113,7 +113,7 @@ impl Mutex {
                     .as_ref()
                     .map(|operation| operation.object());
 
-                if obj == Some(self.obj) {
+                if obj == Some(self.state.erase()) {
                     thread.set_blocked();
                 }
             }
@@ -124,11 +124,7 @@ impl Mutex {
 
     /// Returns `true` if the mutex is currently locked
     fn is_locked(&self) -> bool {
-        super::execution(|execution| self.get_state(&mut execution.objects).lock.is_some())
-    }
-
-    fn get_state<'a>(&self, objects: &'a mut object::Store) -> &'a mut State {
-        self.obj.mutex_mut(objects).unwrap()
+        super::execution(|execution| self.state.get(&execution.objects).lock.is_some())
     }
 }
 

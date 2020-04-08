@@ -1,6 +1,6 @@
-#![doc(html_root_url = "https://docs.rs/loom/0.2.14")]
+#![doc(html_root_url = "https://docs.rs/loom/0.3.0")]
 #![deny(missing_debug_implementations, missing_docs, rust_2018_idioms)]
-#![cfg_attr(test, deny(warnings))]
+#![cfg_attr(loom_nightly, feature(track_caller))]
 
 //! Loom is a tool for testing concurrent programs.
 //!
@@ -112,6 +112,12 @@
 //! **read** from the same atomic variable, loom does not attempt another
 //! execution given that the order in which two threads read from the same
 //! atomic cannot impact the execution.
+//!
+//! # Additional reading
+//!
+//! For more usage details, see the [README]
+//!
+//! [README]: https://github.com/tokio-rs/loom
 
 macro_rules! if_futures {
     ($($t:tt)*) => {
@@ -139,10 +145,12 @@ macro_rules! dbg {
     };
 }
 
+#[macro_use]
+mod rt;
+
 pub mod alloc;
 pub mod cell;
 pub mod model;
-mod rt;
 pub mod sync;
 pub mod thread;
 

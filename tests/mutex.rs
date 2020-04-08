@@ -1,9 +1,8 @@
 #![deny(warnings, rust_2018_idioms)]
 
-use loom;
-
+use loom::cell::UnsafeCell;
 use loom::sync::atomic::AtomicUsize;
-use loom::sync::{CausalCell, Mutex};
+use loom::sync::Mutex;
 use loom::thread;
 
 use std::rc::Rc;
@@ -42,12 +41,12 @@ fn mutex_enforces_mutal_exclusion() {
 fn mutex_establishes_seq_cst() {
     loom::model(|| {
         struct Data {
-            cell: CausalCell<usize>,
+            cell: UnsafeCell<usize>,
             flag: Mutex<bool>,
         }
 
         let data = Rc::new(Data {
-            cell: CausalCell::new(0),
+            cell: UnsafeCell::new(0),
             flag: Mutex::new(false),
         });
 
