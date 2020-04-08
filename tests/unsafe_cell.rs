@@ -130,7 +130,7 @@ impl Data {
 
 #[test]
 #[should_panic]
-fn causal_cell_race_mut_mut_1() {
+fn unsafe_cell_race_mut_mut_1() {
     loom::model(|| {
         let x = Data::new(1);
         let y = x.clone();
@@ -146,7 +146,7 @@ fn causal_cell_race_mut_mut_1() {
 
 #[test]
 #[should_panic]
-fn causal_cell_race_mut_mut_2() {
+fn unsafe_cell_race_mut_mut_2() {
     loom::model(|| {
         let x = Data::new(1);
         let y = x.clone();
@@ -164,7 +164,7 @@ fn causal_cell_race_mut_mut_2() {
 
 #[test]
 #[should_panic]
-fn causal_cell_race_mut_immut_1() {
+fn unsafe_cell_race_mut_immut_1() {
     loom::model(|| {
         let x = Data::new(1);
         let y = x.clone();
@@ -180,7 +180,7 @@ fn causal_cell_race_mut_immut_1() {
 
 #[test]
 #[should_panic]
-fn causal_cell_race_mut_immut_2() {
+fn unsafe_cell_race_mut_immut_2() {
     loom::model(|| {
         let x = Data::new(1);
         let y = x.clone();
@@ -196,7 +196,7 @@ fn causal_cell_race_mut_immut_2() {
 
 #[test]
 #[should_panic]
-fn causal_cell_race_mut_immut_3() {
+fn unsafe_cell_race_mut_immut_3() {
     loom::model(|| {
         let x = Data::new(1);
         let y = x.clone();
@@ -214,7 +214,7 @@ fn causal_cell_race_mut_immut_3() {
 
 #[test]
 #[should_panic]
-fn causal_cell_race_mut_immut_4() {
+fn unsafe_cell_race_mut_immut_4() {
     loom::model(|| {
         let x = Data::new(1);
         let y = x.clone();
@@ -232,7 +232,7 @@ fn causal_cell_race_mut_immut_4() {
 
 #[test]
 #[should_panic]
-fn causal_cell_race_mut_immut_5() {
+fn unsafe_cell_race_mut_immut_5() {
     loom::model(|| {
         let x = Data::new(1);
         let y = x.clone();
@@ -252,7 +252,7 @@ fn causal_cell_race_mut_immut_5() {
 }
 
 #[test]
-fn causal_cell_ok_1() {
+fn unsafe_cell_ok_1() {
     loom::model(|| {
         let x = Data::new(1);
 
@@ -270,7 +270,7 @@ fn causal_cell_ok_1() {
 }
 
 #[test]
-fn causal_cell_ok_2() {
+fn unsafe_cell_ok_2() {
     loom::model(|| {
         let x = Data::new(1);
 
@@ -291,7 +291,7 @@ fn causal_cell_ok_2() {
 }
 
 #[test]
-fn causal_cell_ok_3() {
+fn unsafe_cell_ok_3() {
     loom::model(|| {
         let x = Data::new(1);
         let y = x.clone();
@@ -313,5 +313,23 @@ fn causal_cell_ok_3() {
         th1.join().unwrap();
 
         assert_eq!(2, y.inc());
+    });
+}
+
+#[test]
+#[should_panic]
+fn unsafe_cell_access_after_sync() {
+    loom::model(|| {
+        let s1 = Arc::new((AtomicUsize::new(0), UnsafeCell::new(0)));
+        let s2 = s1.clone();
+
+        thread::spawn(move || {
+            s1.0.store(1, Release);
+            s1.1.with_mut(|ptr| unsafe { *ptr = 1 });
+        });
+
+        if 1 == s2.0.load(Acquire) {
+            s2.1.with_mut(|ptr| unsafe { *ptr = 2 });
+        }
     });
 }
