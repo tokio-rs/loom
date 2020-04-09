@@ -1,3 +1,12 @@
+# 0.3.1 (April 8, 2020)
+
+### Fixed
+- `UnsafeCell` false negative under some scenarios (#119).
+
+### Added
+- `RwLock` support (#88)
+- location tracking to atomic types (#114).
+
 # 0.3.0 (March 24, 2020)
 
 ### Breaking
