@@ -150,6 +150,7 @@ mod rt;
 
 pub mod alloc;
 pub mod cell;
+pub mod lazy_static;
 pub mod model;
 pub mod sync;
 pub mod thread;
@@ -189,6 +190,22 @@ macro_rules! thread_local {
     );
 }
 
+/// Mock version of `lazy_static::lazy_static!`.
+#[macro_export]
+macro_rules! lazy_static {
+    ($(#[$attr:meta])* static ref $N:ident : $T:ty = $e:expr; $($t:tt)*) => {
+        // use `()` to explicitly forward the information about private items
+        $crate::__lazy_static_internal!($(#[$attr])* () static ref $N : $T = $e; $($t)*);
+    };
+    ($(#[$attr:meta])* pub static ref $N:ident : $T:ty = $e:expr; $($t:tt)*) => {
+        $crate::__lazy_static_internal!($(#[$attr])* (pub) static ref $N : $T = $e; $($t)*);
+    };
+    ($(#[$attr:meta])* pub ($($vis:tt)+) static ref $N:ident : $T:ty = $e:expr; $($t:tt)*) => {
+        $crate::__lazy_static_internal!($(#[$attr])* (pub ($($vis)+)) static ref $N : $T = $e; $($t)*);
+    };
+    () => ()
+}
+
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __thread_local_inner {
@@ -199,4 +216,41 @@ macro_rules! __thread_local_inner {
                 _p: std::marker::PhantomData,
             };
     };
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __lazy_static_internal {
+    // optional visibility restrictions are wrapped in `()` to allow for
+    // explicitly passing otherwise implicit information about private items
+    ($(#[$attr:meta])* ($($vis:tt)*) static ref $N:ident : $T:ty = $init:expr; $($t:tt)*) => {
+        #[allow(missing_copy_implementations)]
+        #[allow(non_camel_case_types)]
+        #[allow(dead_code)]
+        $(#[$attr])*
+        $($vis)* struct $N {__private_field: ()}
+        #[doc(hidden)]
+        $($vis)* static $N: $N = $N {__private_field: ()};
+        impl ::core::ops::Deref for $N {
+            type Target = $T;
+            // this and the two __ functions below should really also be #[track_caller]
+            fn deref(&self) -> &$T {
+                #[inline(always)]
+                fn __static_ref_initialize() -> $T { $init }
+
+                #[inline(always)]
+                fn __stability() -> &'static $T {
+                    static LAZY: $crate::lazy_static::Lazy<$T> =
+                        $crate::lazy_static::Lazy {
+                            init: __static_ref_initialize,
+                            _p: std::marker::PhantomData,
+                        };
+                    LAZY.get()
+                }
+                __stability()
+            }
+        }
+        $crate::lazy_static!($($t)*);
+    };
+    () => ()
 }

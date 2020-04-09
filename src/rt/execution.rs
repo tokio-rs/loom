@@ -1,5 +1,5 @@
 use crate::rt::alloc::Allocation;
-use crate::rt::{object, thread, Path};
+use crate::rt::{lazy_static, object, thread, Path};
 
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -13,6 +13,8 @@ pub(crate) struct Execution {
     pub(crate) path: Path,
 
     pub(crate) threads: thread::Set,
+
+    pub(crate) lazy_statics: lazy_static::Set,
 
     /// All loom aware objects part of this execution run.
     pub(super) objects: object::Store,
@@ -55,6 +57,7 @@ impl Execution {
             id,
             path: Path::new(max_branches, preemption_bound),
             threads,
+            lazy_statics: lazy_static::Set::new(),
             objects: object::Store::with_capacity(max_branches),
             raw_allocations: HashMap::new(),
             max_threads,
@@ -91,6 +94,7 @@ impl Execution {
         let log = self.log;
         let mut path = self.path;
         let mut objects = self.objects;
+        let mut lazy_statics = self.lazy_statics;
         let mut raw_allocations = self.raw_allocations;
 
         let mut threads = self.threads;
@@ -100,6 +104,7 @@ impl Execution {
         }
 
         objects.clear();
+        lazy_statics.clear();
         raw_allocations.clear();
 
         threads.clear(id);
@@ -109,6 +114,7 @@ impl Execution {
             path,
             threads,
             objects,
+            lazy_statics,
             raw_allocations,
             max_threads,
             max_history,

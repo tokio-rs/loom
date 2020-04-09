@@ -6,6 +6,28 @@ use loom::thread;
 use std::sync::atomic::Ordering::{AcqRel, Acquire, Relaxed, Release};
 use std::sync::Arc;
 
+loom::lazy_static! {
+    static ref A: AtomicUsize = AtomicUsize::new(0);
+}
+
+loom::thread_local! {
+    static B: usize = A.load(Relaxed);
+}
+
+#[test]
+fn legal_load_after_lazy_static() {
+    loom::model(|| {
+        let t1 = thread::spawn(|| {
+            B.try_with(|h| *h).unwrap_or_else(|_| A.load(Relaxed));
+        });
+        let t2 = thread::spawn(|| {
+            B.try_with(|h| *h).unwrap_or_else(|_| A.load(Relaxed));
+        });
+        t1.join().unwrap();
+        t2.join().unwrap();
+    });
+}
+
 #[test]
 #[should_panic]
 fn invalid_unsync_load_relaxed() {

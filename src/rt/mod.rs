@@ -47,6 +47,7 @@ pub(crate) use self::scheduler::Scheduler;
 mod synchronize;
 pub(crate) use self::synchronize::Synchronize;
 
+pub(crate) mod lazy_static;
 pub(crate) mod thread;
 
 mod vv;
