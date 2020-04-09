@@ -515,11 +515,7 @@ impl State {
             location::panic("Causality violation: Concurrent load and mut accesses.")
                 .location("created", self.created_location)
                 .thread("with_mut", mut_at, self.unsync_mut_locations[mut_at])
-                .thread(
-                    "load",
-                    threads.active_id(),
-                    self.unsync_mut_locations[threads],
-                )
+                .thread("load", threads.active_id(), self.loaded_locations[threads])
                 .fire();
         }
 
@@ -535,7 +531,7 @@ impl State {
         if let Some(loaded) = current.ahead(&self.unsync_loaded_at) {
             location::panic("Causality violation: Concurrent `unsync_load` and mut accesses.")
                 .location("created", self.created_location)
-                .thread("mut", loaded, self.unsync_loaded_locations[loaded])
+                .thread("with_mut", loaded, self.unsync_mut_locations[loaded])
                 .thread(
                     "unsync_load",
                     threads.active_id(),
