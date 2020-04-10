@@ -3,11 +3,11 @@ use std::{any::Any, collections::HashMap};
 
 pub(crate) struct Set {
     /// Registered statics.
-    statics: HashMap<StaticKeyId, StaticValue>,
+    statics: Option<HashMap<StaticKeyId, StaticValue>>,
 }
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone)]
-struct StaticKeyId(usize);
+pub(crate) struct StaticKeyId(usize);
 
 pub(crate) struct StaticValue {
     pub(crate) sync: Synchronize,
@@ -18,19 +18,32 @@ impl Set {
     /// Create an empty statics set.
     pub(crate) fn new() -> Set {
         Set {
-            statics: HashMap::new(),
+            statics: Some(HashMap::new()),
         }
     }
 
-    pub(crate) fn clear(&mut self) {
-        self.statics.clear();
+    pub(crate) fn reset(&mut self) {
+        assert!(
+            self.statics.is_none(),
+            "lazy_static was not dropped during execution"
+        );
+        self.statics = Some(HashMap::new());
+    }
+
+    pub(crate) fn drop(&mut self) -> HashMap<StaticKeyId, StaticValue> {
+        self.statics
+            .take()
+            .expect("lazy_statics were dropped twice in one execution")
     }
 
     pub(crate) fn get_static<T: 'static>(
         &mut self,
         key: &'static crate::lazy_static::Lazy<T>,
     ) -> Option<&mut StaticValue> {
-        self.statics.get_mut(&StaticKeyId::new(key))
+        self.statics
+            .as_mut()
+            .expect("attempted to access lazy_static during shutdown")
+            .get_mut(&StaticKeyId::new(key))
     }
 
     pub(crate) fn init_static<T: 'static>(
@@ -38,7 +51,12 @@ impl Set {
         key: &'static crate::lazy_static::Lazy<T>,
         value: StaticValue,
     ) {
-        assert!(self.statics.insert(StaticKeyId::new(key), value).is_none())
+        assert!(self
+            .statics
+            .as_mut()
+            .expect("attempted to access lazy_static during shutdown")
+            .insert(StaticKeyId::new(key), value)
+            .is_none())
     }
 }
 

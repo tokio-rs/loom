@@ -196,6 +196,12 @@ impl Builder {
 
             scheduler.run(&mut execution, move || {
                 f();
+
+                let lazy_statics = rt::execution(|execution| execution.lazy_statics.drop());
+
+                // drop outside of execution
+                drop(lazy_statics);
+
                 rt::thread_done();
             });
 

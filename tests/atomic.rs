@@ -8,10 +8,18 @@ use std::sync::Arc;
 
 loom::lazy_static! {
     static ref A: AtomicUsize = AtomicUsize::new(0);
+    static ref NO_LEAK: loom::sync::Arc<usize> = Default::default();
 }
 
 loom::thread_local! {
     static B: usize = A.load(Relaxed);
+}
+
+#[test]
+fn lazy_static_arc_doesnt_leak() {
+    loom::model(|| {
+        assert_eq!(**NO_LEAK, 0);
+    });
 }
 
 #[test]

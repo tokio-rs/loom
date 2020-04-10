@@ -104,7 +104,7 @@ impl Execution {
         }
 
         objects.clear();
-        lazy_statics.clear();
+        lazy_statics.reset();
         raw_allocations.clear();
 
         threads.clear(id);
