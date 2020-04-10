@@ -65,6 +65,11 @@ impl<T> Arc<T> {
         let inner = std::sync::Arc::from_raw(ptr as *const Inner<T>);
         Arc { inner }
     }
+
+    /// Returns the inner value, if the `Arc` has exactly one strong reference.
+    pub fn try_unwrap(_this: Arc<T>) -> Result<T, Arc<T>> {
+        unimplemented!();
+    }
 }
 
 impl<T> ops::Deref for Arc<T> {

@@ -30,7 +30,7 @@ pub(super) struct State {
 ///
 /// Clones are only dependent with inspections. Drops are dependent between each
 /// other.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub(super) enum Action {
     /// Clone the arc
     RefInc,

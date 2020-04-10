@@ -49,13 +49,16 @@ pub(super) struct Operation {
 }
 
 // TODO: move to separate file
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub(super) enum Action {
     /// Action on an Arc object
     Arc(rt::arc::Action),
 
     /// Action on an atomic object
     Atomic(rt::atomic::Action),
+
+    /// Action on a channel
+    Channel(rt::mpsc::Action),
 
     /// Generic action with no specialized dependencies on access.
     Opaque,
@@ -122,6 +125,9 @@ objects! {
 
     // State associated with an RwLock
     RwLock(rt::rwlock::State),
+
+    // State associated with a modeled channel.
+    Channel(rt::mpsc::State),
 
     // Tracks access to a memory cell
     Cell(rt::cell::State),
@@ -201,6 +207,7 @@ impl Store {
             Entry::Condvar(entry) => entry.last_dependent_access(),
             Entry::Notify(entry) => entry.last_dependent_access(),
             Entry::RwLock(entry) => entry.last_dependent_access(),
+            Entry::Channel(entry) => entry.last_dependent_access(operation.action.into()),
             obj => panic!(
                 "object is not branchable {:?}; ref = {:?}",
                 obj, operation.obj
@@ -223,6 +230,9 @@ impl Store {
             Entry::Condvar(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::Notify(entry) => entry.set_last_access(path_id, dpor_vv),
             Entry::RwLock(entry) => entry.set_last_access(path_id, dpor_vv),
+            Entry::Channel(entry) => {
+                entry.set_last_access(operation.action.into(), path_id, dpor_vv)
+            }
             _ => panic!("object is not branchable"),
         }
     }
@@ -233,6 +243,7 @@ impl Store {
             match entry {
                 Entry::Alloc(entry) => entry.check_for_leaks(),
                 Entry::Arc(entry) => entry.check_for_leaks(),
+                Entry::Channel(entry) => entry.check_for_leaks(),
                 _ => {}
             }
         }
@@ -327,6 +338,17 @@ impl<T: Object<Entry = Entry>> Ref<T> {
         })
     }
 
+    pub(super) fn branch_disable(self, action: impl Into<Action> + std::fmt::Debug, disable: bool) {
+        super::branch(|execution| {
+            self.set_action(execution, action.into());
+
+            if disable {
+                // Cannot make progress.
+                execution.threads.active_mut().set_blocked();
+            }
+        })
+    }
+
     pub(super) fn branch_opaque(self) {
         self.branch_action(Action::Opaque)
     }
@@ -349,6 +371,9 @@ impl Operation {
     pub(super) fn object(&self) -> Ref {
         self.obj
     }
+    pub(super) fn action(&self) -> Action {
+        self.action
+    }
 }
 
 impl Into<rt::arc::Action> for Action {
@@ -369,6 +394,15 @@ impl Into<rt::atomic::Action> for Action {
     }
 }
 
+impl Into<rt::mpsc::Action> for Action {
+    fn into(self) -> rt::mpsc::Action {
+        match self {
+            Action::Channel(action) => action,
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl Into<Action> for rt::arc::Action {
     fn into(self) -> Action {
         Action::Arc(self)
@@ -378,5 +412,11 @@ impl Into<Action> for rt::arc::Action {
 impl Into<Action> for rt::atomic::Action {
     fn into(self) -> Action {
         Action::Atomic(self)
+    }
+}
+
+impl Into<Action> for rt::mpsc::Action {
+    fn into(self) -> Action {
+        Action::Channel(self)
     }
 }

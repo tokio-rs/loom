@@ -98,7 +98,7 @@ pub(super) struct State {
     cnt: u16,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub(super) enum Action {
     /// Atomic load
     Load,
