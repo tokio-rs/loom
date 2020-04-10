@@ -65,3 +65,12 @@ impl<T> Receiver<T> {
         unimplemented!("std::sync::mpsc::Receiver::recv_timeout is not supported yet in Loom.")
     }
 }
+
+impl<T> Drop for Receiver<T> {
+    fn drop(&mut self) {
+        // Drain the channel.
+        while !self.object.is_empty() {
+            self.recv().unwrap();
+        }
+    }
+}

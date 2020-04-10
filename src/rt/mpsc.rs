@@ -126,7 +126,7 @@ impl Channel {
     }
 
     /// Returns `true` if the channel is currently empty
-    fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         super::execution(|execution| self.get_state(&mut execution.objects).msg_cnt == 0)
     }
 

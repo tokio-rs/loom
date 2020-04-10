@@ -77,3 +77,13 @@ fn non_commutative_senders2() {
         ignore_result(r.recv());
     });
 }
+
+#[test]
+fn drop_receiver() {
+    loom::model(|| {
+        let (s, r) = channel();
+        s.send(1).unwrap();
+        s.send(2).unwrap();
+        assert_eq!(r.recv().unwrap(), 1);
+    });
+}
