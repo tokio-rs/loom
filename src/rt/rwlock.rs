@@ -74,25 +74,16 @@ impl RwLock {
     }
 
     pub(crate) fn release_read_lock(&self) {
-        super::execution(|execution| {
-            let state = self.state.get_mut(&mut execution.objects);
-
-            state.lock = None;
-
-            state
-                .synchronize
-                .sync_store(&mut execution.threads, Release);
-
-            // Establish sequential consistency between the lock's operations.
-            execution.threads.seq_cst();
-
-            let thread_id = execution.threads.active_id();
-
-            self.unlock_threads(execution, thread_id);
-        });
+        // Both release_read_lock and release_write_lock uses the same mechanism
+        self.release_lock();
     }
 
     pub(crate) fn release_write_lock(&self) {
+        // Both release_read_lock and release_write_lock uses the same mechanism
+        self.release_lock();
+    }
+
+    fn release_lock(&self) {
         super::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
 
