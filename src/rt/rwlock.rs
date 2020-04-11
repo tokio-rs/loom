@@ -111,9 +111,10 @@ impl RwLock {
         });
     }
 
-    fn lock_out_threads(&self, execution: &mut Execution, thread_id: thread::Id) {
-        // TODO: This and the following function look very similar.
-        // Refactor the two to DRY the code.
+    fn drain_threads<F>(&self, execution: &mut Execution, thread_id: thread::Id, func: F)
+    where
+        F: Fn(&mut thread::Thread),
+    {
         for (id, thread) in execution.threads.iter_mut() {
             if id == thread_id {
                 continue;
@@ -125,28 +126,17 @@ impl RwLock {
                 .map(|operation| operation.object());
 
             if obj == Some(self.state.erase()) {
-                thread.set_blocked();
+                func(thread);
             }
         }
     }
 
+    fn lock_out_threads(&self, execution: &mut Execution, thread_id: thread::Id) {
+        self.drain_threads(execution, thread_id, thread::Thread::set_blocked);
+    }
+
     fn unlock_threads(&self, execution: &mut Execution, thread_id: thread::Id) {
-        // TODO: This and the above function look very similar.
-        // Refactor the two to DRY the code.
-        for (id, thread) in execution.threads.iter_mut() {
-            if id == thread_id {
-                continue;
-            }
-
-            let obj = thread
-                .operation
-                .as_ref()
-                .map(|operation| operation.object());
-
-            if obj == Some(self.state.erase()) {
-                thread.set_runnable();
-            }
-        }
+        self.drain_threads(execution, thread_id, thread::Thread::set_runnable);
     }
 
     /// Returns `true` if RwLock is read locked
