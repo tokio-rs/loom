@@ -50,13 +50,18 @@ impl Set {
         &mut self,
         key: &'static crate::lazy_static::Lazy<T>,
         value: StaticValue,
-    ) {
-        assert!(self
+    ) -> &mut StaticValue {
+        let v = self
             .statics
             .as_mut()
             .expect("attempted to access lazy_static during shutdown")
-            .insert(StaticKeyId::new(key), value)
-            .is_none())
+            .entry(StaticKeyId::new(key));
+
+        if let std::collections::hash_map::Entry::Occupied(_) = v {
+            unreachable!("told to init static, but it was already init'd");
+        }
+
+        v.or_insert(value)
     }
 }
 
