@@ -17,6 +17,19 @@ loom::thread_local! {
 }
 
 #[test]
+#[should_panic]
+fn lazy_static_arc_shutdown() {
+    loom::model(|| {
+        // note that we are not waiting for this thread,
+        // so it may access the static during shutdown,
+        // which is not okay.
+        thread::spawn(|| {
+            assert_eq!(**NO_LEAK, 0);
+        });
+    });
+}
+
+#[test]
 fn lazy_static_arc_race() {
     loom::model(|| {
         let jh = thread::spawn(|| {
