@@ -43,13 +43,22 @@ impl<T: 'static> Lazy<T> {
             Some(v) => v,
             None => {
                 // Init the value out of the `rt::execution`
-                let mut sv = crate::rt::lazy_static::StaticValue::new((self.init)());
+                let sv = crate::rt::lazy_static::StaticValue::new((self.init)());
+
+                // While calling init, we may have yielded to the scheduler, in which case some
+                // _other_ thread may have initialized the static. The real lazy_static does not
+                // have this issue, since it takes a lock before initializing the new value, and
+                // readers wait on that lock if they encounter it. We could implement that here
+                // too, but for simplicity's sake, we just do another try_get here for now.
+                if let Some(v) = unsafe { self.try_get() } {
+                    return v;
+                }
 
                 rt::execution(|execution| {
+                    let sv = execution.lazy_statics.init_static(self, sv);
+
                     // lazy_static uses std::sync::Once, which does a swap(AcqRel) to set
                     sv.sync.sync_store(&mut execution.threads, Ordering::AcqRel);
-
-                    execution.lazy_statics.init_static(self, sv);
                 });
 
                 unsafe { self.try_get() }.expect("bug")

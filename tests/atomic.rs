@@ -9,10 +9,36 @@ use std::sync::Arc;
 loom::lazy_static! {
     static ref A: AtomicUsize = AtomicUsize::new(0);
     static ref NO_LEAK: loom::sync::Arc<usize> = Default::default();
+    static ref ARC_WITH_SLOW_CONSTRUCTOR: loom::sync::Arc<usize> = { thread::yield_now(); Default::default() };
 }
 
 loom::thread_local! {
     static B: usize = A.load(Relaxed);
+}
+
+#[test]
+#[should_panic]
+fn lazy_static_arc_shutdown() {
+    loom::model(|| {
+        // note that we are not waiting for this thread,
+        // so it may access the static during shutdown,
+        // which is not okay.
+        thread::spawn(|| {
+            assert_eq!(**NO_LEAK, 0);
+        });
+    });
+}
+
+#[test]
+fn lazy_static_arc_race() {
+    loom::model(|| {
+        let jh = thread::spawn(|| {
+            assert_eq!(**ARC_WITH_SLOW_CONSTRUCTOR, 0);
+        });
+        assert_eq!(**ARC_WITH_SLOW_CONSTRUCTOR, 0);
+
+        jh.join().unwrap();
+    });
 }
 
 #[test]
