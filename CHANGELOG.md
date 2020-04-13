@@ -1,3 +1,12 @@
+# 0.3.2 (April 13, 2020)
+
+### Fixed
+- incorrect location tracking for some atomic types (#122).
+
+### Added
+- `lazy_static` support (#125 + #128)
+- `mpsc` channel support (#118)
+
 # 0.3.1 (April 8, 2020)
 
 ### Fixed
