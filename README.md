@@ -66,7 +66,7 @@ Currently, using Loom comes with a bit of friction. Libraries must be written to
 be Loom-aware, and doing so comes with some boilerplate. Over time, the friction
 will be removed.
 
-The following provides a brief overview of how to usage Loom as part of the
+The following provides a brief overview of how to use Loom as part of the
 testing workflow of a Rust crate.
 
 ### Structuring tests
