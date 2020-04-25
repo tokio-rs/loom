@@ -47,7 +47,7 @@ fn buggy_concurrent_inc() {
                 thread::spawn(move || {
                     let curr = num.load(Acquire);
                     num.store(curr + 1, Release);
-                });
+                })
             })
             .collect();
 
