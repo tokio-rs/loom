@@ -225,6 +225,7 @@ impl RwLock {
             execution.threads.seq_cst();
 
             // Block all other threads attempting to acquire rwlock
+            self.lock_out_threads(execution, thread_id);
 
             true
         })
