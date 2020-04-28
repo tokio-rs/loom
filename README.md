@@ -20,10 +20,10 @@ correct access to `UnsafeCell`.
 
 ## Getting started
 
-To use `loom`, first add this to your `Cargo.toml`:
+To use `loom`, first add this to your `Cargo.toml` (see below for more details):
 
 ```toml
-[dev-dependencies]
+[target.'cfg(loom)'.dependencies]
 loom = "0.3"
 ```
 
