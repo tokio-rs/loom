@@ -1,3 +1,8 @@
+# 0.3.3 (April 28, 2020)
+
+### Fixes
+- `RwLock` bug with two writers (#135).
+
 # 0.3.2 (April 13, 2020)
 
 ### Fixed
