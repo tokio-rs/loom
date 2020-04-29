@@ -74,25 +74,16 @@ impl RwLock {
     }
 
     pub(crate) fn release_read_lock(&self) {
-        super::execution(|execution| {
-            let state = self.state.get_mut(&mut execution.objects);
-
-            state.lock = None;
-
-            state
-                .synchronize
-                .sync_store(&mut execution.threads, Release);
-
-            // Establish sequential consistency between the lock's operations.
-            execution.threads.seq_cst();
-
-            let thread_id = execution.threads.active_id();
-
-            self.unlock_threads(execution, thread_id);
-        });
+        // Both release_read_lock and release_write_lock uses the same mechanism
+        self.release_lock();
     }
 
     pub(crate) fn release_write_lock(&self) {
+        // Both release_read_lock and release_write_lock uses the same mechanism
+        self.release_lock();
+    }
+
+    fn release_lock(&self) {
         super::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
 
@@ -111,9 +102,10 @@ impl RwLock {
         });
     }
 
-    fn lock_out_threads(&self, execution: &mut Execution, thread_id: thread::Id) {
-        // TODO: This and the following function look very similar.
-        // Refactor the two to DRY the code.
+    fn drain_threads<F>(&self, execution: &mut Execution, thread_id: thread::Id, func: F)
+    where
+        F: Fn(&mut thread::Thread),
+    {
         for (id, thread) in execution.threads.iter_mut() {
             if id == thread_id {
                 continue;
@@ -125,28 +117,17 @@ impl RwLock {
                 .map(|operation| operation.object());
 
             if obj == Some(self.state.erase()) {
-                thread.set_blocked();
+                func(thread);
             }
         }
     }
 
+    fn lock_out_threads(&self, execution: &mut Execution, thread_id: thread::Id) {
+        self.drain_threads(execution, thread_id, thread::Thread::set_blocked);
+    }
+
     fn unlock_threads(&self, execution: &mut Execution, thread_id: thread::Id) {
-        // TODO: This and the above function look very similar.
-        // Refactor the two to DRY the code.
-        for (id, thread) in execution.threads.iter_mut() {
-            if id == thread_id {
-                continue;
-            }
-
-            let obj = thread
-                .operation
-                .as_ref()
-                .map(|operation| operation.object());
-
-            if obj == Some(self.state.erase()) {
-                thread.set_runnable();
-            }
-        }
+        self.drain_threads(execution, thread_id, thread::Thread::set_runnable);
     }
 
     /// Returns `true` if RwLock is read locked
