@@ -176,7 +176,7 @@ impl<T: Numeric> Atomic<T> {
 
     /// Loads a value from the atomic cell.
     pub(crate) fn load(&self, location: Location, ordering: Ordering) -> T {
-        self.branch(Action::Load);
+        self.branch(location, Action::Load);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -217,7 +217,7 @@ impl<T: Numeric> Atomic<T> {
 
     /// Stores a value into the atomic cell.
     pub(crate) fn store(&self, location: Location, val: T, ordering: Ordering) {
-        self.branch(Action::Store);
+        self.branch(location, Action::Store);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -248,7 +248,7 @@ impl<T: Numeric> Atomic<T> {
     where
         F: FnOnce(T) -> Result<T, E>,
     {
-        self.branch(Action::Rmw);
+        self.branch(location, Action::Rmw);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -324,9 +324,9 @@ impl<T: Numeric> Atomic<T> {
         f(&mut reset.0)
     }
 
-    fn branch(&self, action: Action) {
+    fn branch(&self, location: Location, action: Action) {
         let r = self.state;
-        r.branch_action(action);
+        r.branch_action(location, action);
         assert!(
             r.ref_eq(self.state),
             "Internal state mutated during branch. This is \

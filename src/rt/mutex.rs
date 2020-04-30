@@ -1,5 +1,5 @@
 use crate::rt::object;
-use crate::rt::{thread, Access, Synchronize, VersionVec};
+use crate::rt::{thread, Access, Location, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
@@ -38,13 +38,13 @@ impl Mutex {
         })
     }
 
-    pub(crate) fn acquire_lock(&self) {
-        self.state.branch_acquire(self.is_locked());
+    pub(crate) fn acquire_lock(&self, location: Location) {
+        self.state.branch_acquire(location, self.is_locked());
         assert!(self.post_acquire(), "expected to be able to acquire lock");
     }
 
-    pub(crate) fn try_acquire_lock(&self) -> bool {
-        self.state.branch_opaque();
+    pub(crate) fn try_acquire_lock(&self, location: Location) -> bool {
+        self.state.branch_opaque(location);
         self.post_acquire()
     }
 

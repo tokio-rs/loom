@@ -2,7 +2,10 @@ use crate::rt::execution;
 use crate::rt::object::Operation;
 use crate::rt::vv::VersionVec;
 
-use std::{any::Any, collections::HashMap, fmt, ops};
+use std::{fmt, ops};
+use std::any::Any;
+use std::collections::HashMap;
+
 pub(crate) struct Thread {
     pub id: Id,
 

@@ -1,5 +1,5 @@
 use crate::rt;
-use crate::rt::{Access, Execution, VersionVec};
+use crate::rt::{Access, Execution, Location, VersionVec};
 
 use std::fmt;
 use std::marker::PhantomData;
@@ -46,6 +46,7 @@ pub(super) struct Ref<T = ()> {
 pub(super) struct Operation {
     obj: Ref,
     action: Action,
+    pub(crate) location: Location,
 }
 
 // TODO: move to separate file
@@ -321,9 +322,9 @@ impl<T> fmt::Debug for Ref<T> {
 // TODO: These fns shouldn't be on Ref
 impl<T: Object<Entry = Entry>> Ref<T> {
     // TODO: rename `branch_disable`
-    pub(super) fn branch_acquire(self, is_locked: bool) {
+    pub(super) fn branch_acquire(self, location: Location, is_locked: bool) {
         super::branch(|execution| {
-            self.set_action(execution, Action::Opaque);
+            self.set_action(execution, location, Action::Opaque);
 
             if is_locked {
                 // The mutex is currently blocked, cannot make progress
@@ -332,15 +333,15 @@ impl<T: Object<Entry = Entry>> Ref<T> {
         })
     }
 
-    pub(super) fn branch_action(self, action: impl Into<Action>) {
+    pub(super) fn branch_action(self, location: Location, action: impl Into<Action>) {
         super::branch(|execution| {
-            self.set_action(execution, action.into());
+            self.set_action(execution, location, action.into());
         })
     }
 
-    pub(super) fn branch_disable(self, action: impl Into<Action> + std::fmt::Debug, disable: bool) {
+    pub(super) fn branch_disable(self, location: Location, action: impl Into<Action> + std::fmt::Debug, disable: bool) {
         super::branch(|execution| {
-            self.set_action(execution, action.into());
+            self.set_action(execution, location, action.into());
 
             if disable {
                 // Cannot make progress.
@@ -349,11 +350,11 @@ impl<T: Object<Entry = Entry>> Ref<T> {
         })
     }
 
-    pub(super) fn branch_opaque(self) {
-        self.branch_action(Action::Opaque)
+    pub(super) fn branch_opaque(self, location: Location) {
+        self.branch_action(location, Action::Opaque)
     }
 
-    fn set_action(self, execution: &mut Execution, action: Action) {
+    fn set_action(self, execution: &mut Execution, location: Location, action: Action) {
         assert!(
             T::get_ref(&execution.objects.entries[self.index]).is_some(),
             "failed to get object for ref {:?}",
@@ -363,6 +364,7 @@ impl<T: Object<Entry = Entry>> Ref<T> {
         execution.threads.active_mut().operation = Some(Operation {
             obj: self.erase(),
             action,
+            location,
         });
     }
 }

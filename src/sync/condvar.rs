@@ -24,13 +24,14 @@ impl Condvar {
     }
 
     /// Blocks the current thread until this condition variable receives a notification.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn wait<'a, T>(&self, mut guard: MutexGuard<'a, T>) -> LockResult<MutexGuard<'a, T>> {
         // Release the RefCell borrow guard allowing another thread to lock the
         // data
         guard.unborrow();
 
         // Wait until notified
-        self.object.wait(guard.rt());
+        self.object.wait(location!(), guard.rt());
 
         // Borrow the mutex guarded data again
         guard.reborrow();
@@ -52,13 +53,15 @@ impl Condvar {
     }
 
     /// Wakes up one blocked thread on this condvar.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn notify_one(&self) {
-        self.object.notify_one();
+        self.object.notify_one(location!());
     }
 
     /// Wakes up all blocked threads on this condvar.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn notify_all(&self) {
-        self.object.notify_all();
+        self.object.notify_all(location!());
     }
 }
 

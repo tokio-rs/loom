@@ -27,16 +27,18 @@ impl Notify {
     }
 
     /// Notify the watier
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn notify(&self) {
-        self.object.notify();
+        self.object.notify(location!());
     }
 
     /// Wait for a notification
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn wait(&self) {
         let actual = self.waiting.compare_and_swap(false, true, SeqCst);
         assert!(!actual, "only a single thread may wait on `Notify`");
 
-        self.object.wait();
+        self.object.wait(location!());
         self.waiting.store(false, SeqCst);
     }
 }

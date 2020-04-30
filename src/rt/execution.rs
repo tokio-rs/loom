@@ -1,5 +1,5 @@
 use crate::rt::alloc::Allocation;
-use crate::rt::{lazy_static, object, thread, Path};
+use crate::rt::{lazy_static, location, object, thread, Path};
 
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -204,6 +204,18 @@ impl Execution {
         if !self.threads.is_active() {
             let terminal = self.threads.iter().all(|(_, th)| th.is_terminated());
 
+            if !terminal {
+                let mut builder = location::panic("deadlock");
+
+                for (id, th) in self.threads.iter() {
+                    if th.is_blocked() {
+                        builder.thread("blocked", id, th.operation.as_ref().unwrap().location);
+                    }
+                }
+
+                builder.fire();
+            }
+
             assert!(
                 terminal,
                 "deadlock; threads = {:?}",
@@ -240,7 +252,13 @@ impl Execution {
         }
 
         if self.log && switched {
-            println!("~~~~~~~~ THREAD {} ~~~~~~~~", self.threads.active_id());
+            let th = self.threads.active_id();
+
+            if let Some(operation) = self.threads.active().operation.as_ref() {
+                println!("~~~~~~~~ Context Switch (thread #{} @ {}) ~~~~~~~~", th, operation.location);
+            } else {
+                println!("~~~~~~~~ Context Switch (thread #{}) ~~~~~~~~", th);
+            }
         }
 
         curr_thread != self.threads.active_id()

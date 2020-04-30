@@ -29,8 +29,9 @@ impl<T> Mutex<T> {
 
 impl<T> Mutex<T> {
     /// Acquires a mutex, blocking the current thread until it is able to do so.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {
-        self.object.acquire_lock();
+        self.object.acquire_lock(location!());
 
         Ok(MutexGuard {
             lock: self,
@@ -45,8 +46,9 @@ impl<T> Mutex<T> {
     /// guard is dropped.
     ///
     /// This function does not block.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn try_lock(&self) -> TryLockResult<MutexGuard<'_, T>> {
-        if self.object.try_acquire_lock() {
+        if self.object.try_acquire_lock(location!()) {
             Ok(MutexGuard {
                 lock: self,
                 data: Some(self.data.lock().unwrap()),

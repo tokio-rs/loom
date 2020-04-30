@@ -45,8 +45,9 @@ impl<T> RwLock<T> {
     /// lock when this method returns. This method does not provide any
     /// guarantees with respect to the ordering of whether contentious readers
     /// or writers will acquire the lock first.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn read(&self) -> LockResult<RwLockReadGuard<'_, T>> {
-        self.object.acquire_read_lock();
+        self.object.acquire_read_lock(location!());
 
         Ok(RwLockReadGuard {
             lock: self,
@@ -61,8 +62,9 @@ impl<T> RwLock<T> {
     /// access when it is dropped.
     ///
     /// This function does not block.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn try_read(&self) -> TryLockResult<RwLockReadGuard<'_, T>> {
-        if self.object.try_acquire_read_lock() {
+        if self.object.try_acquire_read_lock(location!()) {
             Ok(RwLockReadGuard {
                 lock: self,
                 data: Some(self.data.read().unwrap()),
@@ -77,8 +79,9 @@ impl<T> RwLock<T> {
     ///
     /// This function will not return while other writers or other readers
     /// currently have access to the lock.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn write(&self) -> LockResult<RwLockWriteGuard<'_, T>> {
-        self.object.acquire_write_lock();
+        self.object.acquire_write_lock(location!());
 
         Ok(RwLockWriteGuard {
             lock: self,
@@ -93,8 +96,9 @@ impl<T> RwLock<T> {
     /// it is dropped.
     ///
     /// This function does not block.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn try_write(&self) -> TryLockResult<RwLockWriteGuard<'_, T>> {
-        if self.object.try_acquire_write_lock() {
+        if self.object.try_acquire_write_lock(location!()) {
             Ok(RwLockWriteGuard {
                 lock: self,
                 data: Some(self.data.write().unwrap()),

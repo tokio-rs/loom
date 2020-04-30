@@ -1,5 +1,5 @@
 use crate::rt::object;
-use crate::rt::{thread, Access, Execution, Synchronize, VersionVec};
+use crate::rt::{thread, Access, Execution, Location, Synchronize, VersionVec};
 
 use std::collections::HashSet;
 use std::sync::atomic::Ordering::{Acquire, Release};
@@ -44,8 +44,8 @@ impl RwLock {
 
     /// Acquire the read lock.
     /// Fail to acquire read lock if already *write* locked.
-    pub(crate) fn acquire_read_lock(&self) {
-        self.state.branch_acquire(self.is_write_locked());
+    pub(crate) fn acquire_read_lock(&self, location: Location) {
+        self.state.branch_acquire(location, self.is_write_locked());
         assert!(
             self.post_acquire_read_lock(),
             "expected to be able to acquire read lock"
@@ -54,22 +54,23 @@ impl RwLock {
 
     /// Acquire write lock.
     /// Fail to acquire write lock if either read or write locked.
-    pub(crate) fn acquire_write_lock(&self) {
+    pub(crate) fn acquire_write_lock(&self, location: Location) {
         self.state
-            .branch_acquire(self.is_write_locked() || self.is_read_locked());
+            .branch_acquire(location, self.is_write_locked() || self.is_read_locked());
+
         assert!(
             self.post_acquire_write_lock(),
             "expected to be able to acquire write lock"
         );
     }
 
-    pub(crate) fn try_acquire_read_lock(&self) -> bool {
-        self.state.branch_opaque();
+    pub(crate) fn try_acquire_read_lock(&self, location: Location) -> bool {
+        self.state.branch_opaque(location);
         self.post_acquire_read_lock()
     }
 
-    pub(crate) fn try_acquire_write_lock(&self) -> bool {
-        self.state.branch_opaque();
+    pub(crate) fn try_acquire_write_lock(&self, location: Location) -> bool {
+        self.state.branch_opaque(location);
         self.post_acquire_write_lock()
     }
 

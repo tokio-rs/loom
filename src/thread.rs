@@ -36,6 +36,7 @@ pub struct LocalKey<T> {
 pub struct Builder {}
 
 /// Mock implementation of `std::thread::spawn`.
+#[cfg_attr(loom_nightly, track_caller)]
 pub fn spawn<F, T>(f: F) -> JoinHandle<T>
 where
     F: FnOnce() -> T,
@@ -44,12 +45,13 @@ where
 {
     let result = Rc::new(RefCell::new(None));
     let notify = rt::Notify::new(true, false);
+    let location = location!();
 
     {
         let result = result.clone();
         rt::spawn(move || {
             *result.borrow_mut() = Some(Ok(f()));
-            notify.notify();
+            notify.notify(location);
         });
     }
 
@@ -88,8 +90,9 @@ impl Builder {
 
 impl<T> JoinHandle<T> {
     /// Waits for the associated thread to finish.
+    #[cfg_attr(loom_nightly, track_caller)]
     pub fn join(self) -> std::thread::Result<T> {
-        self.notify.wait();
+        self.notify.wait(location!());
         self.result.borrow_mut().take().unwrap()
     }
 }

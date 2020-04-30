@@ -59,8 +59,8 @@ impl Arc {
         })
     }
 
-    pub(crate) fn ref_inc(&self) {
-        self.branch(Action::RefInc);
+    pub(crate) fn ref_inc(&self, location: Location) {
+        self.branch(location, Action::RefInc);
 
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -69,8 +69,8 @@ impl Arc {
     }
 
     /// Validate a `get_mut` call
-    pub(crate) fn get_mut(&self) -> bool {
-        self.branch(Action::RefDec);
+    pub(crate) fn get_mut(&self, location: Location) -> bool {
+        self.branch(location, Action::RefDec);
 
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -89,8 +89,8 @@ impl Arc {
     }
 
     /// Returns true if the memory should be dropped.
-    pub(crate) fn ref_dec(&self) -> bool {
-        self.branch(Action::RefDec);
+    pub(crate) fn ref_dec(&self, location: Location) -> bool {
+        self.branch(location, Action::RefDec);
 
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -118,9 +118,10 @@ impl Arc {
         })
     }
 
-    fn branch(&self, action: Action) {
+    fn branch(&self, location: Location, action: Action) {
         let r = self.state;
-        r.branch_action(action);
+        r.branch_action(location, action);
+
         assert!(
             r.ref_eq(self.state),
             "Internal state mutated during branch. This is \
