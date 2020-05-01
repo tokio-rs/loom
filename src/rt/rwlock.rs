@@ -54,7 +54,8 @@ impl RwLock {
     /// Acquire the read lock.
     /// Fail to acquire read lock if already *write* locked.
     pub(crate) fn acquire_read_lock(&self) {
-        self.state.branch_disable(Action::Read, self.is_write_locked());
+        self.state
+            .branch_disable(Action::Read, self.is_write_locked());
 
         assert!(
             self.post_acquire_read_lock(),
@@ -65,8 +66,10 @@ impl RwLock {
     /// Acquire write lock.
     /// Fail to acquire write lock if either read or write locked.
     pub(crate) fn acquire_write_lock(&self) {
-        self.state
-            .branch_disable(Action::Write, self.is_write_locked() || self.is_read_locked());
+        self.state.branch_disable(
+            Action::Write,
+            self.is_write_locked() || self.is_read_locked(),
+        );
 
         assert!(
             self.post_acquire_write_lock(),
