@@ -254,10 +254,12 @@ impl Execution {
         if self.log && switched {
             let th = self.threads.active_id();
 
-            if let Some(operation) = self.threads.active().operation.as_ref() {
-                println!("~~~~~~~~ Context Switch (thread #{} @ {}) ~~~~~~~~", th, operation.location);
+            if self.threads[curr_thread].is_terminated() {
+                println!("~~~~~~~~ Context Switch (thread #{} -> #{} @ [terminated])", curr_thread, th);
+            } else if let Some(operation) = self.threads[curr_thread].operation.as_ref() {
+                println!("~~~~~~~~ Context Switch (thread #{} -> #{} @ {})", curr_thread, th, operation.location);
             } else {
-                println!("~~~~~~~~ Context Switch (thread #{}) ~~~~~~~~", th);
+                println!("~~~~~~~~ Context Switch (thread #{} -> #{})", curr_thread, th);
             }
         }
 
