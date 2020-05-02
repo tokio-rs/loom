@@ -149,6 +149,7 @@ macro_rules! dbg {
 mod rt;
 
 pub mod alloc;
+pub mod boxed;
 pub mod cell;
 pub mod lazy_static;
 pub mod model;
