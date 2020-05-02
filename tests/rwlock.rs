@@ -1,12 +1,8 @@
-use loom;
-
-use loom::{
-    sync::{Arc, RwLock},
-    thread,
-};
+use loom::sync::{Arc, RwLock};
+use loom::thread;
 
 #[test]
-fn rwlock_read() {
+fn rwlock_read_one() {
     loom::model(|| {
         let lock = Arc::new(RwLock::new(1));
         let c_lock = lock.clone();
@@ -20,6 +16,26 @@ fn rwlock_read() {
         })
         .join()
         .unwrap();
+    });
+}
+
+#[test]
+fn rwlock_read_two_write_one() {
+    loom::model(|| {
+        let lock = Arc::new(RwLock::new(1));
+
+        for _ in 0..2 {
+            let lock = lock.clone();
+
+            thread::spawn(move || {
+                let _l = lock.read().unwrap();
+
+                thread::yield_now();
+            });
+        }
+
+        let _l = lock.write().unwrap();
+        thread::yield_now();
     });
 }
 
