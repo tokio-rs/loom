@@ -1,3 +1,8 @@
+# 0.3.4 (May 2, 2020)
+
+### Fixed
+- `RwLock` bug with activating threads (#140)
+
 # 0.3.3 (April 28, 2020)
 
 ### Fixes
