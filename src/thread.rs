@@ -6,14 +6,13 @@ pub use crate::rt::yield_now;
 
 pub use std::thread::panicking;
 
-use std::cell::RefCell;
 use std::marker::PhantomData;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::{fmt, io};
 
 /// Mock implementation of `std::thread::JoinHandle`.
 pub struct JoinHandle<T> {
-    result: Rc<RefCell<Option<std::thread::Result<T>>>>,
+    result: Arc<Mutex<Option<std::thread::Result<T>>>>,
     notify: rt::Notify,
 }
 
@@ -42,13 +41,13 @@ where
     F: 'static,
     T: 'static,
 {
-    let result = Rc::new(RefCell::new(None));
+    let result = Arc::new(Mutex::new(None));
     let notify = rt::Notify::new(true, false);
 
     {
         let result = result.clone();
         rt::spawn(move || {
-            *result.borrow_mut() = Some(Ok(f()));
+            *result.lock().unwrap() = Some(Ok(f()));
             notify.notify();
         });
     }
@@ -90,7 +89,7 @@ impl<T> JoinHandle<T> {
     /// Waits for the associated thread to finish.
     pub fn join(self) -> std::thread::Result<T> {
         self.notify.wait();
-        self.result.borrow_mut().take().unwrap()
+        self.result.lock().unwrap().take().unwrap()
     }
 }
 
@@ -98,6 +97,12 @@ impl<T: fmt::Debug> fmt::Debug for JoinHandle<T> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("JoinHandle").finish()
     }
+}
+
+fn _assert_traits() {
+    fn assert<T: Send + Sync>() {}
+
+    assert::<JoinHandle<()>>();
 }
 
 impl<T: 'static> LocalKey<T> {
