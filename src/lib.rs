@@ -150,6 +150,7 @@ mod rt;
 
 pub mod alloc;
 pub mod cell;
+pub mod executor;
 pub mod lazy_static;
 pub mod model;
 pub mod sync;
