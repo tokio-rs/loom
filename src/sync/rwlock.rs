@@ -108,6 +108,12 @@ impl<T> RwLock<T> {
     }
 }
 
+impl<T: Default> Default for RwLock<T> {
+    fn default() -> Self {
+        Self::new(Default::default())
+    }
+}
+
 impl<'a, T> ops::Deref for RwLockReadGuard<'a, T> {
     type Target = T;
 

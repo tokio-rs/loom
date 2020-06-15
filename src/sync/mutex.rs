@@ -57,6 +57,12 @@ impl<T> Mutex<T> {
     }
 }
 
+impl<T: ?Sized + Default> Default for Mutex<T> {
+    fn default() -> Self {
+        Self::new(Default::default())
+    }
+}
+
 impl<'a, T: 'a> MutexGuard<'a, T> {
     pub(super) fn unborrow(&mut self) {
         self.data = None;
