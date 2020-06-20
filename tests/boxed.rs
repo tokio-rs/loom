@@ -83,3 +83,42 @@ fn allocate_and_leak() {
         Box::into_raw(detect_drop);
     });
 }
+
+#[test]
+fn same_size_as_std_box() {
+    use std::boxed::Box as StdBox;
+
+    macro_rules! same_size_and_alignment {
+        ($t:ty) => {
+            assert_eq!(
+                mem::size_of::<Box<$t>>(),
+                mem::size_of::<StdBox<$t>>(),
+                "size of Box<{}>",
+                stringify!($t),
+            );
+            assert_eq!(
+                mem::align_of::<Box<$t>>(),
+                mem::align_of::<StdBox<$t>>(),
+                "align of Box<{}>",
+                stringify!($t),
+            );
+            assert_eq!(
+                mem::size_of::<Option<Box<$t>>>(),
+                mem::size_of::<Option<StdBox<$t>>>(),
+                "size of Option<Box<{}>>",
+                stringify!($t),
+            );
+            assert_eq!(
+                mem::align_of::<Option<Box<$t>>>(),
+                mem::align_of::<Option<StdBox<$t>>>(),
+                "align of Option<Box<{}>>",
+                stringify!($t),
+            );
+        };
+    }
+
+    same_size_and_alignment!(std::convert::Infallible);
+    same_size_and_alignment!(());
+    same_size_and_alignment!(u8);
+    same_size_and_alignment!([u32; 1024]);
+}

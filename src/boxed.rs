@@ -12,7 +12,7 @@ use std::{borrow, fmt, hash, mem, ptr};
 /// is tightly integrated with the compiler and uses magic that normal crates can't.
 /// This version instead provides [`Box::into_value`] which does the same thing.
 pub struct Box<T: ?Sized> {
-    ptr: *mut T,
+    ptr: ptr::NonNull<T>,
 }
 
 impl<T> Box<T> {
@@ -21,7 +21,10 @@ impl<T> Box<T> {
         let layout = alloc::Layout::new::<T>();
         let ptr = unsafe { alloc::alloc(layout) } as *mut T;
         unsafe { ptr::write(ptr, x) };
-        Self { ptr }
+        // SAFETY: `alloc::alloc` should never return a null pointer.
+        Self {
+            ptr: unsafe { ptr::NonNull::new_unchecked(ptr) },
+        }
     }
 
     /// Consumes the box and returns the value in it.
@@ -45,9 +48,9 @@ impl<T> Box<T> {
     /// }
     /// ```
     pub fn into_value(self) -> T {
-        let value = unsafe { ptr::read(self.ptr) };
+        let value = unsafe { ptr::read(self.ptr.as_ptr()) };
         let layout = alloc::Layout::new::<T>();
-        unsafe { alloc::dealloc(self.ptr as *mut u8, layout) };
+        unsafe { alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout) };
         mem::forget(self);
         value
     }
@@ -67,7 +70,9 @@ impl<T: ?Sized> Box<T> {
     /// a double-free may occur if the function is called twice on the same raw pointer.
     #[inline]
     pub const unsafe fn from_raw(ptr: *mut T) -> Box<T> {
-        Self { ptr }
+        Self {
+            ptr: ptr::NonNull::new_unchecked(ptr),
+        }
     }
 
     /// Consumes the Box, returning a wrapped raw pointer.
@@ -80,18 +85,18 @@ impl<T: ?Sized> Box<T> {
     pub fn into_raw(b: Box<T>) -> *mut T {
         let ptr = b.ptr;
         mem::forget(b);
-        ptr
+        ptr.as_ptr()
     }
 }
 
 impl<T: ?Sized> Drop for Box<T> {
     fn drop(&mut self) {
         unsafe {
-            let size = mem::size_of_val(&*self.ptr);
-            let align = mem::align_of_val(&*self.ptr);
+            let size = mem::size_of_val(self.ptr.as_ref());
+            let align = mem::align_of_val(self.ptr.as_ref());
             let layout = alloc::Layout::from_size_align(size, align).unwrap();
-            ptr::drop_in_place(self.ptr);
-            alloc::dealloc(self.ptr as *mut u8, layout);
+            ptr::drop_in_place(self.ptr.as_ptr());
+            alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
         }
     }
 }
@@ -103,13 +108,13 @@ impl<T: ?Sized> std::ops::Deref for Box<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        unsafe { &*self.ptr }
+        unsafe { self.ptr.as_ref() }
     }
 }
 
 impl<T: ?Sized> std::ops::DerefMut for Box<T> {
     fn deref_mut(&mut self) -> &mut T {
-        unsafe { &mut *self.ptr }
+        unsafe { self.ptr.as_mut() }
     }
 }
 
