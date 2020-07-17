@@ -98,7 +98,7 @@ Then, elsewhere in the library:
 use crate::sync::AtomicUsize;
 ```
 
-If you have tokio dependencies in your project, you may wish to choose a cfg flag 
+If you have any dependencies in your project which also use `loom`, you may wish to choose a cfg flag 
 with a project specific flag to avoid conflicts with their use of loom. For 
 example use `my_project_loom`, `#[cfg(my_project_loom)]` and 
 `RUSTFLAGS="--cfg my_project_loom"`.
