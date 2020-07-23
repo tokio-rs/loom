@@ -1,3 +1,15 @@
+# 0.3.5 (July 23, 2020)
+
+### Fixed
+- An example in the README failing to compile (#132)
+
+### Changed
+- Updated `scoped-tls` to 1.0.0 (#153)
+
+### Added
+- `Send` and `Sync` impls for `JoinHandle` (#145)
+- `Default` impls for `Mutex`, `RwLock`, and `Condvar` (#138)
+
 # 0.3.4 (May 2, 2020)
 
 ### Fixed
