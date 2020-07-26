@@ -90,7 +90,7 @@ impl Notify {
                 state.did_spur = true;
             }
 
-            (state.notified, spurious)
+            dbg!((state.notified, spurious))
         });
 
         if spurious {
