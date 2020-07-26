@@ -1,4 +1,4 @@
-# 0.3.5 (July 23, 2020)
+# 0.3.5 (July 26, 2020)
 
 ### Fixed
 - An example in the README failing to compile (#132)
