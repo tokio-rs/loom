@@ -162,6 +162,9 @@ if_futures! {
     pub mod future;
 }
 
+#[cfg(feature = "lock_api")]
+pub mod lock_api;
+
 #[doc(hidden)]
 pub fn __debug_enabled() -> bool {
     rt::execution(|e| e.log)

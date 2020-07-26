@@ -29,3 +29,7 @@ jobs:
   # Test with futures feature
   - script: cargo test --features futures
     displayName: cargo test --features futures
+
+  # Test with lock_api feature
+  - script: cargo test --features lock_api
+    displayName: cargo test --features lock_api
