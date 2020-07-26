@@ -40,6 +40,10 @@ unsafe impl lock_api::RawMutex for RawMutex {
     unsafe fn unlock(&self) {
         self.object().release_lock()
     }
+
+    fn is_locked(&self) -> bool {
+        self.object().is_locked()
+    }
 }
 
 /// Mock implementation of `lock_api::RawRwLock`
@@ -86,6 +90,11 @@ unsafe impl lock_api::RawRwLock for RawRwLock {
 
     unsafe fn unlock_exclusive(&self) {
         self.object().release_write_lock()
+    }
+
+    fn is_locked(&self) -> bool {
+        let object = self.object();
+        object.is_read_locked() || object.is_write_locked()
     }
 }
 

@@ -123,7 +123,7 @@ impl Mutex {
     }
 
     /// Returns `true` if the mutex is currently locked
-    fn is_locked(&self) -> bool {
+    pub(crate) fn is_locked(&self) -> bool {
         super::execution(|execution| self.state.get(&execution.objects).lock.is_some())
     }
 }

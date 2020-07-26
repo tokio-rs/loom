@@ -153,7 +153,7 @@ impl RwLock {
     }
 
     /// Returns `true` if RwLock is read locked
-    fn is_read_locked(&self) -> bool {
+    pub(crate) fn is_read_locked(&self) -> bool {
         super::execution(
             |execution| match self.state.get(&mut execution.objects).lock {
                 Some(Locked::Read(_)) => true,
@@ -163,7 +163,7 @@ impl RwLock {
     }
 
     /// Returns `true` if RwLock is write locked.
-    fn is_write_locked(&self) -> bool {
+    pub(crate) fn is_write_locked(&self) -> bool {
         super::execution(
             |execution| match self.state.get(&mut execution.objects).lock {
                 Some(Locked::Write(_)) => true,
