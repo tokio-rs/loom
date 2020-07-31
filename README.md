@@ -171,7 +171,7 @@ path to a file. Two environment variables are useful for this process:
 
 The first specifies the file to write to and read from. The second specifies how
 often to write to the file. If the execution fails on the 10,000,000th
-permutation, it is faster to write to a file every 10,0000 iterations instead of
+permutation, it is faster to write to a file every 10,000 iterations instead of
 every single one.
 
 To isolate the exact failing path, run the following commands:
