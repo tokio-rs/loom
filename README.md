@@ -13,7 +13,7 @@ model. It uses state reduction techniques to avoid combinatorial explosion.
 Loom is an implementation of techniques described in [CDSChecker: Checking
 Concurrent Data Structures Written with C/C++ Atomics][cdschecker]. It is a
 library for writing unit tests where all possible thread interleavings are
-checked. It also is check all possible atomic cell behaviors and validate
+checked. It also checks all possible atomic cell behaviors and validates
 correct access to `UnsafeCell`.
 
 [cdschecker]: http://demsky.eecs.uci.edu/publications/c11modelcheck.pdf

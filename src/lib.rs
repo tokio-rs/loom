@@ -76,7 +76,7 @@
 //! ```
 //!
 //! Loom will run the closure many times, each time with a different thread
-//! scheduling  The test is guaranteed to fail.
+//! scheduling. The test is guaranteed to fail.
 //!
 //! # Writing tests
 //!
