@@ -89,7 +89,11 @@ impl Inc {
     fn wait_for_1(&self) {
         let guard = self.mutex.lock().unwrap();
 
-        drop(self.condvar.wait_while(guard, |_| self.num.load(SeqCst) < 1).unwrap());
+        drop(
+            self.condvar
+                .wait_while(guard, |_| self.num.load(SeqCst) < 1)
+                .unwrap(),
+        );
     }
 
     fn inc(&self) {
