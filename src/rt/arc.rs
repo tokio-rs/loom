@@ -173,7 +173,7 @@ impl State {
     pub(super) fn last_dependent_access(&self, action: Action) -> Option<&Access> {
         match action {
             // RefIncs are not dependent w/ RefDec, only inspections
-            Action::RefInc => None,
+            Action::RefInc => self.last_ref_inspect.as_ref(),
             Action::RefDec => self.last_ref_dec.as_ref(),
             Action::Inspect => match self.last_ref_modification {
                 Some(RefModify::RefInc) => self.last_ref_inc.as_ref(),
