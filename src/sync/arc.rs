@@ -30,7 +30,7 @@ impl<T> Arc<T> {
 
     /// Gets the number of strong (`Arc`) pointers to this value.
     pub fn strong_count(this: &Self) -> usize {
-        std::sync::Arc::strong_count(&this.inner)
+        this.inner.obj.strong_count()
     }
 
     /// Returns a mutable reference to the inner value, if there are
