@@ -54,6 +54,14 @@ pub(crate) struct Id {
     id: usize,
 }
 
+impl Id {
+    /// Returns an integer ID unique to this current execution (for use in
+    /// [`thread::ThreadId`]'s `Debug` impl)
+    pub(crate) fn public_id(&self) -> usize {
+        self.id
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum State {
     Runnable,

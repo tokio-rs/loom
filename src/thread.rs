@@ -1,8 +1,8 @@
 //! Mock implementation of `std::thread`.
 
-use crate::rt;
 pub use crate::rt::thread::AccessError;
 pub use crate::rt::yield_now;
+use crate::rt::{self, Execution};
 
 pub use std::thread::panicking;
 
@@ -14,6 +14,38 @@ use std::{fmt, io};
 pub struct JoinHandle<T> {
     result: Arc<Mutex<Option<std::thread::Result<T>>>>,
     notify: rt::Notify,
+    thread: Thread,
+}
+
+/// Mock implementation of `std::thread::Thread`.
+#[derive(Clone, Debug)]
+pub struct Thread {
+    id: ThreadId,
+    name: Option<String>,
+}
+
+impl Thread {
+    /// Returns a unique identifier for this thread
+    pub fn id(&self) -> ThreadId {
+        self.id
+    }
+
+    /// Returns the (optional) name of this thread
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_ref().map(|s| s.as_str())
+    }
+}
+
+/// Mock implementation of `std::thread::ThreadId`.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub struct ThreadId {
+    id: crate::rt::thread::Id,
+}
+
+impl std::fmt::Debug for ThreadId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ThreadId({})", self.id.public_id())
+    }
 }
 
 /// Mock implementation of `std::thread::LocalKey`.
@@ -32,7 +64,42 @@ pub struct LocalKey<T> {
 /// Thread factory, which can be used in order to configure the properties of
 /// a new thread.
 #[derive(Debug)]
-pub struct Builder {}
+pub struct Builder {
+    name: Option<String>,
+}
+
+static CURRENT_THREAD_KEY: LocalKey<Thread> = LocalKey {
+    init: || unreachable!(),
+    _p: PhantomData,
+};
+
+fn init_current(execution: &mut Execution, name: Option<String>) -> Thread {
+    let id = execution.threads.active_id();
+    let thread = Thread {
+        id: ThreadId { id },
+        name,
+    };
+
+    execution
+        .threads
+        .local_init(&CURRENT_THREAD_KEY, thread.clone());
+
+    thread
+}
+
+/// Returns a handle to the current thread.
+pub fn current() -> Thread {
+    rt::execution(|execution| {
+        let thread = execution.threads.local(&CURRENT_THREAD_KEY);
+        if let Some(thread) = thread {
+            thread.unwrap().clone()
+        } else {
+            // Lazily initialize the current() Thread. This is done to help
+            // handle the initial (unnamed) bootstrap thread.
+            init_current(execution, None)
+        }
+    })
+}
 
 /// Mock implementation of `std::thread::spawn`.
 pub fn spawn<F, T>(f: F) -> JoinHandle<T>
@@ -41,30 +108,53 @@ where
     F: 'static,
     T: 'static,
 {
+    spawn_internal(f, None)
+}
+
+fn spawn_internal<F, T>(f: F, name: Option<String>) -> JoinHandle<T>
+where
+    F: FnOnce() -> T,
+    F: 'static,
+    T: 'static,
+{
     let result = Arc::new(Mutex::new(None));
     let notify = rt::Notify::new(true, false);
 
-    {
+    let id = {
+        let name = name.clone();
         let result = result.clone();
         rt::spawn(move || {
+            rt::execution(|execution| {
+                init_current(execution, name);
+            });
+
             *result.lock().unwrap() = Some(Ok(f()));
             notify.notify();
-        });
-    }
+        })
+    };
 
-    JoinHandle { result, notify }
+    JoinHandle {
+        result,
+        notify,
+        thread: Thread {
+            id: ThreadId { id },
+            name,
+        },
+    }
 }
 
 impl Builder {
     /// Generates the base configuration for spawning a thread, from which
     /// configuration methods can be chained.
     pub fn new() -> Builder {
-        Builder {}
+        Builder { name: None }
     }
 
     /// Names the thread-to-be. Currently the name is used for identification
     /// only in panic messages.
-    pub fn name(self, _name: String) -> Builder {
+    pub fn name(mut self, name: String) -> Builder {
+        self.name = Some(name);
+
         self
     }
 
@@ -81,7 +171,7 @@ impl Builder {
         F: Send + 'static,
         T: Send + 'static,
     {
-        Ok(spawn(f))
+        Ok(spawn_internal(f, self.name))
     }
 }
 
@@ -90,6 +180,11 @@ impl<T> JoinHandle<T> {
     pub fn join(self) -> std::thread::Result<T> {
         self.notify.wait();
         self.result.lock().unwrap().take().unwrap()
+    }
+
+    /// Gets a handle to the underlying [`Thread`]
+    pub fn thread(&self) -> &Thread {
+        &self.thread
     }
 }
 
