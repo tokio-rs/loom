@@ -1,3 +1,8 @@
+# 0.3.6 (October 8, 2020)
+
+### Added
+- `thread::Thread` and `thread::ThreadId` (#175)
+
 # 0.3.5 (July 26, 2020)
 
 ### Fixed
