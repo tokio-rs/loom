@@ -18,22 +18,22 @@ where
         Atomic { state }
     }
 
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub(crate) unsafe fn unsync_load(&self) -> T {
         self.state.unsync_load(location!())
     }
 
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub(crate) fn load(&self, order: Ordering) -> T {
         self.state.load(location!(), order)
     }
 
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub(crate) fn store(&self, value: T, order: Ordering) {
         self.state.store(location!(), value, order)
     }
 
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub(crate) fn with_mut<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
         self.state.with_mut(location!(), f)
     }
@@ -41,7 +41,7 @@ where
     /// Read-modify-write
     ///
     /// Always reads the most recent write
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub(crate) fn rmw<F>(&self, f: F, order: Ordering) -> T
     where
         F: FnOnce(T) -> T,
@@ -49,7 +49,7 @@ where
         self.try_rmw::<_, ()>(order, order, |v| Ok(f(v))).unwrap()
     }
 
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     fn try_rmw<F, E>(&self, success: Ordering, failure: Ordering, f: F) -> Result<T, E>
     where
         F: FnOnce(T) -> Result<T, E>,
@@ -57,12 +57,12 @@ where
         self.state.rmw(location!(), success, failure, f)
     }
 
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub(crate) fn swap(&self, val: T, order: Ordering) -> T {
         self.rmw(|_| val, order)
     }
 
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub(crate) fn compare_and_swap(&self, current: T, new: T, order: Ordering) -> T {
         use self::Ordering::*;
 
@@ -78,7 +78,7 @@ where
         }
     }
 
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub(crate) fn compare_exchange(
         &self,
         current: T,
