@@ -4,9 +4,17 @@ use crate::rt::{thread, Access, Execution, Synchronize, VersionVec};
 use std::collections::HashSet;
 use std::sync::atomic::Ordering::{Acquire, Release};
 
+use super::{trace::TraceEntity, Trace};
+
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct RwLock {
     state: object::Ref<State>,
+}
+
+impl TraceEntity for RwLock {
+    fn as_trace_ref(&self) -> super::TraceRef {
+        self.state.as_trace_ref().relabel("RwLock")
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -53,9 +61,9 @@ impl RwLock {
 
     /// Acquire the read lock.
     /// Fail to acquire read lock if already *write* locked.
-    pub(crate) fn acquire_read_lock(&self) {
+    pub(crate) fn acquire_read_lock(&self, trace: &Trace) {
         self.state
-            .branch_disable(Action::Read, self.is_write_locked());
+            .branch_disable(&trace.with_ref(self), Action::Read, self.is_write_locked());
 
         assert!(
             self.post_acquire_read_lock(),
@@ -65,8 +73,9 @@ impl RwLock {
 
     /// Acquire write lock.
     /// Fail to acquire write lock if either read or write locked.
-    pub(crate) fn acquire_write_lock(&self) {
+    pub(crate) fn acquire_write_lock(&self, trace: &Trace) {
         self.state.branch_disable(
+            &trace.with_ref(self),
             Action::Write,
             self.is_write_locked() || self.is_read_locked(),
         );
@@ -77,18 +86,22 @@ impl RwLock {
         );
     }
 
-    pub(crate) fn try_acquire_read_lock(&self) -> bool {
-        self.state.branch_action(Action::Read);
+    pub(crate) fn try_acquire_read_lock(&self, trace: &Trace) -> bool {
+        self.state
+            .branch_action(&trace.with_ref(self), Action::Read);
         self.post_acquire_read_lock()
     }
 
-    pub(crate) fn try_acquire_write_lock(&self) -> bool {
-        self.state.branch_action(Action::Write);
+    pub(crate) fn try_acquire_write_lock(&self, trace: &Trace) -> bool {
+        self.state
+            .branch_action(&trace.with_ref(self), Action::Write);
         self.post_acquire_write_lock()
     }
 
-    pub(crate) fn release_read_lock(&self) {
+    pub(crate) fn release_read_lock(&self, trace: &Trace) {
         super::execution(|execution| {
+            execution.path.record_event(&trace.with_ref(self));
+
             let state = self.state.get_mut(&mut execution.objects);
             let thread_id = execution.threads.active_id();
 
@@ -114,8 +127,10 @@ impl RwLock {
         });
     }
 
-    pub(crate) fn release_write_lock(&self) {
+    pub(crate) fn release_write_lock(&self, trace: &Trace) {
         super::execution(|execution| {
+            execution.path.record_event(&trace.with_ref(self));
+
             let state = self.state.get_mut(&mut execution.objects);
 
             state.lock = None;

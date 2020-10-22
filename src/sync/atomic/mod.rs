@@ -15,8 +15,9 @@ pub use self::ptr::AtomicPtr;
 pub use std::sync::atomic::Ordering;
 
 /// Signals the processor that it is entering a busy-wait spin-loop.
+#[track_caller]
 pub fn spin_loop_hint() {
-    crate::thread::yield_now();
+    crate::rt::yield_now(&trace!());
 }
 
 /// An atomic fence.

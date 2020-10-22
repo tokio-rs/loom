@@ -1,7 +1,17 @@
-use crate::rt::{execution, object, thread, MAX_ATOMIC_HISTORY, MAX_THREADS};
+use std::{cell::Cell, collections::VecDeque};
+
+use crate::rt::{execution, object, thread, Trace, MAX_ATOMIC_HISTORY, MAX_THREADS};
 
 #[cfg(feature = "checkpoint")]
 use serde::{Deserialize, Serialize};
+
+use super::object::Object;
+
+const DETAIL_TRACE_LEN: usize = 40;
+
+thread_local! {
+    static ABORTED_THREAD: Cell<bool> = Cell::new(false);
+}
 
 /// An execution path
 #[derive(Debug)]
@@ -22,6 +32,25 @@ pub(crate) struct Path {
     ///
     /// A branch is of type `Schedule`, `Load`, or `Spurious`
     branches: object::Store<Entry>,
+
+    /// List of execution trace records.
+    ///
+    /// Each record indicates which point in the code (and what operation) is
+    /// associated with the corresponding entry in branches.
+    schedule_trace: Vec<Trace>,
+
+    /// List of detail trace records.
+    ///
+    /// These records include some non-scheduling events as well, but are
+    /// truncated to the last N record (or all records since the last schedule_trace
+    /// event)
+    #[cfg_attr(feature = "checkpoint", serde(skip))]
+    exec_trace: VecDeque<(Option<u32>, Trace)>,
+
+    /// True if a consistency check has failed (we'll need to unwind and
+    /// terminate the model, but need to avoid panicing-in-panicing in the
+    /// process)
+    inconsistent: bool,
 }
 
 #[derive(Debug)]
@@ -108,12 +137,17 @@ impl Path {
             preemption_bound,
             pos: 0,
             branches: object::Store::with_capacity(max_branches),
+            schedule_trace: Vec::with_capacity(max_branches),
+            exec_trace: VecDeque::with_capacity(DETAIL_TRACE_LEN),
+            inconsistent: false,
         }
     }
 
     pub(crate) fn set_max_branches(&mut self, max_branches: usize) {
         self.branches
             .reserve_exact(max_branches - self.branches.len());
+        self.schedule_trace
+            .reserve_exact(max_branches - self.branches.len())
     }
 
     /// Returns `true` if the execution has reached a point where the known path
@@ -122,35 +156,141 @@ impl Path {
         self.pos == self.branches.len()
     }
 
+    /// Returns `true` if nondeterministic execution was detected.
+    pub(crate) fn is_inconsistent(&self) -> bool {
+        self.inconsistent
+    }
+
     pub(super) fn pos(&self) -> usize {
         self.pos
     }
 
+    /// Records a trace originating from a new execution branching point. This
+    /// should be called whenever we add something to `branches`.
+    fn push_new_schedule_trace<O>(&mut self, trace: &Trace, obj: O) -> super::object::Ref<O>
+    where
+        O: Object<Entry = Entry>,
+    {
+        let r = self.branches.insert(obj);
+        let index = self.schedule_trace.len() as u32;
+        self.schedule_trace.push(trace.clone());
+        self.record_schedule(index, trace);
+
+        r
+    }
+
+    /// Records a branching point to the execution trace. Unlike
+    /// `push_new_schedule_trace`, this is invoked also when revisiting entries
+    /// already in `branches`, and is used to maintain `exec_trace` (which is
+    /// used to provide more helpful debugging output).
+    fn record_schedule(&mut self, pos: u32, trace: &Trace) {
+        self.exec_trace.push_back((Some(pos), trace.clone()));
+
+        while self.exec_trace.len() > DETAIL_TRACE_LEN
+            && self.exec_trace.front().unwrap().0 != pos.checked_sub(1)
+        {
+            self.exec_trace.pop_front();
+        }
+    }
+
+    /// Records an arbitrary non-branching event. These events are used only for
+    /// debug information when nondeterministic execution does occur.
+    pub(crate) fn record_event(&mut self, trace: &Trace) {
+        self.exec_trace.push_back((None, trace.clone()));
+    }
+
+    /// Asserts that the current branching point matches the given trace. Should
+    /// be calling when processing pre-existing entries in `branches`.
+    fn check_trace(&mut self, trace: &Trace) {
+        let expected = self
+            .schedule_trace
+            .get(self.pos)
+            .expect("Trace record imbalance");
+
+        if expected != trace {
+            // drop the reference before making a call on mut self
+            let expected = expected.clone();
+
+            self.inconsistent = true;
+            self.trace_mismatch(expected, trace);
+            return;
+        }
+
+        self.record_schedule(self.pos as u32, trace);
+    }
+
+    #[cold]
+    fn trace_mismatch(&mut self, expected: Trace, trace: &Trace) {
+        if ABORTED_THREAD.with(|cell| cell.replace(true)) {
+            // We've already paniced on this thread; avoid doing it again to
+            // avoid panicing during destructors. This is not fully effective as
+            // nondeterministic execution tends to muck up the scheduling logic,
+            // which can lead to deadlock panics in drop routines, etc, but it
+            // helps a little.
+            return;
+        }
+
+        let mut err = String::new();
+        err.push_str("===== NONDETERMINISTIC EXECUTION DETECTED =====\n");
+        err.push_str("Previous execution:\n");
+        err.push_str(&format!("    {}: {}\n\n", self.pos, expected.simplify()));
+        err.push_str("Current execution:\n");
+        err.push_str(&format!("    {}: {}\n", self.pos, trace.simplify()));
+
+        err.push_str("\nRecent events:\n");
+        for (i, trace) in self.exec_trace.iter() {
+            let trace = trace.simplify();
+
+            if let Some(i) = i {
+                err.push_str(&format!("    {:4}: {}\n", i, trace));
+            } else {
+                err.push_str(&format!("     ...: {}\n", trace));
+            }
+        }
+
+        // We avoid panicing at the site of the problem, because this can lead
+        // to panics-while-panicing, and the resultant process termination.
+        // Since the normal rust test harness redirects and buffers output,
+        // terminating before the test completes hides this output and can
+        // therefore result in a wholly unhelpful test failure.
+        //
+        // Instead, we log that we're in an inconsistent state, discard our
+        // entire execution path (since the test is doomed, we don't need to do
+        // any further exploration), and let the current exploration run to
+        // completion.
+        eprintln!("{}", err);
+    }
+
     /// Push a new atomic-load branch
-    pub(super) fn push_load(&mut self, seed: &[u8]) {
+    pub(super) fn push_load(&mut self, trace: &Trace, seed: &[u8]) {
         assert_path_len!(self.branches);
 
-        let load_ref = self.branches.insert(Load {
-            values: [0; MAX_ATOMIC_HISTORY],
-            pos: 0,
-            len: 0,
-        });
+        let load_ref = self.push_new_schedule_trace(
+            trace,
+            Load {
+                values: [0; MAX_ATOMIC_HISTORY],
+                pos: 0,
+                len: 0,
+            },
+        );
 
         let load = load_ref.get_mut(&mut self.branches);
 
         for (i, &store) in seed.iter().enumerate() {
-            assert!(
-                store < MAX_ATOMIC_HISTORY as u8,
-                "[loom internal bug] store = {}; max = {}",
-                store,
-                MAX_ATOMIC_HISTORY
-            );
-            assert!(
-                i < MAX_ATOMIC_HISTORY,
-                "[loom internal bug] i = {}; max = {}",
-                i,
-                MAX_ATOMIC_HISTORY
-            );
+            if !self.inconsistent {
+                assert!(
+                    store < MAX_ATOMIC_HISTORY as u8,
+                    "[loom internal bug] store = {}; max = {}",
+                    store,
+                    MAX_ATOMIC_HISTORY
+                );
+                assert!(
+                    i < MAX_ATOMIC_HISTORY,
+                    "[loom internal bug] i = {}; max = {}",
+                    i,
+                    MAX_ATOMIC_HISTORY
+                );
+            }
 
             load.values[i] = store as u8;
             load.len += 1;
@@ -158,8 +298,10 @@ impl Path {
     }
 
     /// Returns the atomic write to read
-    pub(super) fn branch_load(&mut self) -> usize {
+    pub(super) fn branch_load(&mut self, trace: &Trace) -> usize {
         assert!(!self.is_traversed(), "[loom internal bug]");
+
+        self.check_trace(trace);
 
         let load = object::Ref::from_usize(self.pos)
             .downcast::<Load>(&self.branches)
@@ -172,11 +314,13 @@ impl Path {
     }
 
     /// Branch on spurious notifications
-    pub(super) fn branch_spurious(&mut self) -> bool {
+    pub(super) fn branch_spurious(&mut self, trace: &Trace) -> bool {
+        self.check_trace(trace);
+
         if self.is_traversed() {
             assert_path_len!(self.branches);
 
-            self.branches.insert(Spurious(false));
+            self.push_new_schedule_trace(trace, Spurious(false));
         }
 
         let spurious = object::Ref::from_usize(self.pos)
@@ -192,10 +336,25 @@ impl Path {
     /// Returns the thread identifier to schedule
     pub(super) fn branch_thread(
         &mut self,
+        trace: &Trace,
         execution_id: execution::Id,
         seed: impl ExactSizeIterator<Item = Thread>,
     ) -> Option<thread::Id> {
-        if self.is_traversed() {
+        if !self.is_traversed() {
+            self.check_trace(trace);
+        }
+
+        if self.is_traversed() || self.is_inconsistent() {
+            if self.is_inconsistent() {
+                // If we're inconsistent, we'll always re-seed the scheduler.
+                // This screws up the path, but that's okay - we just want to
+                // try to run the current execution to completion so drop
+                // handlers don't start panicing inside panics (and thus
+                // terminating the entire process, which might be running other
+                // tests as well)
+                self.pos = self.branches.len();
+            }
+
             assert_path_len!(self.branches);
 
             // Find the last thread scheduling branch in the path
@@ -205,12 +364,15 @@ impl Path {
             //
             // Initialize a  new branch. The initial field values don't matter
             // as they will be updated below.
-            let schedule_ref = self.branches.insert(Schedule {
-                preemptions: 0,
-                initial_active: None,
-                threads: [Thread::Disabled; MAX_THREADS],
-                prev,
-            });
+            let schedule_ref = self.push_new_schedule_trace(
+                trace,
+                Schedule {
+                    preemptions: 0,
+                    initial_active: None,
+                    threads: [Thread::Disabled; MAX_THREADS],
+                    prev,
+                },
+            );
 
             // Get a reference to the branch in the object store.
             let schedule = schedule_ref.get_mut(&mut self.branches);
@@ -329,9 +491,18 @@ impl Path {
     /// This function will also trim the object store, dropping any objects that
     /// are created in pruned sections of the path.
     pub(super) fn step(&mut self) -> bool {
+        if self.is_inconsistent() {
+            // We've corrupted our path trace, so abort.
+            panic!("Inconsistent execution detected");
+        }
+
         // Reset the position to zero, the path will start traversing from the
         // beginning
         self.pos = 0;
+
+        // Since we're re-running the user code, clear the execution trace to
+        // avoid confusion.
+        self.exec_trace.clear();
 
         // Set the final branch to try the next option. If all options have been
         // traversed, pop the final branch and try again w/ the one under it.
@@ -343,6 +514,7 @@ impl Path {
 
             // Remove all objects that were created **after** this branch
             self.branches.truncate(last);
+            self.schedule_trace.truncate(self.branches.len());
 
             if let Some(schedule_ref) = last.downcast::<Schedule>(&self.branches) {
                 let schedule = schedule_ref.get_mut(&mut self.branches);

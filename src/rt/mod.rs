@@ -1,3 +1,7 @@
+#[macro_use]
+pub(crate) mod trace;
+pub(crate) use self::trace::{Trace, TraceRef};
+
 mod access;
 use self::access::Access;
 
@@ -77,24 +81,24 @@ where
 }
 
 /// Marks the current thread as blocked
-pub fn park() {
+pub(crate) fn park(trace: &Trace) {
     execution(|execution| {
         execution.threads.active_mut().set_blocked();
         execution.threads.active_mut().operation = None;
-        execution.schedule()
+        execution.schedule(trace)
     });
 
     Scheduler::switch();
 }
 
 /// Add an execution branch point.
-fn branch<F, R>(f: F) -> R
+fn branch<F, R>(trace: &Trace, f: F) -> R
 where
     F: FnOnce(&mut Execution) -> R,
 {
     let (ret, switch) = execution(|execution| {
         let ret = f(execution);
-        (ret, execution.schedule())
+        (ret, execution.schedule(trace))
     });
 
     if switch {
@@ -119,11 +123,11 @@ where
 ///
 /// This enables concurrent algorithms that require other threads to make
 /// progress.
-pub fn yield_now() {
+pub(crate) fn yield_now(trace: &Trace) {
     let switch = execution(|execution| {
         execution.threads.active_mut().set_yield();
         execution.threads.active_mut().operation = None;
-        execution.schedule()
+        execution.schedule(trace)
     });
 
     if switch {
@@ -138,6 +142,7 @@ where
     Scheduler::with_execution(f)
 }
 
+#[track_caller]
 pub fn thread_done() {
     let locals = execution(|execution| execution.threads.active_mut().drop_locals());
 
@@ -147,6 +152,6 @@ pub fn thread_done() {
     execution(|execution| {
         execution.threads.active_mut().operation = None;
         execution.threads.active_mut().set_terminated();
-        execution.schedule();
+        execution.schedule(&trace!());
     });
 }

@@ -3,9 +3,17 @@ use crate::rt::{self, Access, Location, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
+use super::{trace::TraceEntity, Trace};
+
 #[derive(Debug)]
 pub(crate) struct Arc {
     state: object::Ref<State>,
+}
+
+impl TraceEntity for Arc {
+    fn as_trace_ref(&self) -> rt::TraceRef {
+        self.state.as_trace_ref().relabel("Arc")
+    }
 }
 
 #[derive(Debug)]
@@ -59,8 +67,8 @@ impl Arc {
         })
     }
 
-    pub(crate) fn ref_inc(&self) {
-        self.branch(Action::RefInc);
+    pub(crate) fn ref_inc(&self, trace: &Trace) {
+        self.branch(trace, Action::RefInc);
 
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -69,8 +77,8 @@ impl Arc {
     }
 
     /// Validate a `get_mut` call
-    pub(crate) fn get_mut(&self) -> bool {
-        self.branch(Action::RefDec);
+    pub(crate) fn get_mut(&self, trace: &Trace) -> bool {
+        self.branch(trace, Action::RefDec);
 
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -89,8 +97,8 @@ impl Arc {
     }
 
     /// Returns true if the memory should be dropped.
-    pub(crate) fn ref_dec(&self) -> bool {
-        self.branch(Action::RefDec);
+    pub(crate) fn ref_dec(&self, trace: &Trace) -> bool {
+        self.branch(trace, Action::RefDec);
 
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -118,9 +126,9 @@ impl Arc {
         })
     }
 
-    fn branch(&self, action: Action) {
+    fn branch(&self, trace: &Trace, action: Action) {
         let r = self.state;
-        r.branch_action(action);
+        r.branch_action(&trace.with_ref(&self.state), action);
         assert!(
             r.ref_eq(self.state),
             "Internal state mutated during branch. This is \

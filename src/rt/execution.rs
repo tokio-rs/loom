@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fmt;
 
+use super::Trace;
+
 pub(crate) struct Execution {
     /// Uniquely identifies an execution
     pub(super) id: Id,
@@ -124,7 +126,7 @@ impl Execution {
     }
 
     /// Returns `true` if a switch is required
-    pub(crate) fn schedule(&mut self) -> bool {
+    pub(crate) fn schedule(&mut self, trace: &Trace) -> bool {
         use crate::rt::path::Thread;
 
         // Implementation of the DPOR algorithm.
@@ -177,7 +179,7 @@ impl Execution {
 
         let path_id = self.path.pos();
 
-        let next = self.path.branch_thread(self.id, {
+        let next = self.path.branch_thread(trace, self.id, {
             self.threads.iter().map(|(i, th)| {
                 if initial.is_none() && th.is_runnable() {
                     initial = Some(i);
@@ -196,6 +198,14 @@ impl Execution {
         });
 
         let switched = Some(self.threads.active_id()) != next;
+
+        if switched {
+            if let Some(thread_id) = next {
+                self.path.record_event(
+                    &Trace::opaque("THREAD SWITCH").with_custom_ref("Thread", thread_id.as_usize()),
+                )
+            }
+        }
 
         self.threads.set_active(next);
 
@@ -244,6 +254,13 @@ impl Execution {
         }
 
         curr_thread != self.threads.active_id()
+    }
+
+    /// Panics if execution was determined to be non-deterministic
+    pub(crate) fn check_consistency(&self) {
+        if self.path.is_inconsistent() {
+            panic!("Aborting due to non-deterministic execution");
+        }
     }
 
     /// Panics if any leaks were detected

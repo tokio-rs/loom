@@ -29,8 +29,9 @@ impl<T> Mutex<T> {
 
 impl<T> Mutex<T> {
     /// Acquires a mutex, blocking the current thread until it is able to do so.
+    #[track_caller]
     pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {
-        self.object.acquire_lock();
+        self.object.acquire_lock(&trace!(&self.object));
 
         Ok(MutexGuard {
             lock: self,
@@ -45,8 +46,9 @@ impl<T> Mutex<T> {
     /// guard is dropped.
     ///
     /// This function does not block.
+    #[track_caller]
     pub fn try_lock(&self) -> TryLockResult<MutexGuard<'_, T>> {
-        if self.object.try_acquire_lock() {
+        if self.object.try_acquire_lock(&trace!(&self.object)) {
             Ok(MutexGuard {
                 lock: self,
                 data: Some(self.data.lock().unwrap()),
@@ -92,8 +94,9 @@ impl<'a, T> ops::DerefMut for MutexGuard<'a, T> {
 }
 
 impl<'a, T: 'a> Drop for MutexGuard<'a, T> {
+    #[track_caller]
     fn drop(&mut self) {
         self.data = None;
-        self.lock.object.release_lock();
+        self.lock.object.release_lock(&trace!(&self.lock.object));
     }
 }

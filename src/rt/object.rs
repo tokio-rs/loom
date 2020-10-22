@@ -7,6 +7,8 @@ use std::marker::PhantomData;
 #[cfg(feature = "checkpoint")]
 use serde::{Deserialize, Serialize};
 
+use super::Trace;
+
 /// Stores objects
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
@@ -265,6 +267,11 @@ impl<T> Ref<T> {
     pub(super) fn ref_eq(self, other: Ref<T>) -> bool {
         self.index == other.index
     }
+
+    /// Returns the Ref's unique index (for debugging output)
+    pub(super) fn index(self) -> usize {
+        self.index
+    }
 }
 
 impl<T: Object> Ref<T> {
@@ -324,8 +331,8 @@ impl<T> fmt::Debug for Ref<T> {
 // TODO: These fns shouldn't be on Ref
 impl<T: Object<Entry = Entry>> Ref<T> {
     // TODO: rename `branch_disable`
-    pub(super) fn branch_acquire(self, is_locked: bool) {
-        super::branch(|execution| {
+    pub(super) fn branch_acquire(self, trace: &Trace, is_locked: bool) {
+        super::branch(trace, |execution| {
             self.set_action(execution, Action::Opaque);
 
             if is_locked {
@@ -335,14 +342,19 @@ impl<T: Object<Entry = Entry>> Ref<T> {
         })
     }
 
-    pub(super) fn branch_action(self, action: impl Into<Action>) {
-        super::branch(|execution| {
+    pub(super) fn branch_action(self, trace: &Trace, action: impl Into<Action>) {
+        super::branch(trace, |execution| {
             self.set_action(execution, action.into());
         })
     }
 
-    pub(super) fn branch_disable(self, action: impl Into<Action> + std::fmt::Debug, disable: bool) {
-        super::branch(|execution| {
+    pub(super) fn branch_disable(
+        self,
+        trace: &Trace,
+        action: impl Into<Action> + std::fmt::Debug,
+        disable: bool,
+    ) {
+        super::branch(trace, |execution| {
             self.set_action(execution, action.into());
 
             if disable {
@@ -352,8 +364,8 @@ impl<T: Object<Entry = Entry>> Ref<T> {
         })
     }
 
-    pub(super) fn branch_opaque(self) {
-        self.branch_action(Action::Opaque)
+    pub(super) fn branch_opaque(self, trace: &Trace) {
+        self.branch_action(trace, Action::Opaque)
     }
 
     fn set_action(self, execution: &mut Execution, action: Action) {
