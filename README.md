@@ -195,7 +195,7 @@ The next step is to enable additional log output. Again, there are some
 environment variables for this:
 
 - `LOOM_LOG`
-- `LOOM_LOCATION` (nightly Rust only)
+- `LOOM_LOCATION`
 
 The first environment variable, `LOOM_LOG`, outputs a marker on every thread switch.
 This helps with tracing the exact steps in a threaded environment that results
@@ -203,8 +203,7 @@ in the test failure.
 
 The second, `LOOM_LOCATION`, enables location tracking. This includes additional
 information in panic messages that helps identify which specific field resulted
-in the error. To enable this, `RUSTFLAGS="--cfg loom_nightly"` must also be
-specified.
+in the error.
 
 Put together, the command becomes (yes, we know this is not great... but it
 works):
@@ -214,7 +213,7 @@ LOOM_LOG=1 \
     LOOM_LOCATION=1 \
     LOOM_CHECKPOINT_INTERVAL=1 \
     LOOM_CHECKPOINT_FILE=my_test.json \
-    RUSTFLAGS="--cfg loom --cfg loom_nightly" \
+    RUSTFLAGS="--cfg loom" \
     [other env vars] \
     cargo test --test loom_my_struct [failing test]
 ```

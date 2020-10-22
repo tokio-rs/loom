@@ -10,43 +10,43 @@ macro_rules! atomic_int {
 
         impl $name {
             /// Creates a new instance of `$name`.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn new(v: $atomic_type) -> Self {
                 Self(Atomic::new(v, location!()))
             }
 
             /// Get access to a mutable reference to the inner value.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn with_mut<R>(&mut self, f: impl FnOnce(&mut $atomic_type) -> R) -> R {
                 self.0.with_mut(f)
             }
 
             /// Load the value without any synchronization.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub unsafe fn unsync_load(&self) -> $atomic_type {
                 self.0.unsync_load()
             }
 
             /// Loads a value from the atomic integer.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn load(&self, order: Ordering) -> $atomic_type {
                 self.0.load(order)
             }
 
             /// Stores a value into the atomic integer.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn store(&self, val: $atomic_type, order: Ordering) {
                 self.0.store(val, order)
             }
 
             /// Stores a value into the atomic integer, returning the previous value.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn swap(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
                 self.0.swap(val, order)
             }
 
             /// Stores a value into the atomic integer if the current value is the same as the `current` value.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn compare_and_swap(
                 &self,
                 current: $atomic_type,
@@ -57,7 +57,7 @@ macro_rules! atomic_int {
             }
 
             /// Stores a value into the atomic if the current value is the same as the `current` value.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn compare_exchange(
                 &self,
                 current: $atomic_type,
@@ -69,7 +69,7 @@ macro_rules! atomic_int {
             }
 
             /// Stores a value into the atomic if the current value is the same as the current value.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn compare_exchange_weak(
                 &self,
                 current: $atomic_type,
@@ -81,31 +81,31 @@ macro_rules! atomic_int {
             }
 
             /// Adds to the current value, returning the previous value.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn fetch_add(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
                 self.0.rmw(|v| v.wrapping_add(val), order)
             }
 
             /// Subtracts from the current value, returning the previous value.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn fetch_sub(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
                 self.0.rmw(|v| v.wrapping_sub(val), order)
             }
 
             /// Bitwise "and" with the current value.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn fetch_and(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
                 self.0.rmw(|v| v & val, order)
             }
 
             /// Bitwise "or" with the current value.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn fetch_or(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
                 self.0.rmw(|v| v | val, order)
             }
 
             /// Bitwise "xor" with the current value.
-            #[cfg_attr(loom_nightly, track_caller)]
+            #[track_caller]
             pub fn fetch_xor(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
                 self.0.rmw(|v| v ^ val, order)
             }

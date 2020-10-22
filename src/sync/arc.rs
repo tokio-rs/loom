@@ -18,7 +18,7 @@ struct Inner<T> {
 
 impl<T> Arc<T> {
     /// Constructs a new `Arc<T>`.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn new(value: T) -> Arc<T> {
         let inner = std::sync::Arc::new(Inner {
             value,
