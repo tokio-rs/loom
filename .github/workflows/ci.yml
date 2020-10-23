@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+
+env:
+  RUSTFLAGS: -Dwarnings
+  RUST_BACKTRACE: 1
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Check formatting
+  rustfmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install Rust
+      run: rustup update stable && rustup default stable
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+  # This represents the minimum Rust version supported by
+  # Loom. Updating this should be done in a dedicated PR.
+  #
+  # Tests are not run as tests may require newer versions of
+  # rust.
+  minrust:
+    name: minrust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        run: rustup update 1.39.0 && rustup default 1.39.0
+      - name: Check
+        run: . ci/test-stable.sh check
+
+  # Stable
+  stable:
+    name: stable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        run: rustup update stable && rustup default stable
+      - name: Test
+        run: cargo test
+      - name: Check --features checkpoint
+        run: cargo check --features checkpoint
+      - name: Test --features futures
+        run: cargo test --features futures
