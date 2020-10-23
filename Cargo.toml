@@ -9,7 +9,7 @@ name = "loom"
 #   - Cargo.toml
 #   - README.md
 # - Create git tag
-version = "0.3.6"
+version = "0.4.0"
 edition = "2018"
 license = "MIT"
 authors = ["Carl Lerche <me@carllerche.com>"]
@@ -20,6 +20,7 @@ repository = "https://github.com/tokio-rs/loom"
 readme = "README.md"
 keywords = ["atomic", "lock-free"]
 categories = ["concurrency", "data-structures"]
+publish = false
 
 [features]
 default = []
