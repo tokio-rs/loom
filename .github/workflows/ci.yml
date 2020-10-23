@@ -41,7 +41,7 @@ jobs:
       - name: Install Rust
         run: rustup update 1.39.0 && rustup default 1.39.0
       - name: Check
-        run: . ci/test-stable.sh check
+        run: cargo check --all-features
 
   # Stable
   stable:
