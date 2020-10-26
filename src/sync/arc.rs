@@ -94,12 +94,19 @@ impl<T> Clone for Arc<T> {
 impl<T> Drop for Arc<T> {
     #[track_caller]
     fn drop(&mut self) {
-        if self.inner.obj.ref_dec(&trace!()) {
-            assert_eq!(
-                1,
-                std::sync::Arc::strong_count(&self.inner),
-                "something odd is going on"
-            );
+        let trace = trace!();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if self.inner.obj.ref_dec(&trace) {
+                assert_eq!(
+                    1,
+                    std::sync::Arc::strong_count(&self.inner),
+                    "something odd is going on"
+                );
+            }
+        }));
+
+        if result.is_err() {
+            crate::rt::panic::paniced_in_drop();
         }
     }
 }
