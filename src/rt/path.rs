@@ -202,10 +202,14 @@ impl Path {
     /// Asserts that the current branching point matches the given trace. Should
     /// be calling when processing pre-existing entries in `branches`.
     fn check_trace(&mut self, trace: &Trace) {
-        let expected = self
-            .schedule_trace
-            .get(self.pos)
-            .expect("Trace record imbalance");
+        let expected = match self.schedule_trace.get(self.pos) {
+            Some(t) => t,
+            None => {
+                self.inconsistent = true;
+                self.trace_mismatch(Trace::opaque("{missing}"), trace);
+                return;
+            }
+        };
 
         if expected != trace {
             // drop the reference before making a call on mut self
@@ -315,12 +319,12 @@ impl Path {
 
     /// Branch on spurious notifications
     pub(super) fn branch_spurious(&mut self, trace: &Trace) -> bool {
-        self.check_trace(trace);
-
         if self.is_traversed() {
             assert_path_len!(self.branches);
 
             self.push_new_schedule_trace(trace, Spurious(false));
+        } else {
+            self.check_trace(trace);
         }
 
         let spurious = object::Ref::from_usize(self.pos)
