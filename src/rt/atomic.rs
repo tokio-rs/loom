@@ -54,6 +54,7 @@
 //! - Fence Synchronization (Collapsed Store)
 //! - Fence Synchronization (Collapsed Load)
 
+use crate::rt::execution::Execution;
 use crate::rt::location::{self, Location, LocationSet};
 use crate::rt::object;
 use crate::rt::{
@@ -162,27 +163,47 @@ struct FirstSeen([u16; MAX_THREADS]);
 
 /// Implements atomic fence behavior
 pub(crate) fn fence(ordering: Ordering) {
-    use std::sync::atomic::Ordering::Acquire;
-
-    assert_eq!(
-        ordering, Acquire,
-        "only Acquire fences are currently supported"
-    );
-
-    rt::synchronize(|execution| {
-        // Find all stores for all atomic objects and, if they have been read by
-        // the current thread, establish an acquire synchronization.
-        for state in execution.objects.iter_mut::<State>() {
-            // Iterate all the stores
-            for store in state.stores_mut() {
-                if !store.first_seen.is_seen_by_current(&execution.threads) {
-                    continue;
-                }
-
-                store.sync.sync_load(&mut execution.threads, ordering);
-            }
-        }
+    rt::synchronize(|execution| match ordering {
+        Ordering::Acquire => fence_acq(execution),
+        Ordering::Release => fence_rel(execution),
+        Ordering::AcqRel => fence_acqrel(execution),
+        Ordering::SeqCst => fence_seqcst(execution),
+        Ordering::Relaxed => panic!("there is no such thing as a relaxed fence"),
+        order => unimplemented!("unimplemented ordering {:?}", order),
     });
+}
+
+fn fence_acq(execution: &mut Execution) {
+    // Find all stores for all atomic objects and, if they have been read by
+    // the current thread, establish an acquire synchronization.
+    for state in execution.objects.iter_mut::<State>() {
+        // Iterate all the stores
+        for store in state.stores_mut() {
+            if !store.first_seen.is_seen_by_current(&execution.threads) {
+                continue;
+            }
+
+            store
+                .sync
+                .sync_load(&mut execution.threads, Ordering::Acquire);
+        }
+    }
+}
+
+fn fence_rel(execution: &mut Execution) {
+    // take snapshot of cur view and record as rel view
+    let active = execution.threads.active_mut();
+    active.released = active.causality;
+}
+
+fn fence_acqrel(execution: &mut Execution) {
+    fence_acq(execution);
+    fence_rel(execution);
+}
+
+fn fence_seqcst(execution: &mut Execution) {
+    fence_acqrel(execution);
+    // TODO do seq_cst stuff
 }
 
 impl<T: Numeric> Atomic<T> {

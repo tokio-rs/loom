@@ -18,6 +18,9 @@ pub(crate) struct Thread {
     /// Tracks observed causality
     pub causality: VersionVec,
 
+    /// Tracks the the view of the lastest release fence
+    pub released: VersionVec,
+
     /// Tracks DPOR relations
     pub dpor_vv: VersionVec,
 
@@ -85,6 +88,7 @@ impl Thread {
             critical: false,
             operation: None,
             causality: VersionVec::new(),
+            released: VersionVec::new(),
             dpor_vv: VersionVec::new(),
             last_yield: None,
             yield_count: 0,
@@ -168,6 +172,7 @@ impl fmt::Debug for Thread {
             .field("critical", &self.critical)
             .field("operation", &self.operation)
             .field("causality", &self.causality)
+            .field("released", &self.released)
             .field("dpor_vv", &self.dpor_vv)
             .field("last_yield", &self.last_yield)
             .field("yield_count", &self.yield_count)
