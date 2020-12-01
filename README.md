@@ -11,7 +11,7 @@ techniques][cdschecker] to avoid combinatorial explosion.
 
 [docs]: https://docs.rs/loom
 [spec]: https://en.cppreference.com/w/cpp/atomic/memory_order
-[cdschecker]: http://demsky.eecs.uci.edu/publications/c11modelcheck.pdf
+[cdschecker]: http://plrg.eecs.uci.edu/publications/toplas16.pdf
 
 ## Quickstart
 
