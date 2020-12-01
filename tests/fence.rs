@@ -1,33 +1,106 @@
 #![deny(warnings, rust_2018_idioms)]
 
 use loom::cell::UnsafeCell;
-use loom::sync::atomic::{fence, AtomicUsize};
+use loom::sync::atomic::{fence, AtomicBool};
 use loom::thread;
 
-use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
+use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
 use std::sync::Arc;
 
 #[test]
-fn basic_acquire_fence() {
+fn fence_sw_base() {
     loom::model(|| {
-        let state1 = Arc::new((UnsafeCell::new(0), AtomicUsize::new(0)));
-        let state2 = state1.clone();
+        let data = Arc::new(UnsafeCell::new(0));
+        let flag = Arc::new(AtomicBool::new(false));
 
-        let th = thread::spawn(move || {
-            state2.0.with_mut(|ptr| unsafe { *ptr = 1 });
-            state2.1.store(1, Release);
-        });
+        let th = {
+            let (data, flag) = (data.clone(), flag.clone());
+            thread::spawn(move || {
+                data.with_mut(|ptr| unsafe { *ptr = 42 });
+                fence(Release);
+                flag.store(true, Relaxed);
+            })
+        };
 
-        loop {
-            if 1 == state1.1.load(Relaxed) {
-                fence(Acquire);
+        if flag.load(Relaxed) {
+            fence(Acquire);
+            assert_eq!(42, data.with_mut(|ptr| unsafe { *ptr }));
+        }
+        th.join().unwrap();
+    });
+}
 
-                let v = unsafe { state1.0.with(|ptr| *ptr) };
-                assert_eq!(1, v);
-                break;
-            }
+#[test]
+fn fence_sw_collapsed_store() {
+    loom::model(|| {
+        let data = Arc::new(UnsafeCell::new(0));
+        let flag = Arc::new(AtomicBool::new(false));
 
-            thread::yield_now();
+        let th = {
+            let (data, flag) = (data.clone(), flag.clone());
+            thread::spawn(move || {
+                data.with_mut(|ptr| unsafe { *ptr = 42 });
+                flag.store(true, Release);
+            })
+        };
+
+        if flag.load(Relaxed) {
+            fence(Acquire);
+            assert_eq!(42, data.with_mut(|ptr| unsafe { *ptr }));
+        }
+        th.join().unwrap();
+    });
+}
+
+#[test]
+fn fence_sw_collapsed_load() {
+    loom::model(|| {
+        let data = Arc::new(UnsafeCell::new(0));
+        let flag = Arc::new(AtomicBool::new(false));
+
+        let th = {
+            let (data, flag) = (data.clone(), flag.clone());
+            thread::spawn(move || {
+                data.with_mut(|ptr| unsafe { *ptr = 42 });
+                fence(Release);
+                flag.store(true, Relaxed);
+            })
+        };
+
+        if flag.load(Acquire) {
+            assert_eq!(42, data.with_mut(|ptr| unsafe { *ptr }));
+        }
+        th.join().unwrap();
+    });
+}
+
+#[test]
+fn fence_hazard_pointer() {
+    loom::model(|| {
+        let reachable = Arc::new(AtomicBool::new(true));
+        let protected = Arc::new(AtomicBool::new(false));
+        let allocated = Arc::new(AtomicBool::new(true));
+
+        let th = {
+            let (reachable, protected, allocated) =
+                (reachable.clone(), protected.clone(), allocated.clone());
+            thread::spawn(move || {
+                // put in protected list
+                protected.store(true, Relaxed);
+                fence(SeqCst);
+                // validate, then access
+                if reachable.load(Relaxed) {
+                    assert!(allocated.load(Relaxed));
+                }
+            })
+        };
+
+        // unlink/retire
+        reachable.store(false, Relaxed);
+        fence(SeqCst);
+        // reclaim unprotected
+        if !protected.load(Relaxed) {
+            allocated.store(false, Relaxed);
         }
 
         th.join().unwrap();
