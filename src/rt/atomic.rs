@@ -203,7 +203,7 @@ fn fence_acqrel(execution: &mut Execution) {
 
 fn fence_seqcst(execution: &mut Execution) {
     fence_acqrel(execution);
-    // TODO do seq_cst stuff
+    execution.threads.seq_cst_fence();
 }
 
 impl<T: Numeric> Atomic<T> {

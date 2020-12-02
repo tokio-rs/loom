@@ -284,6 +284,14 @@ impl Set {
         // but will not silently allow bugs.
     }
 
+    pub(crate) fn seq_cst_fence(&mut self) {
+        self.threads[self.active.unwrap()]
+            .causality
+            .join(&self.seq_cst_causality);
+        self.seq_cst_causality
+            .join(&self.threads[self.active.unwrap()].causality);
+    }
+
     pub(crate) fn clear(&mut self, execution_id: execution::Id) {
         self.threads.clear();
         self.threads.push(Thread::new(Id::new(execution_id, 0)));
