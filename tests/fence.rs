@@ -74,6 +74,32 @@ fn fence_sw_collapsed_load() {
     });
 }
 
+// SB+fences from the Promising Semantics paper (https://sf.snu.ac.kr/promise-concurrency/)
+#[test]
+fn sb_fences() {
+    loom::model(|| {
+        let x = Arc::new(AtomicBool::new(false));
+        let y = Arc::new(AtomicBool::new(false));
+
+        let a = {
+            let (x, y) = (x.clone(), y.clone());
+            thread::spawn(move || {
+                x.store(true, Relaxed);
+                fence(SeqCst);
+                y.load(Relaxed)
+            })
+        };
+
+        y.store(true, Relaxed);
+        fence(SeqCst);
+        let b = x.load(Relaxed);
+
+        if !a.join().unwrap() {
+            assert!(b);
+        }
+    });
+}
+
 #[test]
 fn fence_hazard_pointer() {
     loom::model(|| {
@@ -104,5 +130,85 @@ fn fence_hazard_pointer() {
         }
 
         th.join().unwrap();
+    });
+}
+
+// RWC+syncs from the SCFix paper (https://plv.mpi-sws.org/scfix/)
+// The specified behavior was allowed in C/C++11, which later turned out to be too weak.
+// C/C++20 and all the implementations of C/C++11 disallow this behavior.
+#[test]
+fn rwc_syncs() {
+    loom::model(|| {
+        let x = Arc::new(AtomicBool::new(false));
+        let y = Arc::new(AtomicBool::new(false));
+
+        let t2 = {
+            let (x, y) = (x.clone(), y.clone());
+            thread::spawn(move || {
+                let a = x.load(Relaxed);
+                fence(SeqCst);
+                let b = y.load(Relaxed);
+                (a, b)
+            })
+        };
+
+        let t3 = {
+            let (x, y) = (x.clone(), y.clone());
+            thread::spawn(move || {
+                y.store(true, Relaxed);
+                fence(SeqCst);
+                x.load(Relaxed)
+            })
+        };
+
+        x.store(true, Relaxed);
+
+        let (a, b) = t2.join().unwrap();
+        let c = t3.join().unwrap();
+
+        if a && !b && !c {
+            panic!();
+        }
+    });
+}
+
+// W+RWC from the SCFix paper (https://plv.mpi-sws.org/scfix/)
+// The specified behavior was allowed in C/C++11, which later turned out to be too weak.
+// C/C++20 and most of the implementations of C/C++11 disallow this behavior.
+#[test]
+fn w_rwc() {
+    loom::model(|| {
+        let x = Arc::new(AtomicBool::new(false));
+        let y = Arc::new(AtomicBool::new(false));
+        let z = Arc::new(AtomicBool::new(false));
+
+        let t2 = {
+            let (y, z) = (y.clone(), z.clone());
+            thread::spawn(move || {
+                let a = z.load(Acquire);
+                fence(SeqCst);
+                let b = y.load(Relaxed);
+                (a, b)
+            })
+        };
+
+        let t3 = {
+            let (x, y) = (x.clone(), y.clone());
+            thread::spawn(move || {
+                y.store(true, Relaxed);
+                fence(SeqCst);
+                x.load(Relaxed)
+            })
+        };
+
+        x.store(true, Relaxed);
+        z.store(true, Release);
+
+        let (a, b) = t2.join().unwrap();
+        let c = t3.join().unwrap();
+
+        if a && !b && !c {
+            panic!();
+        }
     });
 }
