@@ -1,3 +1,11 @@
+# 0.4.0 (December 3, 2020)
+
+### Added
+- `AtomicI8`, `AtomicI16`, `AtomicI32`, `AtomicI64`, and `AtomicIsize` (#189)
+
+### Breaking
+- Bump MSRV to `1.45` (#183)
+
 # 0.3.6 (October 8, 2020)
 
 ### Added
