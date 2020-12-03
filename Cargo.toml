@@ -20,7 +20,6 @@ repository = "https://github.com/tokio-rs/loom"
 readme = "README.md"
 keywords = ["atomic", "lock-free"]
 categories = ["concurrency", "data-structures"]
-publish = false
 
 [features]
 default = []
@@ -28,7 +27,8 @@ checkpoint = ["serde", "serde_json"]
 futures = ["futures-util"]
 
 [dependencies]
-cfg-if = "1.0.0"
+# cfg-if = "1.0.0"
+cfg-if = "0.1"
 scoped-tls = "1.0.0"
 
 # Provides a generator based runtime
