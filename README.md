@@ -24,7 +24,7 @@ To use `loom`, first add this to your `Cargo.toml` (see below for more details):
 
 ```toml
 [target.'cfg(loom)'.dependencies]
-loom = "0.3"
+loom = "0.4"
 ```
 
 Next, create a test file and add a test:
