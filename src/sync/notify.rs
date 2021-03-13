@@ -33,8 +33,8 @@ impl Notify {
 
     /// Wait for a notification
     pub fn wait(&self) {
-        let actual = self.waiting.compare_and_swap(false, true, SeqCst);
-        assert!(!actual, "only a single thread may wait on `Notify`");
+        let result = self.waiting.compare_exchange(false, true, SeqCst, SeqCst);
+        assert!(result.is_ok(), "only a single thread may wait on `Notify`");
 
         self.object.wait();
         self.waiting.store(false, SeqCst);
