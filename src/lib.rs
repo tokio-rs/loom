@@ -132,7 +132,7 @@
 //!
 //! Then, elsewhere in the library:
 //!
-//! ```
+//! ```ignore
 //! use crate::sync::AtomicUsize;
 //! ```
 //!
@@ -298,8 +298,8 @@
 //! legal][spec-relaxed] for `r1 == r2 == 42`!
 //!
 //! ```rust,no_run
-//! # use std::sync::atomic::AtomicUsize;
-//! # use std::sync::Ordering;
+//! # use std::sync::atomic::{AtomicUsize, Ordering};
+//! # use std::thread;
 //! # let x: &'static _ = Box::leak(Box::new(AtomicUsize::new(0)));
 //! # let y: &'static _ = Box::leak(Box::new(AtomicUsize::new(0)));
 //! thread::spawn(move || {
