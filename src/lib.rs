@@ -13,7 +13,7 @@
 //! Testing concurrent programs is challenging; concurrent strands of execution can interleave in
 //! all sorts of ways, and each such interleaving might expose a concurrency bug in the program.
 //! Some bugs may be so rare that they only occur under a very small set of possible executions,
-//! and may not surface even if you run the code hundreds of thousands of times.
+//! and may not surface even if you run the code millions or billions of times.
 //!
 //! Loom provides a way to deterministically explore the various possible execution permutations
 //! without relying on random executions. This allows you to write tests that verify that your
@@ -100,7 +100,7 @@
 //! Test cases using loom must be fully determinstic. All sources of non-determism must be via loom
 //! types so that loom can expose different possible values on each execution of the test closure.
 //! Other sources of non-determinism like random number generation or system calls cannot be
-//! modeled by loom.
+//! modeled directly by loom, and must be mocked to be testable by loom.
 //!
 //! To model synchronization non-determinism, tests must use the loom synchronization types, such
 //! as [`Atomic*`](sync::atomic), [`Mutex`](sync::Mutex), [`RwLock`](sync::RwLock),
@@ -168,9 +168,11 @@
 //!
 //! Some concurrent algorithms assume a fair scheduler. For example, a spin lock assumes that, at
 //! some point, another thread will make enough progress for the lock to become available. This
-//! presents a challenge for loom as the scheduler is not fair. In such cases, loops must include
-//! calls to [`loom::thread::yield_now`](thread::yield_now). This tells loom that another thread
-//! needs to be scheduled in order for the current one to make progress.
+//! presents a challenge for loom as its scheduler is, by design, not fair. It is specifically
+//! trying to emulate every _possible_ execution, which may mean that another thread does not get
+//! to run for a very long time (see also [Spinlocks Considered Harmful]). In such cases, loops
+//! must include calls to [`loom::thread::yield_now`](thread::yield_now). This tells loom that
+//! another thread needs to be scheduled in order for the current one to make progress.
 //!
 //! # Running Loom Tests
 //!
@@ -248,6 +250,24 @@
 //!
 //! # Limitations and Caveats
 //!
+//! ## Intrusive Implementation
+//!
+//! Loom works by intercepting all loads, stores, and other concurrency-sensitive operations (like
+//! spawning threads) that may trigger concurrency bugs in an applications. But this interception
+//! is not automatic -- it requires that the code being tested specifically uses the loom
+//! replacement types. Any code that does not use loom's replacement types is invisible to loom,
+//! and thus won't be subject to the loom model's permutation.
+//!
+//! While it is relatively simple to utilize loom's types in a single crate through the root-level
+//! `#[cfg(loom)] mod sync` approach suggested earlier, more complex use-cases may require the use
+//! of a library that itself uses concurrent constructs like locks and channels. In such cases,
+//! that library must _also_ be augmented to support loom to achieve complete execution coverage.
+//!
+//! Note that loom still works if some concurrent operations are hidden from it (for example, if
+//! you use `std::sync::Arc` instead of `loom::sync::Arc`). It just means that loom won't be able
+//! to reason about the interaction between those operations and the other concurrent operations in
+//! your program, and thus certain executions that are possible in the real world won't be modeled.
+//!
 //! ## Large Models
 //!
 //! By default, loom runs an **exhaustive** check of your program's possible concurrent executions
@@ -296,10 +316,8 @@
 //! relaxed memory ordering allows. This is because the relaxed memory ordering allows memory
 //! operations to be re-ordered within a single thread -- B can run *before* A -- which loom cannot
 //! emulate. The same restriction applies to certain reorderings that are possible across different
-//! atomic variables with other memory orderings.
-//!
-//! Ultimately, this restriction means that loom is not a _completely_ exhaustive checker, and may
-//! miss bugs that could occur under particularly weak memory models.
+//! atomic variables with other memory orderings, and means that there are certain concurrency bugs
+//! that loom cannot catch.
 //!
 //! ## Combinatorial Explosion with Many Threads
 //!
@@ -325,6 +343,7 @@
 //!
 //! [spec]: https://en.cppreference.com/w/cpp/atomic/memory_order
 //! [spec-relaxed]: https://en.cppreference.com/w/cpp/atomic/memory_order#Relaxed_ordering
+//! [Spinlocks Considered Harmful]: https://matklad.github.io/2020/01/02/spinlocks-considered-harmful.html
 //! [cdschecker]: http://demsky.eecs.uci.edu/publications/c11modelcheck.pdf
 
 macro_rules! if_futures {
