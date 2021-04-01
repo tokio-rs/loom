@@ -102,6 +102,9 @@ pub fn current() -> Thread {
 }
 
 /// Mock implementation of `std::thread::spawn`.
+///
+/// Note that you may only have [`MAX_THREADS`](crate::MAX_THREADS) threads in a given loom tests
+/// _including_ the main thread.
 pub fn spawn<F, T>(f: F) -> JoinHandle<T>
 where
     F: FnOnce() -> T,
