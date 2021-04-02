@@ -380,6 +380,7 @@ pub use rt::MAX_THREADS;
 
 pub mod alloc;
 pub mod cell;
+pub mod hint;
 pub mod lazy_static;
 pub mod model;
 pub mod sync;
