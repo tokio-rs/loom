@@ -1,7 +1,5 @@
 #![deny(warnings, rust_2018_idioms)]
 
-use loom;
-
 use loom::sync::atomic::AtomicUsize;
 use loom::sync::{Condvar, Mutex};
 use loom::thread;
