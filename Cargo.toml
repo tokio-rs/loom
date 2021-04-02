@@ -2,19 +2,18 @@
 name = "loom"
 # When releasing to crates.io:
 # - Update version number
-#   - lib.rs: html_root_url.
 #   - README.md
 # - Update CHANGELOG.md
 # - Update doc URL.
 #   - Cargo.toml
 #   - README.md
 # - Create git tag
-version = "0.4.0"
+version = "0.4.1"
 edition = "2018"
 license = "MIT"
 authors = ["Carl Lerche <me@carllerche.com>"]
 description = "Permutation testing for concurrent code"
-documentation = "https://docs.rs/loom/0.3.6/loom"
+documentation = "https://docs.rs/loom/0.4.1/loom"
 homepage = "https://github.com/tokio-rs/loom"
 repository = "https://github.com/tokio-rs/loom"
 readme = "README.md"
