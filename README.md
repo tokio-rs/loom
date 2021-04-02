@@ -7,9 +7,9 @@ to avoid combinatorial explosion.
 
 [![Crates.io](https://img.shields.io/crates/v/loom.svg)](https://crates.io/crates/loom)
 [![Documentation](https://docs.rs/loom/badge.svg)][docs]
-[![Build Status](https://dev.azure.com/tokio-rs/loom/_apis/build/status/tokio-rs.loom?branchName=master)](https://dev.azure.com/tokio-rs/loom/_build/latest?definitionId=2&branchName=master)
+[![Build Status](https://github.com/tokio-rs/loom/actions/workflows/ci.yml/badge.svg)](https://github.com/tokio-rs/loom/actions)
 
-[docs](https://docs.rs/loom)
+[docs]: https://docs.rs/loom
 [spec]: https://en.cppreference.com/w/cpp/atomic/memory_order
 [cdschecker]: http://demsky.eecs.uci.edu/publications/c11modelcheck.pdf
 
