@@ -30,7 +30,7 @@ cfg-if = "1.0.0"
 scoped-tls = "1.0.0"
 
 # Provides a generator based runtime
-generator = "0.6.18"
+generator = "0.7"
 
 # Requires for "checkpoint" feature
 serde = { version = "1.0.92", features = ["derive"], optional = true }
