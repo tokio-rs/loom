@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Install Rust
-        run: rustup update 1.46.0 && rustup default 1.46.0
+        run: rustup update 1.51.0 && rustup default 1.51.0
       - name: Check
         run: cargo check --all-features
 
