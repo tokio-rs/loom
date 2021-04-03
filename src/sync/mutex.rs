@@ -1,6 +1,5 @@
 use crate::rt;
 
-use std::default::Default;
 use std::ops;
 use std::sync::{LockResult, TryLockError, TryLockResult};
 
