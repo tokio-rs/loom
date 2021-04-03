@@ -7,7 +7,7 @@ pub use self::atomic_waker::AtomicWaker;
 use crate::rt;
 use crate::sync::Arc;
 
-use futures_util::pin_mut;
+use pin_utils::pin_mut;
 use std::future::Future;
 use std::mem;
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
