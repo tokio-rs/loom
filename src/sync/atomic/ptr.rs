@@ -79,3 +79,9 @@ impl<T> Default for AtomicPtr<T> {
         AtomicPtr::new(ptr::null_mut())
     }
 }
+
+impl<T> From<*mut T> for AtomicPtr<T> {
+    fn from(p: *mut T) -> Self {
+        Self::new(p)
+    }
+}
