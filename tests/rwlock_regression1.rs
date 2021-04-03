@@ -1,5 +1,3 @@
-use loom;
-
 use loom::{
     sync::{
         atomic::{AtomicUsize, Ordering},
