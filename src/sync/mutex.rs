@@ -58,8 +58,17 @@ impl<T> Mutex<T> {
 }
 
 impl<T: ?Sized + Default> Default for Mutex<T> {
+    /// Creates a `Mutex<T>`, with the `Default` value for T.
     fn default() -> Self {
         Self::new(Default::default())
+    }
+}
+
+impl<T> From<T> for Mutex<T> {
+    /// Creates a new mutex in an unlocked state ready for use.
+    /// This is equivalent to [`Mutex::new`].
+    fn from(t: T) -> Self {
+        Self::new(t)
     }
 }
 
