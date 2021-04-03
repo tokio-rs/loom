@@ -60,6 +60,9 @@ pub(super) enum Action {
     /// Action on a channel
     Channel(rt::mpsc::Action),
 
+    /// Action on a RwLock
+    RwLock(rt::rwlock::Action),
+
     /// Generic action with no specialized dependencies on access.
     Opaque,
 }
@@ -418,5 +421,18 @@ impl Into<Action> for rt::atomic::Action {
 impl Into<Action> for rt::mpsc::Action {
     fn into(self) -> Action {
         Action::Channel(self)
+    }
+}
+
+impl Into<Action> for rt::rwlock::Action {
+    fn into(self) -> Action {
+        Action::RwLock(self)
+    }
+}
+
+impl PartialEq<rt::rwlock::Action> for Action {
+    fn eq(&self, other: &rt::rwlock::Action) -> bool {
+        let other: Action = (*other).into();
+        *self == other
     }
 }

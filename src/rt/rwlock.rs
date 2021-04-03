@@ -15,6 +15,15 @@ enum Locked {
     Write(thread::Id),
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub(super) enum Action {
+    /// Read lock
+    Read,
+
+    /// Write lock
+    Write,
+}
+
 #[derive(Debug)]
 pub(super) struct State {
     /// A single `thread::Id` when Write locked.
@@ -45,7 +54,9 @@ impl RwLock {
     /// Acquire the read lock.
     /// Fail to acquire read lock if already *write* locked.
     pub(crate) fn acquire_read_lock(&self) {
-        self.state.branch_acquire(self.is_write_locked());
+        self.state
+            .branch_disable(Action::Read, self.is_write_locked());
+
         assert!(
             self.post_acquire_read_lock(),
             "expected to be able to acquire read lock"
@@ -55,8 +66,11 @@ impl RwLock {
     /// Acquire write lock.
     /// Fail to acquire write lock if either read or write locked.
     pub(crate) fn acquire_write_lock(&self) {
-        self.state
-            .branch_acquire(self.is_write_locked() || self.is_read_locked());
+        self.state.branch_disable(
+            Action::Write,
+            self.is_write_locked() || self.is_read_locked(),
+        );
+
         assert!(
             self.post_acquire_write_lock(),
             "expected to be able to acquire write lock"
@@ -64,20 +78,19 @@ impl RwLock {
     }
 
     pub(crate) fn try_acquire_read_lock(&self) -> bool {
-        self.state.branch_opaque();
+        self.state.branch_action(Action::Read);
         self.post_acquire_read_lock()
     }
 
     pub(crate) fn try_acquire_write_lock(&self) -> bool {
-        self.state.branch_opaque();
+        self.state.branch_action(Action::Write);
         self.post_acquire_write_lock()
     }
 
     pub(crate) fn release_read_lock(&self) {
         super::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
-
-            state.lock = None;
+            let thread_id = execution.threads.active_id();
 
             state
                 .synchronize
@@ -86,9 +99,18 @@ impl RwLock {
             // Establish sequential consistency between the lock's operations.
             execution.threads.seq_cst();
 
-            let thread_id = execution.threads.active_id();
+            let readers = match &mut state.lock {
+                Some(Locked::Read(readers)) => readers,
+                _ => panic!("invalid internal loom state"),
+            };
 
-            self.unlock_threads(execution, thread_id);
+            readers.remove(&thread_id);
+
+            if readers.is_empty() {
+                state.lock = None;
+
+                self.unlock_threads(execution, thread_id);
+            }
         });
     }
 
@@ -109,25 +131,6 @@ impl RwLock {
 
             self.unlock_threads(execution, thread_id);
         });
-    }
-
-    fn lock_out_threads(&self, execution: &mut Execution, thread_id: thread::Id) {
-        // TODO: This and the following function look very similar.
-        // Refactor the two to DRY the code.
-        for (id, thread) in execution.threads.iter_mut() {
-            if id == thread_id {
-                continue;
-            }
-
-            let obj = thread
-                .operation
-                .as_ref()
-                .map(|operation| operation.object());
-
-            if obj == Some(self.state.erase()) {
-                thread.set_blocked();
-            }
-        }
     }
 
     fn unlock_threads(&self, execution: &mut Execution, thread_id: thread::Id) {
@@ -202,7 +205,20 @@ impl RwLock {
             execution.threads.seq_cst();
 
             // Block all writer threads from attempting to acquire the RwLock
-            self.lock_out_threads(execution, thread_id);
+            for (id, th) in execution.threads.iter_mut() {
+                if id == thread_id {
+                    continue;
+                }
+
+                let op = match th.operation.as_ref() {
+                    Some(op) if op.object() == self.state.erase() => op,
+                    _ => continue,
+                };
+
+                if op.action() == Action::Write {
+                    th.set_blocked();
+                }
+            }
 
             true
         })
@@ -219,12 +235,25 @@ impl RwLock {
                 _ => Some(Locked::Write(thread_id)),
             };
 
-            dbg!(state.synchronize.sync_load(&mut execution.threads, Acquire));
+            state.synchronize.sync_load(&mut execution.threads, Acquire);
 
             // Establish sequential consistency between locks
             execution.threads.seq_cst();
 
             // Block all other threads attempting to acquire rwlock
+            // Block all writer threads from attempting to acquire the RwLock
+            for (id, th) in execution.threads.iter_mut() {
+                if id == thread_id {
+                    continue;
+                }
+
+                match th.operation.as_ref() {
+                    Some(op) if op.object() == self.state.erase() => {
+                        th.set_blocked();
+                    }
+                    _ => continue,
+                };
+            }
 
             true
         })

@@ -7,6 +7,7 @@ mod bool;
 pub use self::bool::AtomicBool;
 
 mod int;
+pub use self::int::{AtomicI16, AtomicI32, AtomicI64, AtomicI8, AtomicIsize};
 pub use self::int::{AtomicU16, AtomicU32, AtomicU64, AtomicU8, AtomicUsize};
 
 mod ptr;

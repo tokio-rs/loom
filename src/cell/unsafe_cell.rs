@@ -14,7 +14,7 @@ pub struct UnsafeCell<T> {
 
 impl<T> UnsafeCell<T> {
     /// Constructs a new instance of `UnsafeCell` which will wrap the specified value.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn new(data: T) -> UnsafeCell<T> {
         let state = rt::Cell::new(location!());
 
@@ -30,7 +30,7 @@ impl<T> UnsafeCell<T> {
     ///
     /// This function will panic if the access is not valid under the Rust memory
     /// model.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn with<F, R>(&self, f: F) -> R
     where
         F: FnOnce(*const T) -> R,
@@ -45,7 +45,7 @@ impl<T> UnsafeCell<T> {
     ///
     /// This function will panic if the access is not valid under the Rust memory
     /// model.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn with_mut<F, R>(&self, f: F) -> R
     where
         F: FnOnce(*mut T) -> R,

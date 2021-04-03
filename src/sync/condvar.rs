@@ -68,3 +68,9 @@ impl WaitTimeoutResult {
         self.0
     }
 }
+
+impl Default for Condvar {
+    fn default() -> Self {
+        Self::new()
+    }
+}

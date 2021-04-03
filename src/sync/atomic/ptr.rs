@@ -8,7 +8,7 @@ pub struct AtomicPtr<T>(Atomic<*mut T>);
 
 impl<T> AtomicPtr<T> {
     /// Creates a new instance of `AtomicPtr`.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn new(v: *mut T) -> AtomicPtr<T> {
         AtomicPtr(Atomic::new(v, location!()))
     }
@@ -19,37 +19,37 @@ impl<T> AtomicPtr<T> {
     }
 
     /// Get access to a mutable reference to the inner value.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn with_mut<R>(&mut self, f: impl FnOnce(&mut *mut T) -> R) -> R {
         self.0.with_mut(f)
     }
 
     /// Loads a value from the pointer.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn load(&self, order: Ordering) -> *mut T {
         self.0.load(order)
     }
 
     /// Stores a value into the pointer.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn store(&self, val: *mut T, order: Ordering) {
         self.0.store(val, order)
     }
 
     /// Stores a value into the pointer, returning the previous value.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn swap(&self, val: *mut T, order: Ordering) -> *mut T {
         self.0.swap(val, order)
     }
 
     /// Stores a value into the pointer if the current value is the same as the `current` value.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn compare_and_swap(&self, current: *mut T, new: *mut T, order: Ordering) -> *mut T {
         self.0.compare_and_swap(current, new, order)
     }
 
     /// Stores a value into the pointer if the current value is the same as the `current` value.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn compare_exchange(
         &self,
         current: *mut T,
@@ -61,7 +61,7 @@ impl<T> AtomicPtr<T> {
     }
 
     /// Stores a value into the atomic if the current value is the same as the current value.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn compare_exchange_weak(
         &self,
         current: *mut T,

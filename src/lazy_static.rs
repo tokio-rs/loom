@@ -1,4 +1,4 @@
-//! Mock implementation of `std::thread`.
+//! Mock implementation of the `lazy_static` crate.
 
 use crate::rt;
 pub use crate::rt::thread::AccessError;

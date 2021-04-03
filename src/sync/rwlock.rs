@@ -1,9 +1,7 @@
 use crate::rt;
 
-use std::{
-    ops,
-    sync::{LockResult, TryLockError, TryLockResult},
-};
+use std::ops;
+use std::sync::{LockResult, TryLockError, TryLockResult};
 
 /// Mock implementatoin of `std::sync::RwLock`
 #[derive(Debug)]
@@ -50,7 +48,7 @@ impl<T> RwLock<T> {
 
         Ok(RwLockReadGuard {
             lock: self,
-            data: Some(self.data.read().unwrap()),
+            data: Some(self.data.try_read().expect("loom::RwLock state corrupt")),
         })
     }
 
@@ -65,7 +63,7 @@ impl<T> RwLock<T> {
         if self.object.try_acquire_read_lock() {
             Ok(RwLockReadGuard {
                 lock: self,
-                data: Some(self.data.read().unwrap()),
+                data: Some(self.data.try_read().expect("loom::RwLock state corrupt")),
             })
         } else {
             Err(TryLockError::WouldBlock)
@@ -82,7 +80,7 @@ impl<T> RwLock<T> {
 
         Ok(RwLockWriteGuard {
             lock: self,
-            data: Some(self.data.write().unwrap()),
+            data: Some(self.data.try_write().expect("loom::RwLock state corrupt")),
         })
     }
 
@@ -97,7 +95,7 @@ impl<T> RwLock<T> {
         if self.object.try_acquire_write_lock() {
             Ok(RwLockWriteGuard {
                 lock: self,
-                data: Some(self.data.write().unwrap()),
+                data: Some(self.data.try_write().expect("loom::RwLock state corrupt")),
             })
         } else {
             Err(TryLockError::WouldBlock)
@@ -107,6 +105,12 @@ impl<T> RwLock<T> {
     /// Consumes this `RwLock`, returning the underlying data.
     pub fn into_inner(self) -> LockResult<T> {
         unimplemented!()
+    }
+}
+
+impl<T: Default> Default for RwLock<T> {
+    fn default() -> Self {
+        Self::new(Default::default())
     }
 }
 

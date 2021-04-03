@@ -11,7 +11,10 @@ const DEFAULT_MAX_BRANCHES: usize = 1_000;
 /// Configure a model
 #[derive(Debug)]
 pub struct Builder {
-    /// Max number of threads to check as part of the execution. This should be set as low as possible.
+    /// Max number of threads to check as part of the execution.
+    ///
+    /// This should be set as low as possible and must be less than
+    /// [`MAX_THREADS`](crate::MAX_THREADS).
     pub max_threads: usize,
 
     /// Maximum number of thread switches per permutation.
@@ -142,7 +145,7 @@ impl Builder {
         self
     }
 
-    /// CHeck a model
+    /// Check the provided model.
     pub fn check<F>(&self, f: F)
     where
         F: Fn() + Sync + Send + 'static,
@@ -230,7 +233,6 @@ where
 
 #[cfg(feature = "checkpoint")]
 mod checkpoint {
-    use serde_json;
     use std::fs::File;
     use std::io::prelude::*;
     use std::path::Path;

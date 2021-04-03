@@ -18,7 +18,7 @@ struct Inner<T> {
 
 impl<T> Arc<T> {
     /// Constructs a new `Arc<T>`.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn new(value: T) -> Arc<T> {
         let inner = std::sync::Arc::new(Inner {
             value,
@@ -35,7 +35,7 @@ impl<T> Arc<T> {
     }
 
     /// Returns a mutable reference to the inner value, if there are
-    /// no other `Arc` or [`Weak`][weak] pointers to the same value.
+    /// no other `Arc` pointers to the same value.
     pub fn get_mut(this: &mut Self) -> Option<&mut T> {
         if this.inner.obj.get_mut() {
             assert_eq!(1, std::sync::Arc::strong_count(&this.inner));

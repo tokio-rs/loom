@@ -1,3 +1,38 @@
+# 0.4.0 (December 3, 2020)
+
+### Added
+- `AtomicI8`, `AtomicI16`, `AtomicI32`, `AtomicI64`, and `AtomicIsize` (#189)
+
+### Breaking
+- Bump MSRV to `1.45` (#183)
+
+# 0.3.6 (October 8, 2020)
+
+### Added
+- `thread::Thread` and `thread::ThreadId` (#175)
+
+# 0.3.5 (July 26, 2020)
+
+### Fixed
+- An example in the README failing to compile (#132)
+
+### Changed
+- Updated `scoped-tls` to 1.0.0 (#153)
+
+### Added
+- `Send` and `Sync` impls for `JoinHandle` (#145)
+- `Default` impls for `Mutex`, `RwLock`, and `Condvar` (#138)
+
+# 0.3.4 (May 2, 2020)
+
+### Fixed
+- `RwLock` bug with activating threads (#140)
+
+# 0.3.3 (April 28, 2020)
+
+### Fixes
+- `RwLock` bug with two writers (#135).
+
 # 0.3.2 (April 13, 2020)
 
 ### Fixed
