@@ -109,8 +109,17 @@ impl<T> RwLock<T> {
 }
 
 impl<T: Default> Default for RwLock<T> {
+    /// Creates a `RwLock<T>`, with the `Default` value for T.
     fn default() -> Self {
         Self::new(Default::default())
+    }
+}
+
+impl<T> From<T> for RwLock<T> {
+    /// Creates a new rwlock in an unlocked state ready for use.
+    /// This is equivalent to [`RwLock::new`].
+    fn from(t: T) -> Self {
+        Self::new(t)
     }
 }
 
