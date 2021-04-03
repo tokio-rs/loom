@@ -114,7 +114,7 @@
 //!
 //! ```toml
 //! [target.'cfg(loom)'.dependencies]
-//! loom = "0.4"
+//! loom = "0.5"
 //! ```
 //!
 //! One common strategy to use the right types with and without loom is to create a module in your
