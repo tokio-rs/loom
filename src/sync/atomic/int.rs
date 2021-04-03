@@ -112,8 +112,14 @@ macro_rules! atomic_int {
         }
 
         impl Default for $name {
-            fn default() -> $name {
-                $name::new(Default::default())
+            fn default() -> Self {
+                Self::new(Default::default())
+            }
+        }
+
+        impl From<$atomic_type> for $name {
+            fn from(v: $atomic_type) -> Self {
+                Self::new(v)
             }
         }
     };

@@ -97,3 +97,9 @@ impl Default for AtomicBool {
         AtomicBool::new(Default::default())
     }
 }
+
+impl From<bool> for AtomicBool {
+    fn from(b: bool) -> Self {
+        Self::new(b)
+    }
+}
