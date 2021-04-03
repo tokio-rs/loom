@@ -2,17 +2,29 @@ use super::Atomic;
 
 use std::sync::atomic::Ordering;
 
+// TODO: use `#[doc = concat!()]` directly once `extended_key_value_attributes` stable.
+macro_rules! doc_comment {
+    ($doc:expr, $($tt:tt)*) => {
+        #[doc = $doc]
+        $($tt)*
+    };
+}
+
 macro_rules! atomic_int {
     ($name: ident, $atomic_type: ty) => {
-        /// Mock implementation of `std::sync::atomic::$name`.
-        #[derive(Debug)]
-        pub struct $name(Atomic<$atomic_type>);
+        doc_comment! {
+            concat!(" Mock implementation of `std::sync::atomic::", stringify!($name), "`."),
+            #[derive(Debug)]
+            pub struct $name(Atomic<$atomic_type>);
+        }
 
         impl $name {
-            /// Creates a new instance of `$name`.
-            #[track_caller]
-            pub fn new(v: $atomic_type) -> Self {
-                Self(Atomic::new(v, location!()))
+            doc_comment! {
+                concat!(" Creates a new instance of `", stringify!($name), "`."),
+                #[track_caller]
+                pub fn new(v: $atomic_type) -> Self {
+                    Self(Atomic::new(v, location!()))
+                }
             }
 
             /// Get access to a mutable reference to the inner value.
