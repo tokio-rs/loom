@@ -27,13 +27,15 @@ pub struct Sender<T> {
 impl<T> Sender<T> {
     /// Attempts to send a value on this channel, returning it back if it could
     /// not be sent.
+    #[track_caller]
     pub fn send(&self, msg: T) -> Result<(), std::sync::mpsc::SendError<T>> {
-        self.object.send();
+        self.object.send(&trace!(&*self.object));
         self.sender.send(msg)
     }
 }
 
 impl<T> Clone for Sender<T> {
+    #[track_caller]
     fn clone(&self) -> Sender<T> {
         Sender {
             object: std::sync::Arc::clone(&self.object),
@@ -52,8 +54,9 @@ pub struct Receiver<T> {
 impl<T> Receiver<T> {
     /// Attempts to wait for a value on this receiver, returning an error if the
     /// corresponding channel has hung up.
+    #[track_caller]
     pub fn recv(&self) -> Result<T, std::sync::mpsc::RecvError> {
-        self.object.recv();
+        self.object.recv(&trace!(&*self.object));
         self.receiver.recv()
     }
     /// Attempts to wait for a value on this receiver, returning an error if the
@@ -67,6 +70,7 @@ impl<T> Receiver<T> {
 }
 
 impl<T> Drop for Receiver<T> {
+    #[track_caller]
     fn drop(&mut self) {
         // Drain the channel.
         while !self.object.is_empty() {

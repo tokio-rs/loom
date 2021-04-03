@@ -3,9 +3,17 @@ use crate::rt::{thread, Access, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
+use super::{trace::TraceEntity, Trace};
+
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Mutex {
     state: object::Ref<State>,
+}
+
+impl TraceEntity for Mutex {
+    fn as_trace_ref(&self) -> super::TraceRef {
+        self.state.as_trace_ref().relabel("Mutex")
+    }
 }
 
 #[derive(Debug)]
@@ -38,18 +46,21 @@ impl Mutex {
         })
     }
 
-    pub(crate) fn acquire_lock(&self) {
-        self.state.branch_acquire(self.is_locked());
+    pub(crate) fn acquire_lock(&self, trace: &Trace) {
+        self.state
+            .branch_acquire(&trace.with_ref(self), self.is_locked());
         assert!(self.post_acquire(), "expected to be able to acquire lock");
     }
 
-    pub(crate) fn try_acquire_lock(&self) -> bool {
-        self.state.branch_opaque();
+    pub(crate) fn try_acquire_lock(&self, trace: &Trace) -> bool {
+        self.state.branch_opaque(&trace.with_ref(self));
         self.post_acquire()
     }
 
-    pub(crate) fn release_lock(&self) {
+    pub(crate) fn release_lock(&self, trace: &Trace) {
         super::execution(|execution| {
+            execution.path.record_event(&trace.with_ref(self));
+
             let state = self.state.get_mut(&mut execution.objects);
 
             // Release the lock flag

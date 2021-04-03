@@ -197,7 +197,11 @@ impl Builder {
 
             let f = f.clone();
 
+            let panic_in_drop_cell = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let _enter = rt::panic::with_panic_in_drop_cell(panic_in_drop_cell.clone());
+
             scheduler.run(&mut execution, move || {
+                let _enter = rt::panic::with_panic_in_drop_cell(panic_in_drop_cell);
                 f();
 
                 let lazy_statics = rt::execution(|execution| execution.lazy_statics.drop());
@@ -208,7 +212,11 @@ impl Builder {
                 rt::thread_done();
             });
 
+            execution.check_consistency();
+
             execution.check_for_leaks();
+
+            rt::panic::check_panic_in_drop();
 
             if let Some(next) = execution.step() {
                 execution = next;

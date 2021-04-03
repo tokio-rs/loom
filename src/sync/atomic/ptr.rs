@@ -73,7 +73,7 @@ impl<T> AtomicPtr<T> {
     }
 }
 
-impl<T> Default for AtomicPtr<T> {
+impl<T: 'static> Default for AtomicPtr<T> {
     fn default() -> AtomicPtr<T> {
         use std::ptr;
         AtomicPtr::new(ptr::null_mut())

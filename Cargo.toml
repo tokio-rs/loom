@@ -37,3 +37,5 @@ serde = { version = "1.0.92", features = ["derive"], optional = true }
 serde_json = { version = "1.0.33", optional = true }
 
 futures-util = { version = "0.3.0", optional = true }
+
+once_cell = { version = "1.4.1" }

@@ -3,9 +3,17 @@ use crate::rt::{self, Access, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
+use super::{trace::TraceEntity, Trace};
+
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Notify {
     state: object::Ref<State>,
+}
+
+impl TraceEntity for Notify {
+    fn as_trace_ref(&self) -> rt::TraceRef {
+        self.state.as_trace_ref().relabel("Notify")
+    }
 }
 
 #[derive(Debug)]
@@ -45,8 +53,8 @@ impl Notify {
         })
     }
 
-    pub(crate) fn notify(self) {
-        self.state.branch_opaque();
+    pub(crate) fn notify(self, trace: &Trace) {
+        self.state.branch_opaque(&trace.with_ref(&self));
 
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -76,10 +84,12 @@ impl Notify {
         });
     }
 
-    pub(crate) fn wait(self) {
+    pub(crate) fn wait(self, trace: &Trace) {
+        let trace = trace.with_ref(&self);
+
         let (notified, spurious) = rt::execution(|execution| {
             let spurious = if self.state.get(&execution.objects).might_spur() {
-                execution.path.branch_spurious()
+                execution.path.branch_spurious(&trace)
             } else {
                 false
             };
@@ -94,15 +104,15 @@ impl Notify {
         });
 
         if spurious {
-            rt::yield_now();
+            rt::yield_now(&trace);
             return;
         }
 
         if notified {
-            self.state.branch_opaque();
+            self.state.branch_opaque(&trace);
         } else {
             // This should become branch_disable
-            self.state.branch_acquire(true)
+            self.state.branch_acquire(&trace, true)
         }
 
         // Thread was notified

@@ -24,13 +24,14 @@ impl Condvar {
     }
 
     /// Blocks the current thread until this condition variable receives a notification.
+    #[track_caller]
     pub fn wait<'a, T>(&self, mut guard: MutexGuard<'a, T>) -> LockResult<MutexGuard<'a, T>> {
         // Release the RefCell borrow guard allowing another thread to lock the
         // data
         guard.unborrow();
 
         // Wait until notified
-        self.object.wait(guard.rt());
+        self.object.wait(&trace!(), guard.rt());
 
         // Borrow the mutex guarded data again
         guard.reborrow();
@@ -40,6 +41,7 @@ impl Condvar {
 
     /// Waits on this condition variable for a notification, timing out after a
     /// specified duration.
+    #[track_caller]
     pub fn wait_timeout<'a, T>(
         &self,
         guard: MutexGuard<'a, T>,
@@ -52,13 +54,15 @@ impl Condvar {
     }
 
     /// Wakes up one blocked thread on this condvar.
+    #[track_caller]
     pub fn notify_one(&self) {
-        self.object.notify_one();
+        self.object.notify_one(&trace!());
     }
 
     /// Wakes up all blocked threads on this condvar.
+    #[track_caller]
     pub fn notify_all(&self) {
-        self.object.notify_all();
+        self.object.notify_all(&trace!());
     }
 }
 

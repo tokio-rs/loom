@@ -37,7 +37,7 @@ impl<T> Arc<T> {
     /// Returns a mutable reference to the inner value, if there are
     /// no other `Arc` pointers to the same value.
     pub fn get_mut(this: &mut Self) -> Option<&mut T> {
-        if this.inner.obj.get_mut() {
+        if this.inner.obj.get_mut(&trace!()) {
             assert_eq!(1, std::sync::Arc::strong_count(&this.inner));
             Some(&mut std::sync::Arc::get_mut(&mut this.inner).unwrap().value)
         } else {
@@ -81,8 +81,9 @@ impl<T> ops::Deref for Arc<T> {
 }
 
 impl<T> Clone for Arc<T> {
+    #[track_caller]
     fn clone(&self) -> Arc<T> {
-        self.inner.obj.ref_inc();
+        self.inner.obj.ref_inc(&trace!());
 
         Arc {
             inner: self.inner.clone(),
@@ -91,13 +92,21 @@ impl<T> Clone for Arc<T> {
 }
 
 impl<T> Drop for Arc<T> {
+    #[track_caller]
     fn drop(&mut self) {
-        if self.inner.obj.ref_dec() {
-            assert_eq!(
-                1,
-                std::sync::Arc::strong_count(&self.inner),
-                "something odd is going on"
-            );
+        let trace = trace!();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if self.inner.obj.ref_dec(&trace) {
+                assert_eq!(
+                    1,
+                    std::sync::Arc::strong_count(&self.inner),
+                    "something odd is going on"
+                );
+            }
+        }));
+
+        if result.is_err() {
+            crate::rt::panic::paniced_in_drop();
         }
     }
 }

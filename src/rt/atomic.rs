@@ -40,10 +40,18 @@ use std::marker::PhantomData;
 use std::sync::atomic::Ordering;
 use std::u16;
 
+use super::{trace::TraceEntity, Trace};
+
 #[derive(Debug)]
 pub(crate) struct Atomic<T> {
     state: object::Ref<State>,
     _p: PhantomData<fn() -> T>,
+}
+
+impl<T> TraceEntity for Atomic<T> {
+    fn as_trace_ref(&self) -> rt::TraceRef {
+        self.state.as_trace_ref().relabel_implicit(self)
+    }
 }
 
 #[derive(Debug)]
@@ -175,8 +183,10 @@ impl<T: Numeric> Atomic<T> {
     }
 
     /// Loads a value from the atomic cell.
-    pub(crate) fn load(&self, location: Location, ordering: Ordering) -> T {
-        self.branch(Action::Load);
+    pub(crate) fn load(&self, trace: &Trace, location: Location, ordering: Ordering) -> T {
+        let trace = trace.with_ref(self);
+
+        self.branch(&trace, Action::Load);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -187,11 +197,11 @@ impl<T: Numeric> Atomic<T> {
 
                 let n = state.match_load_to_stores(&execution.threads, &mut seed[..], ordering);
 
-                execution.path.push_load(&seed[..n]);
+                execution.path.push_load(&trace, &seed[..n]);
             }
 
             // Get the store to return from this load.
-            let index = execution.path.branch_load();
+            let index = execution.path.branch_load(&trace);
 
             T::from_u64(state.load(&mut execution.threads, index, location, ordering))
         })
@@ -216,8 +226,8 @@ impl<T: Numeric> Atomic<T> {
     }
 
     /// Stores a value into the atomic cell.
-    pub(crate) fn store(&self, location: Location, val: T, ordering: Ordering) {
-        self.branch(Action::Store);
+    pub(crate) fn store(&self, trace: &Trace, location: Location, val: T, ordering: Ordering) {
+        self.branch(&trace.with_ref(self), Action::Store);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -240,6 +250,7 @@ impl<T: Numeric> Atomic<T> {
 
     pub(crate) fn rmw<F, E>(
         &self,
+        trace: &Trace,
         location: Location,
         success: Ordering,
         failure: Ordering,
@@ -248,7 +259,9 @@ impl<T: Numeric> Atomic<T> {
     where
         F: FnOnce(T) -> Result<T, E>,
     {
-        self.branch(Action::Rmw);
+        let trace = trace.with_ref(self);
+
+        self.branch(&trace, Action::Rmw);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -258,11 +271,11 @@ impl<T: Numeric> Atomic<T> {
                 let mut seed = [0; MAX_ATOMIC_HISTORY];
 
                 let n = state.match_rmw_to_stores(&mut seed[..]);
-                execution.path.push_load(&seed[..n]);
+                execution.path.push_load(&trace, &seed[..n]);
             }
 
             // Get the store to use for the read portion of the rmw operation.
-            let index = execution.path.branch_load();
+            let index = execution.path.branch_load(&trace);
 
             state
                 .rmw(
@@ -324,9 +337,9 @@ impl<T: Numeric> Atomic<T> {
         f(&mut reset.0)
     }
 
-    fn branch(&self, action: Action) {
+    fn branch(&self, trace: &Trace, action: Action) {
         let r = self.state;
-        r.branch_action(action);
+        r.branch_action(trace, action);
         assert!(
             r.ref_eq(self.state),
             "Internal state mutated during branch. This is \

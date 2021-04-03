@@ -1,3 +1,7 @@
+#[macro_use]
+pub(crate) mod trace;
+pub(crate) use self::trace::{Trace, TraceRef};
+
 mod access;
 use self::access::Access;
 
@@ -62,13 +66,66 @@ pub const MAX_THREADS: usize = 4;
 /// Maximum number of atomic store history to track per-cell.
 pub(crate) const MAX_ATOMIC_HISTORY: usize = 7;
 
+/// In some cases, we may need to suppress panics that occur in Drop handlers.
+/// The thread-local state here provides a place to record that we did so, so
+/// that we can force the test to fail, while allowing the drop processing to
+/// proceed in the meantime.
+pub(crate) mod panic {
+    use std::cell::RefCell;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    thread_local! {
+        static PANIC_IN_DROP_CELL : RefCell<Option<Arc<AtomicBool>>> = RefCell::new(None);
+    }
+
+    pub(crate) fn paniced_in_drop() {
+        eprintln!("Suppressing panic occurring in drop handler");
+        PANIC_IN_DROP_CELL.with(|p| {
+            let borrow = p.borrow();
+            if let Some(atomic) = &*borrow {
+                atomic.store(true, Ordering::SeqCst);
+            }
+        });
+    }
+
+    pub(crate) fn get_panic_in_drop_cell() -> Option<Arc<AtomicBool>> {
+        PANIC_IN_DROP_CELL.with(|p| p.borrow().clone())
+    }
+
+    pub(crate) fn with_panic_in_drop_cell(cell: Arc<AtomicBool>) -> impl Drop {
+        struct ClearCell(Option<Arc<AtomicBool>>);
+        impl Drop for ClearCell {
+            fn drop(&mut self) {
+                PANIC_IN_DROP_CELL.with(|p| p.replace(self.0.take()));
+            }
+        }
+
+        PANIC_IN_DROP_CELL.with(|p| {
+            let mut p = p.borrow_mut();
+
+            let restore = ClearCell(p.take());
+            *p = Some(cell);
+            restore
+        })
+    }
+
+    pub(crate) fn check_panic_in_drop() {
+        if PANIC_IN_DROP_CELL.with(|p| p.borrow().as_ref().unwrap().load(Ordering::SeqCst)) {
+            panic!("Paniced in drop handler");
+        }
+    }
+}
+
 pub(crate) fn spawn<F>(f: F) -> crate::rt::thread::Id
 where
     F: FnOnce() + 'static,
 {
+    let panic_in_drop = panic::get_panic_in_drop_cell().unwrap();
     let id = execution(|execution| execution.new_thread());
 
     Scheduler::spawn(Box::new(move || {
+        let _enter = panic::with_panic_in_drop_cell(panic_in_drop);
         f();
         thread_done();
     }));
@@ -77,24 +134,24 @@ where
 }
 
 /// Marks the current thread as blocked
-pub fn park() {
+pub(crate) fn park(trace: &Trace) {
     execution(|execution| {
         execution.threads.active_mut().set_blocked();
         execution.threads.active_mut().operation = None;
-        execution.schedule()
+        execution.schedule(trace)
     });
 
     Scheduler::switch();
 }
 
 /// Add an execution branch point.
-fn branch<F, R>(f: F) -> R
+fn branch<F, R>(trace: &Trace, f: F) -> R
 where
     F: FnOnce(&mut Execution) -> R,
 {
     let (ret, switch) = execution(|execution| {
         let ret = f(execution);
-        (ret, execution.schedule())
+        (ret, execution.schedule(trace))
     });
 
     if switch {
@@ -119,11 +176,11 @@ where
 ///
 /// This enables concurrent algorithms that require other threads to make
 /// progress.
-pub fn yield_now() {
+pub(crate) fn yield_now(trace: &Trace) {
     let switch = execution(|execution| {
         execution.threads.active_mut().set_yield();
         execution.threads.active_mut().operation = None;
-        execution.schedule()
+        execution.schedule(trace)
     });
 
     if switch {
@@ -138,6 +195,7 @@ where
     Scheduler::with_execution(f)
 }
 
+#[track_caller]
 pub fn thread_done() {
     let locals = execution(|execution| execution.threads.active_mut().drop_locals());
 
@@ -147,6 +205,6 @@ pub fn thread_done() {
     execution(|execution| {
         execution.threads.active_mut().operation = None;
         execution.threads.active_mut().set_terminated();
-        execution.schedule();
+        execution.schedule(&trace!());
     });
 }

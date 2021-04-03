@@ -2,7 +2,6 @@
 
 use crate::rt;
 pub use crate::rt::thread::AccessError;
-pub use crate::rt::yield_now;
 use crate::sync::atomic::Ordering;
 
 pub use std::thread::panicking;

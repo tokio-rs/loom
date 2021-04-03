@@ -1,8 +1,7 @@
 //! Mock implementation of `std::thread`.
 
 pub use crate::rt::thread::AccessError;
-pub use crate::rt::yield_now;
-use crate::rt::{self, Execution};
+use crate::rt::{self, Execution, Trace};
 
 pub use std::thread::panicking;
 
@@ -33,6 +32,12 @@ impl Thread {
     /// Returns the (optional) name of this thread
     pub fn name(&self) -> Option<&str> {
         self.name.as_ref().map(|s| s.as_str())
+    }
+}
+
+impl crate::rt::trace::TraceEntity for Thread {
+    fn as_trace_ref(&self) -> rt::TraceRef {
+        rt::TraceRef::new("Thread", self.id.id.as_usize())
     }
 }
 
@@ -87,6 +92,15 @@ fn init_current(execution: &mut Execution, name: Option<String>) -> Thread {
     thread
 }
 
+/// Yield the thread.
+///
+/// This enables concurrent algorithms that require other threads to make
+/// progress.
+#[track_caller]
+pub fn yield_now() {
+    rt::yield_now(&trace!());
+}
+
 /// Returns a handle to the current thread.
 pub fn current() -> Thread {
     rt::execution(|execution| {
@@ -132,7 +146,7 @@ where
             });
 
             *result.lock().unwrap() = Some(Ok(f()));
-            notify.notify();
+            notify.notify(&Trace::opaque("thread termination - notify JoinHandle"));
         })
     };
 
@@ -180,8 +194,9 @@ impl Builder {
 
 impl<T> JoinHandle<T> {
     /// Waits for the associated thread to finish.
+    #[track_caller]
     pub fn join(self) -> std::thread::Result<T> {
-        self.notify.wait();
+        self.notify.wait(&trace!(&self.thread));
         self.result.lock().unwrap().take().unwrap()
     }
 

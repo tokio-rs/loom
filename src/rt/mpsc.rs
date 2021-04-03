@@ -2,9 +2,17 @@ use crate::rt::{object, Access, Synchronize, VersionVec};
 use std::collections::VecDeque;
 use std::sync::atomic::Ordering::{Acquire, Release};
 
+use super::{trace::TraceEntity, Trace};
+
 #[derive(Debug)]
 pub(crate) struct Channel {
     state: object::Ref<State>,
+}
+
+impl TraceEntity for Channel {
+    fn as_trace_ref(&self) -> super::TraceRef {
+        self.state.as_trace_ref().relabel("Entity")
+    }
 }
 
 #[derive(Debug)]
@@ -61,8 +69,9 @@ impl Channel {
         })
     }
 
-    pub(crate) fn send(&self) {
-        self.state.branch_action(Action::MsgSend);
+    pub(crate) fn send(&self, trace: &Trace) {
+        self.state
+            .branch_action(&trace.with_ref(self), Action::MsgSend);
         super::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
             state.msg_cnt = state.msg_cnt.checked_add(1).expect("overflow");
@@ -95,8 +104,9 @@ impl Channel {
         })
     }
 
-    pub(crate) fn recv(&self) {
-        self.state.branch_disable(Action::MsgRecv, self.is_empty());
+    pub(crate) fn recv(&self, trace: &Trace) {
+        self.state
+            .branch_disable(&trace.with_ref(self), Action::MsgRecv, self.is_empty());
         super::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
             let thread_id = execution.threads.active_id();

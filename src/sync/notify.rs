@@ -27,17 +27,19 @@ impl Notify {
     }
 
     /// Notify the watier
+    #[track_caller]
     pub fn notify(&self) {
-        self.object.notify();
+        self.object.notify(&trace!(&self.object));
     }
 
     /// Wait for a notification
+    #[track_caller]
     pub fn wait(&self) {
         self.waiting
             .compare_exchange(false, true, SeqCst, SeqCst)
             .expect("only a single thread may wait on `Notify`");
 
-        self.object.wait();
+        self.object.wait(&trace!(&self.object));
         self.waiting.store(false, SeqCst);
     }
 }

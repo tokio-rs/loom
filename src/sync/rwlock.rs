@@ -43,8 +43,9 @@ impl<T> RwLock<T> {
     /// lock when this method returns. This method does not provide any
     /// guarantees with respect to the ordering of whether contentious readers
     /// or writers will acquire the lock first.
+    #[track_caller]
     pub fn read(&self) -> LockResult<RwLockReadGuard<'_, T>> {
-        self.object.acquire_read_lock();
+        self.object.acquire_read_lock(&trace!(&self.object));
 
         Ok(RwLockReadGuard {
             lock: self,
@@ -59,8 +60,9 @@ impl<T> RwLock<T> {
     /// access when it is dropped.
     ///
     /// This function does not block.
+    #[track_caller]
     pub fn try_read(&self) -> TryLockResult<RwLockReadGuard<'_, T>> {
-        if self.object.try_acquire_read_lock() {
+        if self.object.try_acquire_read_lock(&trace!(&self.object)) {
             Ok(RwLockReadGuard {
                 lock: self,
                 data: Some(self.data.try_read().expect("loom::RwLock state corrupt")),
@@ -75,8 +77,9 @@ impl<T> RwLock<T> {
     ///
     /// This function will not return while other writers or other readers
     /// currently have access to the lock.
+    #[track_caller]
     pub fn write(&self) -> LockResult<RwLockWriteGuard<'_, T>> {
-        self.object.acquire_write_lock();
+        self.object.acquire_write_lock(&trace!(&self.object));
 
         Ok(RwLockWriteGuard {
             lock: self,
@@ -91,8 +94,9 @@ impl<T> RwLock<T> {
     /// it is dropped.
     ///
     /// This function does not block.
+    #[track_caller]
     pub fn try_write(&self) -> TryLockResult<RwLockWriteGuard<'_, T>> {
-        if self.object.try_acquire_write_lock() {
+        if self.object.try_acquire_write_lock(&trace!(&self.object)) {
             Ok(RwLockWriteGuard {
                 lock: self,
                 data: Some(self.data.try_write().expect("loom::RwLock state corrupt")),
@@ -123,9 +127,12 @@ impl<'a, T> ops::Deref for RwLockReadGuard<'a, T> {
 }
 
 impl<'a, T: 'a> Drop for RwLockReadGuard<'a, T> {
+    #[track_caller]
     fn drop(&mut self) {
         self.data = None;
-        self.lock.object.release_read_lock()
+        self.lock
+            .object
+            .release_read_lock(&trace!(&self.lock.object))
     }
 }
 
@@ -144,8 +151,11 @@ impl<'a, T> ops::DerefMut for RwLockWriteGuard<'a, T> {
 }
 
 impl<'a, T: 'a> Drop for RwLockWriteGuard<'a, T> {
+    #[track_caller]
     fn drop(&mut self) {
         self.data = None;
-        self.lock.object.release_write_lock()
+        self.lock
+            .object
+            .release_write_lock(&trace!(&self.lock.object))
     }
 }

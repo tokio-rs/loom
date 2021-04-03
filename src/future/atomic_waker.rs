@@ -21,8 +21,9 @@ impl AtomicWaker {
     }
 
     /// Registers the current task to be notified on calls to `wake`.
+    #[track_caller]
     pub fn register(&self, waker: Waker) {
-        if dbg!(!self.object.try_acquire_lock()) {
+        if dbg!(!self.object.try_acquire_lock(&trace!())) {
             waker.wake();
             // yield the task and try again... this is a spin lock.
             thread::yield_now();
@@ -30,7 +31,7 @@ impl AtomicWaker {
         }
 
         *self.waker.lock().unwrap() = Some(waker);
-        dbg!(self.object.release_lock());
+        dbg!(self.object.release_lock(&trace!()));
     }
 
     /// Registers the current task to be woken without consuming the value.
@@ -47,12 +48,13 @@ impl AtomicWaker {
 
     /// Attempts to take the `Waker` value out of the `AtomicWaker` with the
     /// intention that the caller will wake the task later.
+    #[track_caller]
     pub fn take_waker(&self) -> Option<Waker> {
-        dbg!(self.object.acquire_lock());
+        dbg!(self.object.acquire_lock(&trace!()));
 
         let ret = self.waker.lock().unwrap().take();
 
-        dbg!(self.object.release_lock());
+        dbg!(self.object.release_lock(&trace!()));
 
         ret
     }

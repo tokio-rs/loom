@@ -25,12 +25,13 @@ where
 
     #[track_caller]
     pub(crate) fn load(&self, order: Ordering) -> T {
-        self.state.load(location!(), order)
+        self.state.load(&trace!(&self.state), location!(), order)
     }
 
     #[track_caller]
     pub(crate) fn store(&self, value: T, order: Ordering) {
-        self.state.store(location!(), value, order)
+        self.state
+            .store(&trace!(&self.state), location!(), value, order)
     }
 
     #[track_caller]
@@ -46,7 +47,11 @@ where
     where
         F: FnOnce(T) -> T,
     {
-        self.try_rmw::<_, ()>(order, order, |v| Ok(f(v))).unwrap()
+        self.state
+            .rmw::<_, ()>(&trace!(&self.state), location!(), order, order, |v| {
+                Ok(f(v))
+            })
+            .unwrap()
     }
 
     #[track_caller]
@@ -54,7 +59,8 @@ where
     where
         F: FnOnce(T) -> Result<T, E>,
     {
-        self.state.rmw(location!(), success, failure, f)
+        self.state
+            .rmw(&trace!(&self.state), location!(), success, failure, f)
     }
 
     #[track_caller]
