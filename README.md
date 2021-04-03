@@ -2,8 +2,8 @@
 
 Loom is a testing tool for concurrent Rust code. It runs a test many
 times, permuting the possible concurrent executions of that test under
-the [C11 memory model]. It uses [state reduction techniques][cdschecker]
-to avoid combinatorial explosion.
+the [C11 memory model][spec]. It uses [state reduction
+techniques][cdschecker] to avoid combinatorial explosion.
 
 [![Crates.io](https://img.shields.io/crates/v/loom.svg)](https://crates.io/crates/loom)
 [![Documentation](https://docs.rs/loom/badge.svg)][docs]
