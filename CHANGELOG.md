@@ -1,3 +1,31 @@
+# 0.5.0 (April 12, 2021)
+
+### Breaking
+
+- Bump MSRV to 1.51 (#205)
+
+### Added
+
+- Add `From` implementation to `Mutex` (#131)
+- Add `From` implementation to `RwLock` (#209)
+- Add `From` implementation to atomic types (#210)
+- Add `fetch_update` to atomics (#212)
+
+### Changed
+
+- Move `futures-util` to `dev-dependencies` (#208)
+- Update `generator` to 0.7 (#203)
+
+# 0.4.1 (April 1, 2021)
+
+### Added
+
+- Add a `loom::hint` module containing mocked versions of `spin_loop` and `unreachable_unchecked`. (#197)
+
+### Changed
+
+- Switch to non-deprecated `compare_exchange` (#201)
+
 # 0.4.0 (December 3, 2020)
 
 ### Added
