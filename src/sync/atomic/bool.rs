@@ -90,6 +90,22 @@ impl AtomicBool {
     pub fn fetch_xor(&self, val: bool, order: Ordering) -> bool {
         self.0.rmw(|v| v ^ val, order)
     }
+
+    /// Fetches the value, and applies a function to it that returns an optional new value. Returns
+    /// a [`Result`] of [`Ok`]`(previous_value)` if the function returned [`Some`]`(_)`, else
+    /// [`Err`]`(previous_value)`.
+    #[track_caller]
+    pub fn fetch_update<F>(
+        &self,
+        set_order: Ordering,
+        fetch_order: Ordering,
+        f: F,
+    ) -> Result<bool, bool>
+    where
+        F: FnMut(bool) -> Option<bool>,
+    {
+        self.0.fetch_update(set_order, fetch_order, f)
+    }
 }
 
 impl Default for AtomicBool {

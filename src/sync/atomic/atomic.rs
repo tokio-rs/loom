@@ -94,4 +94,24 @@ where
             }
         })
     }
+
+    #[track_caller]
+    pub(crate) fn fetch_update<F>(
+        &self,
+        set_order: Ordering,
+        fetch_order: Ordering,
+        mut f: F,
+    ) -> Result<T, T>
+    where
+        F: FnMut(T) -> Option<T>,
+    {
+        let mut prev = self.load(fetch_order);
+        while let Some(next) = f(prev) {
+            match self.compare_exchange(prev, next, set_order, fetch_order) {
+                Ok(x) => return Ok(x),
+                Err(next_prev) => prev = next_prev,
+            }
+        }
+        Err(prev)
+    }
 }

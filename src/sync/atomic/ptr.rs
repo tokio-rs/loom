@@ -71,6 +71,22 @@ impl<T> AtomicPtr<T> {
     ) -> Result<*mut T, *mut T> {
         self.compare_exchange(current, new, success, failure)
     }
+
+    /// Fetches the value, and applies a function to it that returns an optional new value. Returns
+    /// a [`Result`] of [`Ok`]`(previous_value)` if the function returned [`Some`]`(_)`, else
+    /// [`Err`]`(previous_value)`.
+    #[track_caller]
+    pub fn fetch_update<F>(
+        &self,
+        set_order: Ordering,
+        fetch_order: Ordering,
+        f: F,
+    ) -> Result<*mut T, *mut T>
+    where
+        F: FnMut(*mut T) -> Option<*mut T>,
+    {
+        self.0.fetch_update(set_order, fetch_order, f)
+    }
 }
 
 impl<T> Default for AtomicPtr<T> {
