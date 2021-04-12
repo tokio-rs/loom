@@ -19,7 +19,6 @@ repository = "https://github.com/tokio-rs/loom"
 readme = "README.md"
 keywords = ["atomic", "lock-free"]
 categories = ["concurrency", "data-structures"]
-publish = false
 
 [features]
 default = []
