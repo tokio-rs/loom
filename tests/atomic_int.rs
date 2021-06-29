@@ -24,6 +24,34 @@ macro_rules! test_int {
             }
 
             #[test]
+            fn max() {
+                loom::model(|| {
+                    let a: $int = NUM_A as $int;
+                    let b: $int = NUM_B as $int;
+
+                    let atomic = <$atomic>::new(a);
+                    let prev = atomic.fetch_max(b, SeqCst);
+
+                    assert_eq!(a, prev, "prev did not match");
+                    assert_eq!(a.max(b), atomic.load(SeqCst), "load failed");
+                });
+            }
+
+            #[test]
+            fn min() {
+                loom::model(|| {
+                    let a: $int = NUM_A as $int;
+                    let b: $int = NUM_B as $int;
+
+                    let atomic = <$atomic>::new(a);
+                    let prev = atomic.fetch_min(b, SeqCst);
+
+                    assert_eq!(a, prev, "prev did not match");
+                    assert_eq!(a.min(b), atomic.load(SeqCst), "load failed");
+                });
+            }
+
+            #[test]
             fn compare_exchange() {
                 loom::model(|| {
                     let a: $int = NUM_A as $int;

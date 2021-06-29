@@ -110,6 +110,12 @@ macro_rules! atomic_int {
                 self.0.rmw(|v| v & val, order)
             }
 
+            /// Bitwise "nand" with the current value.
+            #[track_caller]
+            pub fn fetch_nand(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
+                self.0.rmw(|v| !(v & val), order)
+            }
+
             /// Bitwise "or" with the current value.
             #[track_caller]
             pub fn fetch_or(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
@@ -120,6 +126,18 @@ macro_rules! atomic_int {
             #[track_caller]
             pub fn fetch_xor(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
                 self.0.rmw(|v| v ^ val, order)
+            }
+
+            /// Stores the maximum of the current and provided value, returning the previous value
+            #[track_caller]
+            pub fn fetch_max(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
+                self.0.rmw(|v| v.max(val), order)
+            }
+
+            /// Stores the minimum of the current and provided value, returning the previous value
+            #[track_caller]
+            pub fn fetch_min(&self, val: $atomic_type, order: Ordering) -> $atomic_type {
+                self.0.rmw(|v| v.min(val), order)
             }
 
             /// Fetches the value, and applies a function to it that returns an optional new value.
