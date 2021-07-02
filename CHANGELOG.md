@@ -1,3 +1,9 @@
+# 0.5.1 (July 2, 2021)
+
+### Added
+
+- Add several methods to atomic integer types (#217)
+
 # 0.5.0 (April 12, 2021)
 
 ### Breaking
