@@ -35,8 +35,8 @@ impl<T> UnsafeCell<T> {
     where
         F: FnOnce(*const T) -> R,
     {
-        self.state
-            .with(location!(), || f(self.data.get() as *const T))
+        let _reading = self.state.start_read(location!());
+        f(self.data.get() as *const T)
     }
 
     /// Get a mutable pointer to the wrapped value.
@@ -50,7 +50,8 @@ impl<T> UnsafeCell<T> {
     where
         F: FnOnce(*mut T) -> R,
     {
-        self.state.with_mut(location!(), || f(self.data.get()))
+        let _writing = self.state.start_write(location!());
+        f(self.data.get())
     }
 }
 
