@@ -12,12 +12,87 @@ pub struct UnsafeCell<T> {
     data: std::cell::UnsafeCell<T>,
 }
 
+/// A checked immutable raw pointer to an [`UnsafeCell`].
+///
+/// This type is essentially a [`*const T`], but with the added ability to
+/// participate in Loom's [`UnsafeCell`] access tracking. While a `ConstPtr` to a
+/// given [`UnsafeCell`] exists, Loom will track that the [`UnsafeCell`] is
+/// being accessed immutably.
+///
+/// [`ConstPtr`]s are produced by the [`UnsafeCell::get`] method. The pointed
+/// value can be accessed using [`ConstPtr::deref`].
+///
+/// Any number of [`ConstPtr`]s may concurrently access a given [`UnsafeCell`].
+/// However, if the [`UnsafeCell`] is accessed mutably (by
+/// [`UnsafeCell::with_mut`] or [`UnsafeCell::get_mut`]) while a [`ConstPtr`]
+/// exists, Loom will detect the concurrent mutable and immutable accesses and
+/// panic.
+///
+/// Note that the cell is considered to be immutably accessed for *the entire
+/// lifespan of the `ConstPtr`*, not just when the `ConstPtr` is actively
+/// dereferenced.
+///
+/// # Safety
+///
+/// Although the `ConstPtr` type is checked for concurrent access violations, it
+/// is **still a raw pointer**. A `ConstPtr` is not bound to the lifetime of the
+/// [`UnsafeCell`] from which it was produced, and may outlive the cell. Loom
+/// does *not* currently check for dangling pointers. Therefore, the user is
+/// responsible for ensuring that a `ConstPtr` does not dangle. However, unlike
+/// a normal `*const T`, `ConstPtr`s may only be produced from a valid
+/// [`UnsafeCell`], and therefore can be assumed to never be null.
+///
+/// Additionally, it is possible to write code in which raw pointers to an
+/// [`UnsafeCell`] are constructed that are *not* checked by Loom. If a raw
+/// pointer "escapes" Loom's tracking, invalid accesses may not be detected,
+/// resulting in tests passing when they should have failed. See [here] for
+/// details on how to avoid accidentally escaping the model.
+///
+/// [`*const T`]: https://doc.rust-lang.org/stable/std/primitive.pointer.html
+/// [here]: #correct-usage
 #[derive(Debug)]
 pub struct ConstPtr<T> {
     guard: rt::cell::Reading,
     ptr: *const T,
 }
 
+/// A checked mutable raw pointer to an [`UnsafeCell`].
+///
+/// This type is essentially a [`*mut T`], but with the added ability to
+/// participate in Loom's [`UnsafeCell`] access tracking. While a `MutPtr` to a
+/// given [`UnsafeCell`] exists, Loom will track that the [`UnsafeCell`] is
+/// being accessed mutably.
+///
+/// [`MutPtr`]s are produced by the [`UnsafeCell::get_mut`] method. The pointed
+/// value can be accessed using [`MutPtr::deref`].
+///
+/// If an [`UnsafeCell`] is accessed mutably (by [`UnsafeCell::with_mut`] or
+/// [`UnsafeCell::get_mut`]) or immutably (by [`UnsafeCell::with`] or
+/// [`UnsafeCell::get`]) while a [`MutPtr`] to that cell exists, Loom will
+/// detect the invalid accesses and panic.
+///
+/// Note that the cell is considered to be mutably accessed for *the entire
+/// lifespan of the `MutPtr`*, not just when the `MutPtr` is actively
+/// dereferenced.
+///
+/// # Safety
+///
+/// Although the `MutPtr` type is checked for concurrent access violations, it
+/// is **still a raw pointer**. A `MutPtr` is not bound to the lifetime of the
+/// [`UnsafeCell`] from which it was produced, and may outlive the cell. Loom
+/// does *not* currently check for dangling pointers. Therefore, the user is
+/// responsible for ensuring that a `MutPtr` does not dangle. However, unlike
+/// a normal `*mut T`, `MutPtr`s may only be produced from a valid
+/// [`UnsafeCell`], and therefore can be assumed to never be null.
+///
+/// Additionally, it is possible to write code in which raw pointers to an
+/// [`UnsafeCell`] are constructed that are *not* checked by Loom. If a raw
+/// pointer "escapes" Loom's tracking, invalid accesses may not be detected,
+/// resulting in tests passing when they should have failed. See [here] for
+/// details on how to avoid accidentally escaping the model.
+///
+/// [`*mut T`]: https://doc.rust-lang.org/stable/std/primitive.pointer.html
+/// [here]: #correct-usage
 #[derive(Debug)]
 pub struct MutPtr<T> {
     guard: rt::cell::Writing,
@@ -79,6 +154,9 @@ impl<T> UnsafeCell<T> {
     ///
     /// This function will panic if the access is not valid under the Rust memory
     /// model.
+    ///
+    /// [`with_mut`]: UnsafeCell::with_mut
+    /// [`get_mut`]: UnsafeCell::get_mut
     #[track_caller]
     pub fn get(&self) -> ConstPtr<T> {
         ConstPtr {
@@ -101,6 +179,11 @@ impl<T> UnsafeCell<T> {
     ///
     /// This function will panic if the access is not valid under the Rust memory
     /// model.
+    ///
+    /// [`with`]: UnsafeCell::with
+    /// [`with_mut`]: UnsafeCell::with_mut
+    /// [`get`]: UnsafeCell::get
+    /// [`get_mut`]: UnsafeCell::get_mut
     #[track_caller]
     pub fn get_mut(&self) -> MutPtr<T> {
         MutPtr {
@@ -142,7 +225,7 @@ impl<T> ConstPtr<T> {
     /// Therefore, the caller is responsible for ensuring this pointer is not
     /// dangling.
     ///
-    pub unsafe fn dere(&self) -> &T {
+    pub unsafe fn deref(&self) -> &T {
         &*self.ptr
     }
 
@@ -172,7 +255,7 @@ impl<T> ConstPtr<T> {
     /// let cell = UnsafeCell::new(1);
     ///
     /// let ptr = {
-    ///     let tracked_ptr = cell.get); // tracked immutable access begins here
+    ///     let tracked_ptr = cell.get(); // tracked immutable access begins here
     ///
     ///      // move the real pointer out of the simulated pointer
     ///     tracked_ptr.with(|real_ptr| real_ptr)
@@ -251,7 +334,7 @@ impl<T> ConstPtr<T> {
     ///         Box::new(ListNode {
     ///             value, // the pointer is moved into the `ListNode`, which will outlive this function!
     ///             next: ptr::null(),
-    ///         }))
+    ///         })
     ///     }
     /// }
     ///
@@ -270,6 +353,10 @@ impl<T> ConstPtr<T> {
     /// Finally, the `*const T` passed to `with` should *not* be cast to an
     /// `*mut T`. This will permit untracked mutable access, as Loom only tracks
     /// the existence of a `ConstPtr` as representing an immutable access.
+    ///
+    /// [`ptr::read`]: std::ptr::read
+    /// [`ptr::eq`]: std::ptr::eq
+    /// [`offset`]: https://doc.rust-lang.org/stable/std/primitive.pointer.html#method.offset
     pub fn with<F, R>(&self, f: F) -> R
     where
         F: FnOnce(*const T) -> R,
@@ -412,6 +499,11 @@ impl<T> MutPtr<T> {
     ///
     /// // loom doesn't know that the cell can still be accessed via the `AtomicPtr`!
     /// ```
+    ///
+    /// [`ptr::write`]: std::ptr::write
+    /// [`ptr::read`]: std::ptr::read
+    /// [`ptr::eq`]: std::ptr::eq
+    /// [`offset`]: https://doc.rust-lang.org/stable/std/primitive.pointer.html#method.offset
     pub fn with<F, R>(&self, f: F) -> R
     where
         F: FnOnce(*mut T) -> R,
