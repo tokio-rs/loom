@@ -290,8 +290,8 @@ impl<T> ConstPtr<T> {
     ///     let tracked_ptr = cell.get(); // tracked immutable access begins here
     ///
     ///     tracked_ptr.with(|ptr| unsafe {
-    ///         &*foo.bar as *const usize
-    ///     });
+    ///         &(*ptr).bar as *const usize
+    ///     })
     /// } // tracked access ends here, when `tracked_ptr` is dropped
     ///
     ///
@@ -333,14 +333,14 @@ impl<T> ConstPtr<T> {
     ///
     /// struct ListNode<T> {
     ///    value: *const T,
-    ///    next: *const LinkedListNode<T>,
+    ///    next: *const ListNode<T>,
     /// }
     ///
     /// impl<T> ListNode<T> {
     ///     fn new(value: *const T) -> Box<Self> {
     ///         Box::new(ListNode {
     ///             value, // the pointer is moved into the `ListNode`, which will outlive this function!
-    ///             next: ptr::null(),
+    ///             next: ptr::null::<ListNode<T>>(),
     ///         })
     ///     }
     /// }
@@ -461,8 +461,8 @@ impl<T> MutPtr<T> {
     ///     let tracked_ptr = cell.get_mut(); // tracked mutable access begins here
     ///
     ///     tracked_ptr.with(|ptr| unsafe {
-    ///         &*foo.bar as *mut usize
-    ///     });
+    ///         &mut (*ptr).bar as *mut usize
+    ///     })
     /// } // tracked mutable access ends here, when `tracked_ptr` is dropped
     ///
     ///
@@ -506,10 +506,10 @@ impl<T> MutPtr<T> {
     /// static SOME_IMPORTANT_POINTER: AtomicPtr<usize> = AtomicPtr::new(std::ptr::null_mut());
     ///
     /// fn mess_with_important_pointer(cell: &UnsafeCell<usize>) {
-    ///     let ptr = cell.get_mut(); // mutable access begins here
-    ///     cell.with(|ptr| {
-    ///         SOME_IMPORTANT_POINTER.store(ptr, Ordering::SeqCst);
-    ///     })
+    ///     cell.get_mut() // mutable access begins here
+    ///        .with(|ptr| {
+    ///             SOME_IMPORTANT_POINTER.store(ptr, Ordering::SeqCst);
+    ///         })
     /// } // mutable access ends here
     ///
     /// // loom doesn't know that the cell can still be accessed via the `AtomicPtr`!
