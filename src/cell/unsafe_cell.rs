@@ -476,9 +476,9 @@ impl<T> MutPtr<T> {
     ///
     /// let ptr = cell.get_mut();
     /// let value_in_cell = ptr.with(|ptr| unsafe {
-    ///     // This is fine, because `ptr::read` does not retain ownership of
+    ///     // This is fine, because `ptr::write` does not retain ownership of
     ///     // the pointer after when the function call returns.
-    ///     std::ptr::write(2)
+    ///     std::ptr::write(ptr, 2)
     /// });
     /// ```
     ///
