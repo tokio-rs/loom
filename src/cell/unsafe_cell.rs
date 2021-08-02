@@ -251,6 +251,7 @@ impl<T> ConstPtr<T> {
     /// For example, code like this is incorrect:
     ///
     /// ```rust
+    /// # loom::model(|| {
     /// use loom::cell::UnsafeCell;
     /// let cell = UnsafeCell::new(1);
     ///
@@ -266,6 +267,7 @@ impl<T> ConstPtr<T> {
     /// // accessed concurrently by this thread! this is BAD NEWS ---  loom would have
     /// // failed to detect a potential data race!
     /// unsafe { println!("{}", (*ptr)) }
+    /// # })
     /// ```
     ///
     /// More subtly, if a *new* pointer is constructed from the original
@@ -274,6 +276,7 @@ impl<T> ConstPtr<T> {
     /// example, this is incorrect:
     ///
     /// ```rust
+    /// # loom::model(|| {
     /// use loom::cell::UnsafeCell;
     ///
     /// struct MyStruct {
@@ -296,6 +299,7 @@ impl<T> ConstPtr<T> {
     /// // if another thread were to mutate `mystruct.bar` while we are holding this
     /// // pointer, Loom would fail to detect the data race!
     /// let ptr_to_bar = get_bar(&my_struct);
+    /// # })
     /// ```
     ///
     /// Similarly, constructing pointers via pointer math (such as [`offset`])
@@ -306,6 +310,7 @@ impl<T> ConstPtr<T> {
     /// end of the function call. Therefore, code like this is okay:
     ///
     /// ```rust
+    /// # loom::model(|| {
     /// use loom::cell::UnsafeCell;
     ///
     /// let cell = UnsafeCell::new(1);
@@ -316,11 +321,13 @@ impl<T> ConstPtr<T> {
     ///     // the pointer after when the function call returns.
     ///     std::ptr::read(ptr)
     /// });
+    /// # })
     /// ```
     ///
     /// But code like *this* is not okay:
     ///
     /// ```rust
+    /// # loom::model(|| {
     /// use loom::cell::UnsafeCell;
     /// use std::ptr;
     ///
@@ -348,6 +355,7 @@ impl<T> ConstPtr<T> {
     /// drop(ptr); // immutable access ends here
     ///
     /// // loom doesn't know that the cell can still be accessed via the `ListNode`!
+    /// # })
     /// ```
     ///
     /// Finally, the `*const T` passed to `with` should *not* be cast to an
@@ -414,6 +422,7 @@ impl<T> MutPtr<T> {
     /// For example, code like this is incorrect:
     ///
     /// ```rust
+    /// # loom::model(|| {
     /// use loom::cell::UnsafeCell;
     /// let cell = UnsafeCell::new(1);
     ///
@@ -429,6 +438,7 @@ impl<T> MutPtr<T> {
     /// // accessed! this is BAD NEWS --- if the cell was being accessed concurrently,
     /// // loom would have failed to detect the error!
     /// unsafe { (*ptr) = 2 }
+    /// # })
     /// ```
     ///
     /// More subtly, if a *new* pointer is constructed from the original
@@ -437,6 +447,7 @@ impl<T> MutPtr<T> {
     /// example, this is incorrect:
     ///
     /// ```rust
+    /// # loom::model(|| {
     /// use loom::cell::UnsafeCell;
     ///
     /// struct MyStruct {
@@ -460,6 +471,7 @@ impl<T> MutPtr<T> {
     /// // thread was accessing `mystruct` concurrently, Loom would fail to detect
     /// /// this.
     /// let ptr_to_bar = get_bar(&my_struct);
+    /// # })
     /// ```
     ///
     /// Similarly, constructing pointers via pointer math (such as [`offset`])
@@ -470,6 +482,7 @@ impl<T> MutPtr<T> {
     /// end of the function call. Therefore, code like this is okay:
     ///
     /// ```rust
+    /// # loom::model(|| {
     /// use loom::cell::UnsafeCell;
     ///
     /// let cell = UnsafeCell::new(1);
@@ -480,11 +493,13 @@ impl<T> MutPtr<T> {
     ///     // the pointer after when the function call returns.
     ///     std::ptr::write(ptr, 2)
     /// });
+    /// # })
     /// ```
     ///
     /// But code like *this* is not okay:
     ///
     /// ```rust
+    /// # loom::model(|| {
     /// use loom::cell::UnsafeCell;
     /// use std::sync::atomic::{AtomicPtr, Ordering};
     ///
@@ -498,6 +513,7 @@ impl<T> MutPtr<T> {
     /// } // mutable access ends here
     ///
     /// // loom doesn't know that the cell can still be accessed via the `AtomicPtr`!
+    /// # })
     /// ```
     ///
     /// [`ptr::write`]: std::ptr::write
