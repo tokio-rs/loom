@@ -1,6 +1,6 @@
 use crate::rt;
 
-use std::ops;
+use std::{ops, mem};
 
 /// Mock implementation of `std::sync::Arc`.
 #[derive(Debug)]
@@ -32,6 +32,21 @@ impl<T> Arc<T> {
     pub fn strong_count(_this: &Self) -> usize {
         unimplemented!("no tests checking this? DELETED!")
         // this.inner.ref_cnt.load(SeqCst)
+    }
+
+    /// Increments the strong reference count on the `Arc<T>` associated with the
+    /// provided pointer by one.
+    pub unsafe fn increment_strong_count(ptr: *const T) {
+        // Retain Arc, but don't touch refcount by wrapping in ManuallyDrop
+        let arc = unsafe { mem::ManuallyDrop::new(Arc::<T>::from_raw(ptr)) };
+        // Now increase refcount, but don't drop new refcount either
+        let _arc_clone: mem::ManuallyDrop<_> = arc.clone();
+    }
+
+    /// Decrements the strong reference count on the `Arc<T>` associated with the
+    /// provided pointer by one.
+    pub unsafe fn decrement_strong_count(ptr: *const T) {
+        unsafe { mem::drop(Arc::from_raw(ptr)) };
     }
 
     /// Returns a mutable reference to the inner value, if there are
