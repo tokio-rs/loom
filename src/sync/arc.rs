@@ -38,7 +38,7 @@ impl<T> Arc<T> {
     /// provided pointer by one.
     pub unsafe fn increment_strong_count(ptr: *const T) {
         // Retain Arc, but don't touch refcount by wrapping in ManuallyDrop
-        let arc = unsafe { mem::ManuallyDrop::new(Arc::<T>::from_raw(ptr)) };
+        let arc = mem::ManuallyDrop::new(Arc::<T>::from_raw(ptr));
         // Now increase refcount, but don't drop new refcount either
         let _arc_clone: mem::ManuallyDrop<_> = arc.clone();
     }
@@ -46,7 +46,7 @@ impl<T> Arc<T> {
     /// Decrements the strong reference count on the `Arc<T>` associated with the
     /// provided pointer by one.
     pub unsafe fn decrement_strong_count(ptr: *const T) {
-        unsafe { mem::drop(Arc::from_raw(ptr)) };
+        mem::drop(Arc::from_raw(ptr));
     }
 
     /// Returns a mutable reference to the inner value, if there are
