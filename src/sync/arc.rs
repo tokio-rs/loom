@@ -1,7 +1,7 @@
 use crate::rt;
 
-use std::ops;
 use std::pin::Pin;
+use std::{mem, ops};
 
 /// Mock implementation of `std::sync::Arc`.
 #[derive(Debug)]
@@ -40,6 +40,21 @@ impl<T> Arc<T> {
         // this.inner.ref_cnt.load(SeqCst)
     }
 
+    /// Increments the strong reference count on the `Arc<T>` associated with the
+    /// provided pointer by one.
+    pub unsafe fn increment_strong_count(ptr: *const T) {
+        // Retain Arc, but don't touch refcount by wrapping in ManuallyDrop
+        let arc = mem::ManuallyDrop::new(Arc::<T>::from_raw(ptr));
+        // Now increase refcount, but don't drop new refcount either
+        let _arc_clone: mem::ManuallyDrop<_> = arc.clone();
+    }
+
+    /// Decrements the strong reference count on the `Arc<T>` associated with the
+    /// provided pointer by one.
+    pub unsafe fn decrement_strong_count(ptr: *const T) {
+        mem::drop(Arc::from_raw(ptr));
+    }
+
     /// Returns a mutable reference to the inner value, if there are
     /// no other `Arc` pointers to the same value.
     pub fn get_mut(this: &mut Self) -> Option<&mut T> {
@@ -59,8 +74,6 @@ impl<T> Arc<T> {
 
     /// Consumes the `Arc`, returning the wrapped pointer.
     pub fn into_raw(this: Self) -> *const T {
-        use std::mem;
-
         let ptr = &*this as *const _;
         mem::forget(this);
         ptr as *const T
