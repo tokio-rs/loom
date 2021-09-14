@@ -5,29 +5,31 @@ use std::{mem, ops};
 
 /// Mock implementation of `std::sync::Arc`.
 #[derive(Debug)]
-pub struct Arc<T> {
+pub struct Arc<T: ?Sized> {
+    obj: std::sync::Arc<rt::Arc>,
     inner: std::sync::Arc<Inner<T>>,
 }
 
 #[derive(Debug)]
 #[repr(C)]
-struct Inner<T> {
+struct Inner<T: ?Sized> {
     // This must be the first field to make into_raw / from_raw work
     value: T,
-
-    obj: rt::Arc,
 }
 
 impl<T> Arc<T> {
     /// Constructs a new `Arc<T>`.
     #[track_caller]
     pub fn new(value: T) -> Arc<T> {
-        let inner = std::sync::Arc::new(Inner {
-            value,
-            obj: rt::Arc::new(location!()),
+        let inner = std::sync::Arc::new(Inner { value });
+        let obj = std::sync::Arc::new(rt::Arc::new(location!()));
+        let objc = std::sync::Arc::clone(&obj);
+
+        rt::execution(|e| {
+            e.arc_objs.insert(&*inner as *const _ as *const _, objc);
         });
 
-        Arc { inner }
+        Arc { obj, inner }
     }
 
     /// Constructs a new `Pin<Arc<T>>`.
@@ -35,6 +37,13 @@ impl<T> Arc<T> {
         unsafe { Pin::new_unchecked(Arc::new(data)) }
     }
 
+    /// Returns the inner value, if the `Arc` has exactly one strong reference.
+    pub fn try_unwrap(_this: Arc<T>) -> Result<T, Arc<T>> {
+        unimplemented!();
+    }
+}
+
+impl<T: ?Sized> Arc<T> {
     /// Gets the number of strong (`Arc`) pointers to this value.
     pub fn strong_count(_this: &Self) -> usize {
         unimplemented!("no tests checking this? DELETED!")
@@ -73,7 +82,7 @@ impl<T> Arc<T> {
     /// Returns a mutable reference to the inner value, if there are
     /// no other `Arc` pointers to the same value.
     pub fn get_mut(this: &mut Self) -> Option<&mut T> {
-        if this.inner.obj.get_mut() {
+        if this.obj.get_mut() {
             assert_eq!(1, std::sync::Arc::strong_count(&this.inner));
             Some(&mut std::sync::Arc::get_mut(&mut this.inner).unwrap().value)
         } else {
@@ -121,16 +130,12 @@ impl<T> Arc<T> {
     /// [transmute]: core::mem::transmute
     pub unsafe fn from_raw(ptr: *const T) -> Self {
         let inner = std::sync::Arc::from_raw(ptr as *const Inner<T>);
-        Arc { inner }
-    }
-
-    /// Returns the inner value, if the `Arc` has exactly one strong reference.
-    pub fn try_unwrap(_this: Arc<T>) -> Result<T, Arc<T>> {
-        unimplemented!();
+        let obj = rt::execution(|e| std::sync::Arc::clone(&e.arc_objs[&ptr.cast()]));
+        Arc { inner, obj }
     }
 }
 
-impl<T> ops::Deref for Arc<T> {
+impl<T: ?Sized> ops::Deref for Arc<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -138,19 +143,20 @@ impl<T> ops::Deref for Arc<T> {
     }
 }
 
-impl<T> Clone for Arc<T> {
+impl<T: ?Sized> Clone for Arc<T> {
     fn clone(&self) -> Arc<T> {
-        self.inner.obj.ref_inc();
+        self.obj.ref_inc();
 
         Arc {
             inner: self.inner.clone(),
+            obj: self.obj.clone(),
         }
     }
 }
 
-impl<T> Drop for Arc<T> {
+impl<T: ?Sized> Drop for Arc<T> {
     fn drop(&mut self) {
-        if self.inner.obj.ref_dec() {
+        if self.obj.ref_dec() {
             assert_eq!(
                 1,
                 std::sync::Arc::strong_count(&self.inner),
