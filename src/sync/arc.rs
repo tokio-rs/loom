@@ -1,7 +1,7 @@
 use crate::rt;
 
-use std::{ops, mem};
 use std::pin::Pin;
+use std::{mem, ops};
 
 /// Mock implementation of `std::sync::Arc`.
 #[derive(Debug)]
