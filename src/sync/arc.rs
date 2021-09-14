@@ -1,6 +1,7 @@
 use crate::rt;
 
 use std::{ops, mem};
+use std::pin::Pin;
 
 /// Mock implementation of `std::sync::Arc`.
 #[derive(Debug)]
@@ -26,6 +27,11 @@ impl<T> Arc<T> {
         });
 
         Arc { inner }
+    }
+
+    /// Constructs a new `Pin<Arc<T>>`.
+    pub fn pin(data: T) -> Pin<Arc<T>> {
+        unsafe { Pin::new_unchecked(Arc::new(data)) }
     }
 
     /// Gets the number of strong (`Arc`) pointers to this value.
