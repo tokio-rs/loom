@@ -40,6 +40,8 @@ use std::marker::PhantomData;
 use std::sync::atomic::Ordering;
 use std::u16;
 
+use tracing::trace;
+
 #[derive(Debug)]
 pub(crate) struct Atomic<T> {
     state: object::Ref<State>,
@@ -167,6 +169,8 @@ impl<T: Numeric> Atomic<T> {
             let state = State::new(&mut execution.threads, value.into_u64(), location);
             let state = execution.objects.insert(state);
 
+            trace!(?state, "Atomic::new");
+
             Atomic {
                 state,
                 _p: PhantomData,
@@ -193,6 +197,8 @@ impl<T: Numeric> Atomic<T> {
             // Get the store to return from this load.
             let index = execution.path.branch_load();
 
+            trace!(state = ?self.state, ?ordering, "Atomic::load");
+
             T::from_u64(state.load(&mut execution.threads, index, location, ordering))
         })
     }
@@ -208,6 +214,8 @@ impl<T: Numeric> Atomic<T> {
 
             // An unsync load counts as a "read" access
             state.track_unsync_load(&execution.threads);
+
+            trace!(state = ?self.state, "Atomic::unsync_load");
 
             // Return the value
             let index = index(state.cnt - 1);
@@ -227,6 +235,8 @@ impl<T: Numeric> Atomic<T> {
             // An atomic store counts as a read access to the underlying memory
             // cell.
             state.track_store(&execution.threads);
+
+            trace!(state = ?self.state, ?ordering, "Atomic::store");
 
             // Do the store
             state.store(
@@ -264,6 +274,8 @@ impl<T: Numeric> Atomic<T> {
             // Get the store to use for the read portion of the rmw operation.
             let index = execution.path.branch_load();
 
+            trace!(state = ?self.state, ?success, ?failure, "Atomic::rmw");
+
             state
                 .rmw(
                     &mut execution.threads,
@@ -290,6 +302,8 @@ impl<T: Numeric> Atomic<T> {
             // Verify the mutation may happen
             state.track_unsync_mut(&execution.threads);
             state.is_mutating = true;
+
+            trace!(state = ?self.state, "Atomic::with_mut");
 
             // Return the value of the most recent store
             let index = index(state.cnt - 1);

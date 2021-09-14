@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fmt;
 
+use tracing::info;
+
 pub(crate) struct Execution {
     /// Uniquely identifies an execution
     pub(super) id: Id,
@@ -239,8 +241,8 @@ impl Execution {
             }
         }
 
-        if self.log && switched {
-            println!("~~~~~~~~ THREAD {} ~~~~~~~~", self.threads.active_id());
+        if switched {
+            info!("~~~~~~~~ THREAD {} ~~~~~~~~", self.threads.active_id());
         }
 
         curr_thread != self.threads.active_id()

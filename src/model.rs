@@ -5,6 +5,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use tracing::{info, subscriber};
+use tracing_subscriber::{fmt, EnvFilter};
+
 const DEFAULT_MAX_THREADS: usize = 4;
 const DEFAULT_MAX_BRANCHES: usize = 1_000;
 
@@ -174,9 +177,9 @@ impl Builder {
             i += 1;
 
             if i % self.checkpoint_interval == 0 {
-                println!("");
-                println!(" ================== Iteration {} ==================", i);
-                println!("");
+                info!("");
+                info!(" ================== Iteration {} ==================", i);
+                info!("");
 
                 if let Some(ref path) = self.checkpoint_file {
                     checkpoint::store_execution_path(&execution.path, path);
@@ -213,7 +216,7 @@ impl Builder {
             if let Some(next) = execution.step() {
                 execution = next;
             } else {
-                println!("Completed in {} iterations", i);
+                info!("Completed in {} iterations", i);
                 return;
             }
         }
@@ -228,7 +231,13 @@ pub fn model<F>(f: F)
 where
     F: Fn() + Sync + Send + 'static,
 {
-    Builder::new().check(f)
+    let subscriber = fmt::Subscriber::builder()
+        .with_env_filter(EnvFilter::from_env("LOOM_LOG"))
+        .finish();
+
+    subscriber::with_default(subscriber, || {
+        Builder::new().check(f);
+    });
 }
 
 #[cfg(feature = "checkpoint")]
