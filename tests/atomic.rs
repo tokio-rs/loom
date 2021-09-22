@@ -108,3 +108,18 @@ fn compare_and_swap_reads_old_values() {
         }
     });
 }
+
+#[test]
+fn fetch_add_atomic() {
+    loom::model(|| {
+        let a1 = Arc::new(AtomicUsize::new(0));
+        let a2 = a1.clone();
+
+        let th = thread::spawn(move || a2.fetch_add(1, Relaxed));
+
+        let v1 = a1.fetch_add(1, Relaxed);
+        let v2 = th.join().unwrap();
+
+        assert_ne!(v1, v2);
+    });
+}
