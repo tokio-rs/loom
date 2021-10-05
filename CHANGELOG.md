@@ -2,11 +2,12 @@
 
 ### Added
 
-- `Arc::pin` added (#224)
-- Arc counter manipulations (#225)
-- Implement `Release`, `AcqRel`, and `SeqCst` fences (#220)
-- Implement `Mutex::into_inner` and `RwLock::into_inner` (#215)
 - Add a loom::cell::Cell, which provides a basic wrapper of the loom UnsafeCell (#196)
+- Arc counter manipulations (#225)
+- Implement `Mutex::into_inner` and `RwLock::into_inner` (#215)
+- Implement `Release`, `AcqRel`, and `SeqCst` fences (#220)
+- `Arc::as_ptr` added (#230)
+- `Arc::pin` added (#224)
 
 ### Changed
 
