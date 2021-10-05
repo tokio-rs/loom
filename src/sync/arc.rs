@@ -75,9 +75,14 @@ impl<T> Arc<T> {
 
     /// Consumes the `Arc`, returning the wrapped pointer.
     pub fn into_raw(this: Self) -> *const T {
-        let ptr = &*this as *const _;
+        let ptr = Self::as_ptr(&this);
         mem::forget(this);
-        ptr as *const T
+        ptr
+    }
+
+    /// Provides a raw pointer to the data.
+    pub fn as_ptr(this: &Self) -> *const T {
+        std::sync::Arc::as_ptr(&this.inner) as *const T
     }
 
     /// Constructs an `Arc` from a raw pointer.
