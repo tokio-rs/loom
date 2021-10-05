@@ -74,7 +74,7 @@ impl<T> Arc<T> {
 
     /// Consumes the `Arc`, returning the wrapped pointer.
     pub fn into_raw(this: Self) -> *const T {
-        let ptr = as_ptr(&this);
+        let ptr = Self::as_ptr(&this);
         mem::forget(this);
         ptr
     }
