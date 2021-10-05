@@ -10,6 +10,7 @@ pub struct Arc<T> {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 struct Inner<T> {
     // This must be the first field to make into_raw / from_raw work
     value: T,
