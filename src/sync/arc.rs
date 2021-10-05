@@ -81,8 +81,7 @@ impl<T> Arc<T> {
 
     /// Provides a raw pointer to the data.
     pub fn as_ptr(this: &Self) -> *const T {
-        let ptr = &*this as *const _;
-        ptr as *const T
+        std::sync::Arc::as_ptr(&this.inner) as *const T
     }
 
     /// Constructs an `Arc` from a raw pointer.
