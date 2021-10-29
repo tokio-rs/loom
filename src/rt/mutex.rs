@@ -58,6 +58,11 @@ impl Mutex {
             // Release the lock flag
             state.lock = None;
 
+            // Execution has deadlocked, cleanup does not matter.
+            if !execution.threads.is_active() {
+                return;
+            }
+
             state
                 .synchronize
                 .sync_store(&mut execution.threads, Release);
