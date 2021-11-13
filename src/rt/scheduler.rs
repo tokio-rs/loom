@@ -110,7 +110,7 @@ impl Scheduler {
 
     fn tick(&mut self, thread: thread::Id, execution: &mut Execution) {
         let state = RefCell::new(State {
-            execution: execution,
+            execution,
             queued_spawn: &mut self.queued_spawn,
         });
 
