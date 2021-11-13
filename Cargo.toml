@@ -40,7 +40,7 @@ serde_json = { version = "1.0.33", optional = true }
 pin-utils = { version = "0.1.0", optional = true }
 
 tracing = "0.1.27"
-tracing-subscriber = "0.2.22"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
 futures-util = "0.3.0"
