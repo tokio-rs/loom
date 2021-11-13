@@ -13,6 +13,7 @@ const DEFAULT_MAX_BRANCHES: usize = 1_000;
 
 /// Configure a model
 #[derive(Debug)]
+#[non_exhaustive] // Support adding more fields in the future
 pub struct Builder {
     /// Max number of threads to check as part of the execution.
     ///
@@ -64,9 +65,6 @@ pub struct Builder {
     ///
     /// Defaults to existence of `LOOM_LOG` environment variable.
     pub log: bool,
-
-    // Support adding more fields in the future
-    _p: (),
 }
 
 impl Builder {
@@ -121,7 +119,6 @@ impl Builder {
             checkpoint_interval,
             location,
             log,
-            _p: (),
         }
     }
 
