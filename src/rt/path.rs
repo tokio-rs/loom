@@ -452,17 +452,11 @@ impl Thread {
     }
 
     fn is_pending(&self) -> bool {
-        match *self {
-            Thread::Pending => true,
-            _ => false,
-        }
+        *self == Thread::Pending
     }
 
     fn is_active(&self) -> bool {
-        match *self {
-            Thread::Active => true,
-            _ => false,
-        }
+        *self == Thread::Active
     }
 
     fn is_enabled(&self) -> bool {

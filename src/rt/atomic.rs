@@ -904,10 +904,7 @@ impl FirstSeen {
 }
 
 fn is_seq_cst(order: Ordering) -> bool {
-    match order {
-        Ordering::SeqCst => true,
-        _ => false,
-    }
+    order == Ordering::SeqCst
 }
 
 fn range(cnt: u16) -> (usize, usize) {

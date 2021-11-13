@@ -97,10 +97,7 @@ impl Thread {
     }
 
     pub(crate) fn is_runnable(&self) -> bool {
-        match self.state {
-            State::Runnable => true,
-            _ => false,
-        }
+        matches!(self.state, State::Runnable)
     }
 
     pub(crate) fn set_runnable(&mut self) {
@@ -112,17 +109,11 @@ impl Thread {
     }
 
     pub(crate) fn is_blocked(&self) -> bool {
-        match self.state {
-            State::Blocked => true,
-            _ => false,
-        }
+        matches!(self.state, State::Blocked)
     }
 
     pub(crate) fn is_yield(&self) -> bool {
-        match self.state {
-            State::Yield => true,
-            _ => false,
-        }
+        matches!(self.state, State::Yield)
     }
 
     pub(crate) fn set_yield(&mut self) {
@@ -132,10 +123,7 @@ impl Thread {
     }
 
     pub(crate) fn is_terminated(&self) -> bool {
-        match self.state {
-            State::Terminated => true,
-            _ => false,
-        }
+        matches!(self.state, State::Terminated)
     }
 
     pub(crate) fn set_terminated(&mut self) {
