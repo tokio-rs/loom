@@ -108,6 +108,9 @@ macro_rules! objects {
 
 objects! {
     #[derive(Debug)]
+    // Many of the common variants of this enum are quite large --- only `Entry`
+    // and `Alloc` are significantly smaller than most other variants.
+    #[allow(clippy::large_enum_variant)]
     Entry,
 
     // State tracking allocations. Used for leak detection.
