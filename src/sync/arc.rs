@@ -43,6 +43,12 @@ impl<T> Arc<T> {
 
     /// Increments the strong reference count on the `Arc<T>` associated with the
     /// provided pointer by one.
+    ///
+    /// # Safety
+    ///
+    /// The pointer must have been obtained through `Arc::into_raw`, and the
+    /// associated `Arc` instance must be valid (i.e. the strong count must be at
+    /// least 1) for the duration of this method.
     pub unsafe fn increment_strong_count(ptr: *const T) {
         // Retain Arc, but don't touch refcount by wrapping in ManuallyDrop
         let arc = mem::ManuallyDrop::new(Arc::<T>::from_raw(ptr));
@@ -52,6 +58,14 @@ impl<T> Arc<T> {
 
     /// Decrements the strong reference count on the `Arc<T>` associated with the
     /// provided pointer by one.
+    ///
+    /// # Safety
+    ///
+    /// The pointer must have been obtained through `Arc::into_raw`, and the
+    /// associated `Arc` instance must be valid (i.e. the strong count must be at
+    /// least 1) when invoking this method. This method can be used to release the final
+    /// `Arc` and backing storage, but **should not** be called after the final `Arc` has been
+    /// released.
     pub unsafe fn decrement_strong_count(ptr: *const T) {
         mem::drop(Arc::from_raw(ptr));
     }
@@ -86,6 +100,25 @@ impl<T> Arc<T> {
     }
 
     /// Constructs an `Arc` from a raw pointer.
+    ///
+    /// # Safety
+    ///
+    /// The raw pointer must have been previously returned by a call to
+    /// [`Arc<U>::into_raw`][into_raw] where `U` must have the same size and
+    /// alignment as `T`. This is trivially true if `U` is `T`.
+    /// Note that if `U` is not `T` but has the same size and alignment, this is
+    /// basically like transmuting references of different types. See
+    /// [`mem::transmute`][transmute] for more information on what
+    /// restrictions apply in this case.
+    ///
+    /// The user of `from_raw` has to make sure a specific value of `T` is only
+    /// dropped once.
+    ///
+    /// This function is unsafe because improper use may lead to memory unsafety,
+    /// even if the returned `Arc<T>` is never accessed.
+    ///
+    /// [into_raw]: Arc::into_raw
+    /// [transmute]: core::mem::transmute
     pub unsafe fn from_raw(ptr: *const T) -> Self {
         let inner = std::sync::Arc::from_raw(ptr as *const Inner<T>);
         Arc { inner }
