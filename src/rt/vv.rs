@@ -59,21 +59,11 @@ impl cmp::PartialOrd for VersionVec {
         for i in 0..MAX_THREADS {
             let a = self.versions[i];
             let b = other.versions[i];
-
-            if a == b {
-                // Keep checking
-            } else if a < b {
-                if ret == Greater {
-                    return None;
-                }
-
-                ret = Less;
-            } else {
-                if ret == Less {
-                    return None;
-                }
-
-                ret = Greater;
+            match a.cmp(&b) {
+                Equal => {}
+                Less if ret == Greater => return None,
+                Greater if ret == Less => return None,
+                ordering => ret = ordering,
             }
         }
 

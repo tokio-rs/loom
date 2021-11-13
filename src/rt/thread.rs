@@ -134,7 +134,7 @@ impl Thread {
         let mut locals = Vec::with_capacity(self.locals.len());
 
         // run the Drop impls of any mock thread-locals created by this thread.
-        for (_, local) in &mut self.locals {
+        for local in self.locals.values_mut() {
             locals.push(local.0.take());
         }
 

@@ -405,10 +405,8 @@ impl Schedule {
 
     /// Compute the number of preemptions for the current state of the branch
     fn preemptions(&self) -> u8 {
-        if self.initial_active.is_some() {
-            if self.initial_active != self.active_thread_index() {
-                return self.preemptions + 1;
-            }
+        if self.initial_active.is_some() && self.initial_active != self.active_thread_index() {
+            return self.preemptions + 1;
         }
 
         self.preemptions
