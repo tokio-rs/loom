@@ -51,7 +51,7 @@ pub struct UnsafeCell<T: ?Sized> {
 /// [`*const T`]: https://doc.rust-lang.org/stable/std/primitive.pointer.html
 /// [here]: #correct-usage
 #[derive(Debug)]
-pub struct ConstPtr<T> {
+pub struct ConstPtr<T: ?Sized> {
     guard: rt::cell::Reading,
     ptr: *const T,
 }
@@ -94,7 +94,7 @@ pub struct ConstPtr<T> {
 /// [`*mut T`]: https://doc.rust-lang.org/stable/std/primitive.pointer.html
 /// [here]: #correct-usage
 #[derive(Debug)]
-pub struct MutPtr<T> {
+pub struct MutPtr<T: ?Sized> {
     guard: rt::cell::Writing,
     ptr: *mut T,
 }
