@@ -120,15 +120,15 @@ impl Cell {
 
 impl State {
     fn new(threads: &thread::Set, location: Location) -> State {
-        let version = threads.active().causality.clone();
+        let version = threads.active().causality;
 
         State {
             created_location: location,
             is_reading: 0,
             is_writing: false,
-            read_access: version.clone(),
+            read_access: version,
             read_locations: LocationSet::new(),
-            write_access: version.clone(),
+            write_access: version,
             write_locations: LocationSet::new(),
         }
     }

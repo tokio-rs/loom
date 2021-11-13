@@ -72,7 +72,7 @@ impl Channel {
                 .sync_store(&mut execution.threads, Release);
             state
                 .receiver_synchronize
-                .push_back(state.sender_synchronize.clone());
+                .push_back(state.sender_synchronize);
 
             if state.msg_cnt == 1 {
                 // Unblock all threads that are blocked waiting on this channel

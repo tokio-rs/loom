@@ -153,7 +153,7 @@ fn rwc_syncs() {
         };
 
         let t3 = {
-            let (x, y) = (x.clone(), y.clone());
+            let x = x.clone();
             thread::spawn(move || {
                 y.store(true, Relaxed);
                 fence(SeqCst);
@@ -193,7 +193,7 @@ fn w_rwc() {
         };
 
         let t3 = {
-            let (x, y) = (x.clone(), y.clone());
+            let x = x.clone();
             thread::spawn(move || {
                 y.store(true, Relaxed);
                 fence(SeqCst);
