@@ -348,11 +348,9 @@ impl Path {
                 let schedule = schedule_ref.get_mut(&mut self.branches);
 
                 // Transition the active thread to visited.
-                schedule
-                    .threads
-                    .iter_mut()
-                    .find(|th| th.is_active())
-                    .map(|th| *th = Thread::Visited);
+                if let Some(thread) = schedule.threads.iter_mut().find(|th| th.is_active()) {
+                    *thread = Thread::Visited;
+                }
 
                 // Find a pending thread and transition it to active
                 let rem = schedule
@@ -448,11 +446,8 @@ impl Schedule {
 
 impl Thread {
     fn explore(&mut self) {
-        match *self {
-            Thread::Skip => {
-                *self = Thread::Pending;
-            }
-            _ => {}
+        if *self == Thread::Skip {
+            *self = Thread::Pending;
         }
     }
 

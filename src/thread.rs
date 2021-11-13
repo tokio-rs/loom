@@ -34,7 +34,7 @@ impl Thread {
 
     /// Returns the (optional) name of this thread
     pub fn name(&self) -> Option<&str> {
-        self.name.as_ref().map(|s| s.as_str())
+        self.name.as_deref()
     }
 }
 

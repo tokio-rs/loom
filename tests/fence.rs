@@ -138,6 +138,8 @@ fn fence_hazard_pointer() {
 // C/C++20 and all the implementations of C/C++11 disallow this behavior.
 #[test]
 fn rwc_syncs() {
+    // ... what else would you call them?
+    #![allow(clippy::many_single_char_names)]
     loom::model(|| {
         let x = Arc::new(AtomicBool::new(false));
         let y = Arc::new(AtomicBool::new(false));
@@ -177,6 +179,7 @@ fn rwc_syncs() {
 // C/C++20 and most of the implementations of C/C++11 disallow this behavior.
 #[test]
 fn w_rwc() {
+    #![allow(clippy::many_single_char_names)]
     loom::model(|| {
         let x = Arc::new(AtomicBool::new(false));
         let y = Arc::new(AtomicBool::new(false));
