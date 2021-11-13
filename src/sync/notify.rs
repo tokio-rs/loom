@@ -41,3 +41,9 @@ impl Notify {
         self.waiting.store(false, SeqCst);
     }
 }
+
+impl Default for Notify {
+    fn default() -> Self {
+        Self::new()
+    }
+}

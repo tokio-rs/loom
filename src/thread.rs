@@ -151,6 +151,9 @@ where
 impl Builder {
     /// Generates the base configuration for spawning a thread, from which
     /// configuration methods can be chained.
+    // `std::thread::Builder` does not implement `Default`, so this type does
+    // not either, as it's a mock version of the `std` type.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Builder {
         Builder { name: None }
     }

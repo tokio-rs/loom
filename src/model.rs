@@ -203,6 +203,12 @@ impl Builder {
     }
 }
 
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Run all concurrent permutations of the provided closure.
 ///
 /// Uses a default [`Builder`](crate::model::Builder) which can be affected
