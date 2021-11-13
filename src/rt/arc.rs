@@ -3,6 +3,7 @@ use crate::rt::{self, Access, Location, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
+use tracing::trace;
 #[derive(Debug)]
 pub(crate) struct Arc {
     state: object::Ref<State>,
@@ -55,6 +56,8 @@ impl Arc {
                 last_ref_dec: None,
             });
 
+            trace!(?state, "Arc::new");
+
             Arc { state }
         })
     }
@@ -65,6 +68,8 @@ impl Arc {
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
             state.ref_cnt = state.ref_cnt.checked_add(1).expect("overflow");
+
+            trace!(state = ?self.state, ref_cnt = ?state.ref_cnt, "Arc::ref_inc");
         })
     }
 
@@ -80,11 +85,11 @@ impl Arc {
             // Synchronize the threads
             state.synchronize.sync_load(&mut execution.threads, Acquire);
 
-            if state.ref_cnt == 1 {
-                true
-            } else {
-                false
-            }
+            let is_only_ref = state.ref_cnt == 1;
+
+            trace!(state = ?self.state, ?is_only_ref, "Arc::get_mut");
+
+            is_only_ref
         })
     }
 
@@ -99,6 +104,8 @@ impl Arc {
 
             // Decrement the ref count
             state.ref_cnt -= 1;
+
+            trace!(state = ?self.state, ref_cnt = ?state.ref_cnt, "Arc::ref_dec");
 
             // Synchronize the threads.
             state

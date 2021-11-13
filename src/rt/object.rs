@@ -4,6 +4,8 @@ use crate::rt::{Access, Execution, VersionVec};
 use std::fmt;
 use std::marker::PhantomData;
 
+use tracing::trace;
+
 #[cfg(feature = "checkpoint")]
 use serde::{Deserialize, Serialize};
 
@@ -326,6 +328,8 @@ impl<T: Object<Entry = Entry>> Ref<T> {
     // TODO: rename `branch_disable`
     pub(super) fn branch_acquire(self, is_locked: bool) {
         super::branch(|execution| {
+            trace!(obj = ?self, ?is_locked, "Object::branch_acquire");
+
             self.set_action(execution, Action::Opaque);
 
             if is_locked {
@@ -335,14 +339,18 @@ impl<T: Object<Entry = Entry>> Ref<T> {
         })
     }
 
-    pub(super) fn branch_action(self, action: impl Into<Action>) {
+    pub(super) fn branch_action(self, action: impl Into<Action> + std::fmt::Debug) {
         super::branch(|execution| {
+            trace!(obj = ?self, ?action, "Object::branch_action");
+
             self.set_action(execution, action.into());
         })
     }
 
     pub(super) fn branch_disable(self, action: impl Into<Action> + std::fmt::Debug, disable: bool) {
         super::branch(|execution| {
+            trace!(obj = ?self, ?action, ?disable, "Object::branch_disable");
+
             self.set_action(execution, action.into());
 
             if disable {

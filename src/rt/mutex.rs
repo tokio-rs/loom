@@ -3,6 +3,7 @@ use crate::rt::{thread, Access, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
+use tracing::trace;
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Mutex {
     state: object::Ref<State>,
@@ -34,6 +35,8 @@ impl Mutex {
                 synchronize: Synchronize::new(),
             });
 
+            trace!(?state, ?seq_cst, "Mutex::new");
+
             Mutex { state }
         })
     }
@@ -54,6 +57,11 @@ impl Mutex {
 
             // Release the lock flag
             state.lock = None;
+
+            // Execution has deadlocked, cleanup does not matter.
+            if !execution.threads.is_active() {
+                return;
+            }
 
             state
                 .synchronize
@@ -77,6 +85,8 @@ impl Mutex {
                     .map(|operation| operation.object());
 
                 if obj == Some(self.state.erase()) {
+                    trace!(state = ?self.state, thread = ?id,
+                        "Mutex::release_lock");
                     thread.set_runnable();
                 }
             }
@@ -114,6 +124,8 @@ impl Mutex {
                     .map(|operation| operation.object());
 
                 if obj == Some(self.state.erase()) {
+                    trace!(state = ?self.state, thread = ?id,
+                           "Mutex::post_acquire");
                     thread.set_blocked();
                 }
             }
@@ -124,7 +136,13 @@ impl Mutex {
 
     /// Returns `true` if the mutex is currently locked
     fn is_locked(&self) -> bool {
-        super::execution(|execution| self.state.get(&execution.objects).lock.is_some())
+        super::execution(|execution| {
+            let is_locked = self.state.get(&execution.objects).lock.is_some();
+
+            trace!(state = ?self.state, ?is_locked, "Mutex::is_locked");
+
+            is_locked
+        })
     }
 }
 

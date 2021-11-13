@@ -6,7 +6,7 @@ use crate::rt;
 /// `with` and `with_mut`. Both functions take a closure in order to track the
 /// start and end of the access to the underlying cell.
 #[derive(Debug)]
-pub struct UnsafeCell<T> {
+pub struct UnsafeCell<T: ?Sized> {
     /// Causality associated with the cell
     state: rt::Cell,
     data: std::cell::UnsafeCell<T>,
@@ -110,7 +110,9 @@ impl<T> UnsafeCell<T> {
             data: std::cell::UnsafeCell::new(data),
         }
     }
+}
 
+impl<T: ?Sized> UnsafeCell<T> {
     /// Get an immutable pointer to the wrapped value.
     ///
     /// # Panics

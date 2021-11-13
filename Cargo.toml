@@ -8,12 +8,12 @@ name = "loom"
 #   - Cargo.toml
 #   - README.md
 # - Create git tag
-version = "0.5.1"
+version = "0.5.2"
 edition = "2018"
 license = "MIT"
 authors = ["Carl Lerche <me@carllerche.com>"]
 description = "Permutation testing for concurrent code"
-documentation = "https://docs.rs/loom/0.5.1/loom"
+documentation = "https://docs.rs/loom/0.5.2/loom"
 homepage = "https://github.com/tokio-rs/loom"
 repository = "https://github.com/tokio-rs/loom"
 readme = "README.md"
@@ -38,6 +38,9 @@ serde_json = { version = "1.0.33", optional = true }
 
 # Requires for "futures" feature
 pin-utils = { version = "0.1.0", optional = true }
+
+tracing = "0.1.27"
+tracing-subscriber = "0.2.22"
 
 [dev-dependencies]
 futures-util = "0.3.0"

@@ -3,7 +3,7 @@ use crate::rt;
 use std::ops;
 use std::sync::{LockResult, TryLockError, TryLockResult};
 
-/// Mock implementatoin of `std::sync::RwLock`
+/// Mock implementation of `std::sync::RwLock`
 #[derive(Debug)]
 pub struct RwLock<T> {
     object: rt::RwLock,
@@ -104,7 +104,7 @@ impl<T> RwLock<T> {
 
     /// Consumes this `RwLock`, returning the underlying data.
     pub fn into_inner(self) -> LockResult<T> {
-        unimplemented!()
+        Ok(self.data.into_inner().expect("loom::RwLock state corrupt"))
     }
 }
 

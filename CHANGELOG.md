@@ -1,3 +1,19 @@
+# 0.5.2 (October 7, 2021)
+
+### Added
+
+- Add a loom::cell::Cell, which provides a basic wrapper of the loom UnsafeCell (#196)
+- Arc counter manipulations (#225)
+- Implement `Mutex::into_inner` and `RwLock::into_inner` (#215)
+- Implement `Release`, `AcqRel`, and `SeqCst` fences (#220)
+- `Arc::as_ptr` added (#230)
+- `Arc::pin` added (#224)
+
+### Changed
+
+- Remove implicit `T: Sized` requirement from `UnsafeCell` (#222)
+- Update tracing (#227)
+
 # 0.5.1 (July 2, 2021)
 
 ### Added
