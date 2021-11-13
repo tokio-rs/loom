@@ -181,7 +181,7 @@ impl<T> Store<T> {
         self.entries.clear();
     }
 
-    pub(super) fn iter_ref<'a, O>(&'a self) -> impl DoubleEndedIterator<Item = Ref<O>> + 'a
+    pub(super) fn iter_ref<O>(&self) -> impl DoubleEndedIterator<Item = Ref<O>> + '_
     where
         O: Object<Entry = T>,
     {

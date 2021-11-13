@@ -18,10 +18,10 @@ impl VersionVec {
         }
     }
 
-    pub(crate) fn versions<'a>(
-        &'a self,
+    pub(crate) fn versions(
+        &self,
         execution_id: execution::Id,
-    ) -> impl Iterator<Item = (thread::Id, u16)> + 'a {
+    ) -> impl Iterator<Item = (thread::Id, u16)> + '_ {
         self.versions
             .iter()
             .enumerate()

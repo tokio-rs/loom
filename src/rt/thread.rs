@@ -306,7 +306,7 @@ impl Set {
         self.seq_cst_causality = VersionVec::new();
     }
 
-    pub(crate) fn iter<'a>(&'a self) -> impl ExactSizeIterator<Item = (Id, &'a Thread)> + 'a {
+    pub(crate) fn iter(&self) -> impl ExactSizeIterator<Item = (Id, &Thread)> + '_ {
         let execution_id = self.execution_id;
         self.threads
             .iter()
@@ -314,9 +314,7 @@ impl Set {
             .map(move |(id, thread)| (Id::new(execution_id, id), thread))
     }
 
-    pub(crate) fn iter_mut<'a>(
-        &'a mut self,
-    ) -> impl ExactSizeIterator<Item = (Id, &'a mut Thread)> {
+    pub(crate) fn iter_mut(&mut self) -> impl ExactSizeIterator<Item = (Id, &mut Thread)> + '_ {
         let execution_id = self.execution_id;
         self.threads
             .iter_mut()
