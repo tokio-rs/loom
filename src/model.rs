@@ -77,17 +77,12 @@ impl Builder {
         let checkpoint_interval = env::var("LOOM_CHECKPOINT_INTERVAL")
             .map(|v| {
                 v.parse()
-                    .ok()
                     .expect("invalid value for `LOOM_CHECKPOINT_INTERVAL`")
             })
             .unwrap_or(20_000);
 
         let max_branches = env::var("LOOM_MAX_BRANCHES")
-            .map(|v| {
-                v.parse()
-                    .ok()
-                    .expect("invalid value for `LOOM_MAX_BRANCHES`")
-            })
+            .map(|v| v.parse().expect("invalid value for `LOOM_MAX_BRANCHES`"))
             .unwrap_or(DEFAULT_MAX_BRANCHES);
 
         let location = env::var("LOOM_LOCATION").is_ok();
@@ -96,10 +91,7 @@ impl Builder {
 
         let max_duration = env::var("LOOM_MAX_DURATION")
             .map(|v| {
-                let secs = v
-                    .parse()
-                    .ok()
-                    .expect("invalid value for `LOOM_MAX_DURATION`");
+                let secs = v.parse().expect("invalid value for `LOOM_MAX_DURATION`");
                 Duration::from_secs(secs)
             })
             .ok();
@@ -107,25 +99,16 @@ impl Builder {
         let max_permutations = env::var("LOOM_MAX_PERMUTATIONS")
             .map(|v| {
                 v.parse()
-                    .ok()
                     .expect("invalid value for `LOOM_MAX_PERMUTATIONS`")
             })
             .ok();
 
         let preemption_bound = env::var("LOOM_MAX_PREEMPTIONS")
-            .map(|v| {
-                v.parse()
-                    .ok()
-                    .expect("invalid value for `LOOM_MAX_PREEMPTIONS`")
-            })
+            .map(|v| v.parse().expect("invalid value for `LOOM_MAX_PREEMPTIONS`"))
             .ok();
 
         let checkpoint_file = env::var("LOOM_CHECKPOINT_FILE")
-            .map(|v| {
-                v.parse()
-                    .ok()
-                    .expect("invalid value for `LOOM_CHECKPOINT_FILE`")
-            })
+            .map(|v| v.parse().expect("invalid value for `LOOM_CHECKPOINT_FILE`"))
             .ok();
 
         Builder {
