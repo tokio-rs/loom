@@ -21,14 +21,14 @@ where
 
     let notify = Arc::new(rt::Notify::new(false, true));
 
-    let mut waker = unsafe {
+    let waker = unsafe {
         mem::ManuallyDrop::new(Waker::from_raw(RawWaker::new(
             &*notify as *const _ as *const (),
             waker_vtable(),
         )))
     };
 
-    let mut cx = Context::from_waker(&mut waker);
+    let mut cx = Context::from_waker(&waker);
 
     loop {
         match f.as_mut().poll(&mut cx) {

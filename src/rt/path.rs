@@ -280,7 +280,7 @@ impl Path {
             .threads
             .iter()
             .enumerate()
-            .find(|&(_, ref th)| th.is_active())
+            .find(|&(_, th)| th.is_active())
             .map(|(i, _)| thread::Id::new(execution_id, i))
     }
 

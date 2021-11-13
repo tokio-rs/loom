@@ -262,7 +262,7 @@ impl Set {
 
         // Synchronize memory
         let (active, th) = self.active2_mut(id);
-        th.unpark(&active);
+        th.unpark(active);
     }
 
     /// Insert a point of sequential consistency
