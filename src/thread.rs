@@ -36,6 +36,19 @@ impl Thread {
     pub fn name(&self) -> Option<&str> {
         self.name.as_deref()
     }
+
+    /// Mock implementation of [`std::thread::unpark`].
+    ///
+    /// Atomically makes the handle's token available if it is not already.
+    ///
+    /// Every thread is equipped with some basic low-level blocking support, via
+    /// the [`park`][park] function and the `unpark()` method. These can be
+    /// used as a more CPU-efficient implementation of a spinlock.
+    ///
+    /// See the [park documentation][park] for more details.
+    pub fn unpark(&self) {
+        rt::execution(|execution| execution.threads.unpark(self.id.id));
+    }
 }
 
 /// Mock implementation of `std::thread::ThreadId`.
@@ -114,6 +127,16 @@ where
     T: 'static,
 {
     spawn_internal(f, None)
+}
+
+/// Mock implementation of `std::thread::park`.
+///
+///  Blocks unless or until the current thread's token is made available.
+///
+/// A call to `park` does not guarantee that the thread will remain parked
+/// forever, and callers should be prepared for this possibility.
+pub fn park() {
+    rt::park();
 }
 
 fn spawn_internal<F, T>(f: F, name: Option<String>) -> JoinHandle<T>
