@@ -3,7 +3,7 @@ use crate::rt;
 use std::ops;
 use std::sync::{LockResult, TryLockError, TryLockResult};
 
-/// Mock implementatoin of `std::sync::RwLock`
+/// Mock implementation of `std::sync::RwLock`
 #[derive(Debug)]
 pub struct RwLock<T> {
     object: rt::RwLock,
@@ -104,13 +104,22 @@ impl<T> RwLock<T> {
 
     /// Consumes this `RwLock`, returning the underlying data.
     pub fn into_inner(self) -> LockResult<T> {
-        unimplemented!()
+        Ok(self.data.into_inner().expect("loom::RwLock state corrupt"))
     }
 }
 
 impl<T: Default> Default for RwLock<T> {
+    /// Creates a `RwLock<T>`, with the `Default` value for T.
     fn default() -> Self {
         Self::new(Default::default())
+    }
+}
+
+impl<T> From<T> for RwLock<T> {
+    /// Creates a new rwlock in an unlocked state ready for use.
+    /// This is equivalent to [`RwLock::new`].
+    fn from(t: T) -> Self {
+        Self::new(t)
     }
 }
 

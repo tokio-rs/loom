@@ -18,6 +18,9 @@ pub(crate) struct Thread {
     /// Tracks observed causality
     pub causality: VersionVec,
 
+    /// Tracks the the view of the lastest release fence
+    pub released: VersionVec,
+
     /// Tracks DPOR relations
     pub dpor_vv: VersionVec,
 
@@ -54,6 +57,14 @@ pub(crate) struct Id {
     id: usize,
 }
 
+impl Id {
+    /// Returns an integer ID unique to this current execution (for use in
+    /// [`thread::ThreadId`]'s `Debug` impl)
+    pub(crate) fn public_id(&self) -> usize {
+        self.id
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum State {
     Runnable,
@@ -77,6 +88,7 @@ impl Thread {
             critical: false,
             operation: None,
             causality: VersionVec::new(),
+            released: VersionVec::new(),
             dpor_vv: VersionVec::new(),
             last_yield: None,
             yield_count: 0,
@@ -160,6 +172,7 @@ impl fmt::Debug for Thread {
             .field("critical", &self.critical)
             .field("operation", &self.operation)
             .field("causality", &self.causality)
+            .field("released", &self.released)
             .field("dpor_vv", &self.dpor_vv)
             .field("last_yield", &self.last_yield)
             .field("yield_count", &self.yield_count)
@@ -265,10 +278,35 @@ impl Set {
     }
 
     /// Insert a point of sequential consistency
+    /// TODO
+    /// - Deprecate SeqCst accesses and allow SeqCst fences only. The semantics of SeqCst accesses
+    ///   is complex and difficult to implement correctly. On the other hand, SeqCst fence has
+    ///   well-understood and clear semantics in the absence of SeqCst accesses, and can be used
+    ///   for enforcing the read-after-write (RAW) ordering which is probably what the user want to
+    ///   achieve with SeqCst.
+    /// - Revisit the other uses of this function. They probably don't require sequential
+    ///   consistency. E.g. see https://en.cppreference.com/w/cpp/named_req/Mutex
+    ///
+    /// References
+    /// - The "scfix" paper, which proposes a memory model called RC11 that fixes SeqCst
+    ///   semantics. of C11. https://plv.mpi-sws.org/scfix/
+    /// - Some fixes from the "scfix" paper has been incorporated into C/C++20:
+    ///   http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p0668r5.html
+    /// - The "promising semantics" paper, which propose an intuitive semantics of SeqCst fence in
+    ///   the absence of SC accesses. https://sf.snu.ac.kr/promise-concurrency/
     pub(crate) fn seq_cst(&mut self) {
-        // The previous implementation of sequential consistency was incorrect.
+        // The previous implementation of sequential consistency was incorrect (though it's correct
+        // for `fence(SeqCst)`-only scenario; use `seq_cst_fence` for `fence(SeqCst)`).
         // As a quick fix, just disable it. This may fail to model correct code,
         // but will not silently allow bugs.
+    }
+
+    pub(crate) fn seq_cst_fence(&mut self) {
+        self.threads[self.active.unwrap()]
+            .causality
+            .join(&self.seq_cst_causality);
+        self.seq_cst_causality
+            .join(&self.threads[self.active.unwrap()].causality);
     }
 
     pub(crate) fn clear(&mut self, execution_id: execution::Id) {

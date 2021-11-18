@@ -56,29 +56,37 @@ pub(crate) mod thread;
 mod vv;
 pub(crate) use self::vv::VersionVec;
 
+use tracing::trace;
+
 /// Maximum number of threads that can be included in a model.
-pub(crate) const MAX_THREADS: usize = 4;
+pub const MAX_THREADS: usize = 4;
 
 /// Maximum number of atomic store history to track per-cell.
 pub(crate) const MAX_ATOMIC_HISTORY: usize = 7;
 
-pub fn spawn<F>(f: F)
+pub(crate) fn spawn<F>(f: F) -> crate::rt::thread::Id
 where
     F: FnOnce() + 'static,
 {
-    execution(|execution| {
-        execution.new_thread();
-    });
+    let id = execution(|execution| execution.new_thread());
+
+    trace!(thread = ?id, "spawn");
 
     Scheduler::spawn(Box::new(move || {
         f();
         thread_done();
     }));
+
+    id
 }
 
 /// Marks the current thread as blocked
 pub fn park() {
     execution(|execution| {
+        let thread = execution.threads.active_id();
+
+        trace!(?thread, "park");
+
         execution.threads.active_mut().set_blocked();
         execution.threads.active_mut().operation = None;
         execution.schedule()
@@ -94,7 +102,11 @@ where
 {
     let (ret, switch) = execution(|execution| {
         let ret = f(execution);
-        (ret, execution.schedule())
+        let switch = execution.schedule();
+
+        trace!(?switch, "branch");
+
+        (ret, switch)
     });
 
     if switch {
@@ -110,6 +122,7 @@ where
 {
     execution(|execution| {
         execution.threads.active_causality_inc();
+        trace!("synchronize");
         let ret = f(execution);
         ret
     })
@@ -121,9 +134,15 @@ where
 /// progress.
 pub fn yield_now() {
     let switch = execution(|execution| {
+        let thread = execution.threads.active_id();
+
         execution.threads.active_mut().set_yield();
         execution.threads.active_mut().operation = None;
-        execution.schedule()
+        let switch = execution.schedule();
+
+        trace!(?thread, ?switch, "yield_now");
+
+        switch
     });
 
     if switch {
@@ -139,14 +158,26 @@ where
 }
 
 pub fn thread_done() {
-    let locals = execution(|execution| execution.threads.active_mut().drop_locals());
+    let locals = execution(|execution| {
+        let thread = execution.threads.active_id();
+
+        trace!(?thread, "thread_done: drop locals");
+
+        execution.threads.active_mut().drop_locals()
+    });
 
     // Drop outside of the execution context
     drop(locals);
 
     execution(|execution| {
+        let thread = execution.threads.active_id();
+
         execution.threads.active_mut().operation = None;
         execution.threads.active_mut().set_terminated();
-        execution.schedule();
+        let switch = execution.schedule();
+
+        trace!(?thread, ?switch, "thread_done: terminate");
+
+        switch
     });
 }

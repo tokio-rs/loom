@@ -5,13 +5,19 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use tracing::{info, subscriber};
+use tracing_subscriber::{fmt, EnvFilter};
+
 const DEFAULT_MAX_THREADS: usize = 4;
 const DEFAULT_MAX_BRANCHES: usize = 1_000;
 
 /// Configure a model
 #[derive(Debug)]
 pub struct Builder {
-    /// Max number of threads to check as part of the execution. This should be set as low as possible.
+    /// Max number of threads to check as part of the execution.
+    ///
+    /// This should be set as low as possible and must be less than
+    /// [`MAX_THREADS`](crate::MAX_THREADS).
     pub max_threads: usize,
 
     /// Maximum number of thread switches per permutation.
@@ -56,7 +62,7 @@ pub struct Builder {
 
     /// Log execution output to stdout.
     ///
-    /// Defaults to existance of `LOOM_LOG` environment variable.
+    /// Defaults to existence of `LOOM_LOG` environment variable.
     pub log: bool,
 
     // Support adding more fields in the future
@@ -142,7 +148,7 @@ impl Builder {
         self
     }
 
-    /// CHeck a model
+    /// Check the provided model.
     pub fn check<F>(&self, f: F)
     where
         F: Fn() + Sync + Send + 'static,
@@ -171,9 +177,9 @@ impl Builder {
             i += 1;
 
             if i % self.checkpoint_interval == 0 {
-                println!("");
-                println!(" ================== Iteration {} ==================", i);
-                println!("");
+                info!("");
+                info!(" ================== Iteration {} ==================", i);
+                info!("");
 
                 if let Some(ref path) = self.checkpoint_file {
                     checkpoint::store_execution_path(&execution.path, path);
@@ -210,7 +216,7 @@ impl Builder {
             if let Some(next) = execution.step() {
                 execution = next;
             } else {
-                println!("Completed in {} iterations", i);
+                info!("Completed in {} iterations", i);
                 return;
             }
         }
@@ -225,12 +231,17 @@ pub fn model<F>(f: F)
 where
     F: Fn() + Sync + Send + 'static,
 {
-    Builder::new().check(f)
+    let subscriber = fmt::Subscriber::builder()
+        .with_env_filter(EnvFilter::from_env("LOOM_LOG"))
+        .finish();
+
+    subscriber::with_default(subscriber, || {
+        Builder::new().check(f);
+    });
 }
 
 #[cfg(feature = "checkpoint")]
 mod checkpoint {
-    use serde_json;
     use std::fs::File;
     use std::io::prelude::*;
     use std::path::Path;

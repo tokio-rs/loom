@@ -1,6 +1,7 @@
 use crate::rt;
 
-use std::ops;
+use std::pin::Pin;
+use std::{mem, ops};
 
 /// Mock implementation of `std::sync::Arc`.
 #[derive(Debug)]
@@ -9,6 +10,7 @@ pub struct Arc<T> {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 struct Inner<T> {
     // This must be the first field to make into_raw / from_raw work
     value: T,
@@ -18,7 +20,7 @@ struct Inner<T> {
 
 impl<T> Arc<T> {
     /// Constructs a new `Arc<T>`.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn new(value: T) -> Arc<T> {
         let inner = std::sync::Arc::new(Inner {
             value,
@@ -28,13 +30,33 @@ impl<T> Arc<T> {
         Arc { inner }
     }
 
+    /// Constructs a new `Pin<Arc<T>>`.
+    pub fn pin(data: T) -> Pin<Arc<T>> {
+        unsafe { Pin::new_unchecked(Arc::new(data)) }
+    }
+
     /// Gets the number of strong (`Arc`) pointers to this value.
     pub fn strong_count(this: &Self) -> usize {
         this.inner.obj.strong_count()
     }
 
+    /// Increments the strong reference count on the `Arc<T>` associated with the
+    /// provided pointer by one.
+    pub unsafe fn increment_strong_count(ptr: *const T) {
+        // Retain Arc, but don't touch refcount by wrapping in ManuallyDrop
+        let arc = mem::ManuallyDrop::new(Arc::<T>::from_raw(ptr));
+        // Now increase refcount, but don't drop new refcount either
+        let _arc_clone: mem::ManuallyDrop<_> = arc.clone();
+    }
+
+    /// Decrements the strong reference count on the `Arc<T>` associated with the
+    /// provided pointer by one.
+    pub unsafe fn decrement_strong_count(ptr: *const T) {
+        mem::drop(Arc::from_raw(ptr));
+    }
+
     /// Returns a mutable reference to the inner value, if there are
-    /// no other `Arc` or [`Weak`][weak] pointers to the same value.
+    /// no other `Arc` pointers to the same value.
     pub fn get_mut(this: &mut Self) -> Option<&mut T> {
         if this.inner.obj.get_mut() {
             assert_eq!(1, std::sync::Arc::strong_count(&this.inner));
@@ -52,11 +74,14 @@ impl<T> Arc<T> {
 
     /// Consumes the `Arc`, returning the wrapped pointer.
     pub fn into_raw(this: Self) -> *const T {
-        use std::mem;
-
-        let ptr = &*this as *const _;
+        let ptr = Self::as_ptr(&this);
         mem::forget(this);
-        ptr as *const T
+        ptr
+    }
+
+    /// Provides a raw pointer to the data.
+    pub fn as_ptr(this: &Self) -> *const T {
+        std::sync::Arc::as_ptr(&this.inner) as *const T
     }
 
     /// Constructs an `Arc` from a raw pointer.

@@ -1,3 +1,66 @@
+# 0.5.2 (October 7, 2021)
+
+### Added
+
+- Add a loom::cell::Cell, which provides a basic wrapper of the loom UnsafeCell (#196)
+- Arc counter manipulations (#225)
+- Implement `Mutex::into_inner` and `RwLock::into_inner` (#215)
+- Implement `Release`, `AcqRel`, and `SeqCst` fences (#220)
+- `Arc::as_ptr` added (#230)
+- `Arc::pin` added (#224)
+
+### Changed
+
+- Remove implicit `T: Sized` requirement from `UnsafeCell` (#222)
+- Update tracing (#227)
+
+# 0.5.1 (July 2, 2021)
+
+### Added
+
+- Add several methods to atomic integer types (#217)
+
+# 0.5.0 (April 12, 2021)
+
+### Breaking
+
+- Bump MSRV to 1.51 (#205)
+
+### Added
+
+- Add `From` implementation to `Mutex` (#131)
+- Add `From` implementation to `RwLock` (#209)
+- Add `From` implementation to atomic types (#210)
+- Add `fetch_update` to atomics (#212)
+
+### Changed
+
+- Move `futures-util` to `dev-dependencies` (#208)
+- Update `generator` to 0.7 (#203)
+
+# 0.4.1 (April 1, 2021)
+
+### Added
+
+- Add a `loom::hint` module containing mocked versions of `spin_loop` and `unreachable_unchecked`. (#197)
+
+### Changed
+
+- Switch to non-deprecated `compare_exchange` (#201)
+
+# 0.4.0 (December 3, 2020)
+
+### Added
+- `AtomicI8`, `AtomicI16`, `AtomicI32`, `AtomicI64`, and `AtomicIsize` (#189)
+
+### Breaking
+- Bump MSRV to `1.45` (#183)
+
+# 0.3.6 (October 8, 2020)
+
+### Added
+- `thread::Thread` and `thread::ThreadId` (#175)
+
 # 0.3.5 (July 26, 2020)
 
 ### Fixed

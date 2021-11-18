@@ -26,15 +26,16 @@ impl Notify {
         }
     }
 
-    /// Notify the watier
+    /// Notify the waiter
     pub fn notify(&self) {
         self.object.notify();
     }
 
     /// Wait for a notification
     pub fn wait(&self) {
-        let actual = self.waiting.compare_and_swap(false, true, SeqCst);
-        assert!(!actual, "only a single thread may wait on `Notify`");
+        self.waiting
+            .compare_exchange(false, true, SeqCst, SeqCst)
+            .expect("only a single thread may wait on `Notify`");
 
         self.object.wait();
         self.waiting.store(false, SeqCst);

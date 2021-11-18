@@ -6,7 +6,7 @@ use crate::rt;
 /// `with` and `with_mut`. Both functions take a closure in order to track the
 /// start and end of the access to the underlying cell.
 #[derive(Debug)]
-pub struct UnsafeCell<T> {
+pub struct UnsafeCell<T: ?Sized> {
     /// Causality associated with the cell
     state: rt::Cell,
     data: std::cell::UnsafeCell<T>,
@@ -14,7 +14,7 @@ pub struct UnsafeCell<T> {
 
 impl<T> UnsafeCell<T> {
     /// Constructs a new instance of `UnsafeCell` which will wrap the specified value.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn new(data: T) -> UnsafeCell<T> {
         let state = rt::Cell::new(location!());
 
@@ -23,14 +23,16 @@ impl<T> UnsafeCell<T> {
             data: std::cell::UnsafeCell::new(data),
         }
     }
+}
 
+impl<T: ?Sized> UnsafeCell<T> {
     /// Get an immutable pointer to the wrapped value.
     ///
     /// # Panics
     ///
     /// This function will panic if the access is not valid under the Rust memory
     /// model.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn with<F, R>(&self, f: F) -> R
     where
         F: FnOnce(*const T) -> R,
@@ -45,7 +47,7 @@ impl<T> UnsafeCell<T> {
     ///
     /// This function will panic if the access is not valid under the Rust memory
     /// model.
-    #[cfg_attr(loom_nightly, track_caller)]
+    #[track_caller]
     pub fn with_mut<F, R>(&self, f: F) -> R
     where
         F: FnOnce(*mut T) -> R,

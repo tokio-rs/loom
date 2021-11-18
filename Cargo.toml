@@ -2,19 +2,18 @@
 name = "loom"
 # When releasing to crates.io:
 # - Update version number
-#   - lib.rs: html_root_url.
 #   - README.md
 # - Update CHANGELOG.md
 # - Update doc URL.
 #   - Cargo.toml
 #   - README.md
 # - Create git tag
-version = "0.3.5"
+version = "0.5.2"
 edition = "2018"
 license = "MIT"
 authors = ["Carl Lerche <me@carllerche.com>"]
 description = "Permutation testing for concurrent code"
-documentation = "https://docs.rs/loom/0.3.5/loom"
+documentation = "https://docs.rs/loom/0.5.2/loom"
 homepage = "https://github.com/tokio-rs/loom"
 repository = "https://github.com/tokio-rs/loom"
 readme = "README.md"
@@ -24,17 +23,24 @@ categories = ["concurrency", "data-structures"]
 [features]
 default = []
 checkpoint = ["serde", "serde_json"]
-futures = ["futures-util"]
+futures = ["pin-utils"]
 
 [dependencies]
-cfg-if = "0.1.6"
+cfg-if = "1.0.0"
 scoped-tls = "1.0.0"
 
 # Provides a generator based runtime
-generator = "0.6.18"
+generator = "0.7"
 
 # Requires for "checkpoint" feature
 serde = { version = "1.0.92", features = ["derive"], optional = true }
 serde_json = { version = "1.0.33", optional = true }
 
-futures-util = { version = "0.3.0", optional = true }
+# Requires for "futures" feature
+pin-utils = { version = "0.1.0", optional = true }
+
+tracing = "0.1.27"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+futures-util = "0.3.0"
