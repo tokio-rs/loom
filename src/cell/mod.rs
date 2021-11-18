@@ -1,5 +1,6 @@
 //! Shareable mutable containers.
 
+#[allow(clippy::module_inception)]
 mod cell;
 mod unsafe_cell;
 

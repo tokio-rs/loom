@@ -14,6 +14,13 @@ impl<T> AtomicPtr<T> {
     }
 
     /// Load the value without any synchronization.
+    ///
+    /// # Safety
+    ///
+    /// An unsynchronized atomic load technically always has undefined behavior.
+    /// However, if the atomic value is not currently visible by other threads,
+    /// this *should* always be equivalent to a non-atomic load of an un-shared
+    /// `*mut T` value.
     pub unsafe fn unsync_load(&self) -> *mut T {
         self.0.unsync_load()
     }

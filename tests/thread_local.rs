@@ -43,7 +43,7 @@ fn nested_with() {
     }
 
     loom::model(|| {
-        LOCAL1.with(|local1| *local1.borrow_mut() = LOCAL2.with(|local2| local2.borrow().clone()));
+        LOCAL1.with(|local1| *local1.borrow_mut() = LOCAL2.with(|local2| *local2.borrow()));
     });
 }
 

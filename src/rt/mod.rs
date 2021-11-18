@@ -123,8 +123,7 @@ where
     execution(|execution| {
         execution.threads.active_causality_inc();
         trace!("synchronize");
-        let ret = f(execution);
-        ret
+        f(execution)
     })
 }
 

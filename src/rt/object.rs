@@ -108,6 +108,9 @@ macro_rules! objects {
 
 objects! {
     #[derive(Debug)]
+    // Many of the common variants of this enum are quite large --- only `Entry`
+    // and `Alloc` are significantly smaller than most other variants.
+    #[allow(clippy::large_enum_variant)]
     Entry,
 
     // State tracking allocations. Used for leak detection.
@@ -181,7 +184,7 @@ impl<T> Store<T> {
         self.entries.clear();
     }
 
-    pub(super) fn iter_ref<'a, O>(&'a self) -> impl DoubleEndedIterator<Item = Ref<O>> + 'a
+    pub(super) fn iter_ref<O>(&self) -> impl DoubleEndedIterator<Item = Ref<O>> + '_
     where
         O: Object<Entry = T>,
     {
@@ -387,54 +390,54 @@ impl Operation {
     }
 }
 
-impl Into<rt::arc::Action> for Action {
-    fn into(self) -> rt::arc::Action {
-        match self {
+impl From<Action> for rt::arc::Action {
+    fn from(action: Action) -> Self {
+        match action {
             Action::Arc(action) => action,
             _ => unreachable!(),
         }
     }
 }
 
-impl Into<rt::atomic::Action> for Action {
-    fn into(self) -> rt::atomic::Action {
-        match self {
+impl From<Action> for rt::atomic::Action {
+    fn from(action: Action) -> Self {
+        match action {
             Action::Atomic(action) => action,
             _ => unreachable!(),
         }
     }
 }
 
-impl Into<rt::mpsc::Action> for Action {
-    fn into(self) -> rt::mpsc::Action {
-        match self {
+impl From<Action> for rt::mpsc::Action {
+    fn from(action: Action) -> Self {
+        match action {
             Action::Channel(action) => action,
             _ => unreachable!(),
         }
     }
 }
 
-impl Into<Action> for rt::arc::Action {
-    fn into(self) -> Action {
-        Action::Arc(self)
+impl From<rt::arc::Action> for Action {
+    fn from(action: rt::arc::Action) -> Self {
+        Action::Arc(action)
     }
 }
 
-impl Into<Action> for rt::atomic::Action {
-    fn into(self) -> Action {
-        Action::Atomic(self)
+impl From<rt::atomic::Action> for Action {
+    fn from(action: rt::atomic::Action) -> Self {
+        Action::Atomic(action)
     }
 }
 
-impl Into<Action> for rt::mpsc::Action {
-    fn into(self) -> Action {
-        Action::Channel(self)
+impl From<rt::mpsc::Action> for Action {
+    fn from(action: rt::mpsc::Action) -> Self {
+        Action::Channel(action)
     }
 }
 
-impl Into<Action> for rt::rwlock::Action {
-    fn into(self) -> Action {
-        Action::RwLock(self)
+impl From<rt::rwlock::Action> for Action {
+    fn from(action: rt::rwlock::Action) -> Self {
+        Action::RwLock(action)
     }
 }
 

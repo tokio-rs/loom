@@ -97,10 +97,7 @@ impl Thread {
     }
 
     pub(crate) fn is_runnable(&self) -> bool {
-        match self.state {
-            State::Runnable => true,
-            _ => false,
-        }
+        matches!(self.state, State::Runnable)
     }
 
     pub(crate) fn set_runnable(&mut self) {
@@ -112,17 +109,11 @@ impl Thread {
     }
 
     pub(crate) fn is_blocked(&self) -> bool {
-        match self.state {
-            State::Blocked => true,
-            _ => false,
-        }
+        matches!(self.state, State::Blocked)
     }
 
     pub(crate) fn is_yield(&self) -> bool {
-        match self.state {
-            State::Yield => true,
-            _ => false,
-        }
+        matches!(self.state, State::Yield)
     }
 
     pub(crate) fn set_yield(&mut self) {
@@ -132,10 +123,7 @@ impl Thread {
     }
 
     pub(crate) fn is_terminated(&self) -> bool {
-        match self.state {
-            State::Terminated => true,
-            _ => false,
-        }
+        matches!(self.state, State::Terminated)
     }
 
     pub(crate) fn set_terminated(&mut self) {
@@ -146,7 +134,7 @@ impl Thread {
         let mut locals = Vec::with_capacity(self.locals.len());
 
         // run the Drop impls of any mock thread-locals created by this thread.
-        for (_, local) in &mut self.locals {
+        for local in self.locals.values_mut() {
             locals.push(local.0.take());
         }
 
@@ -274,7 +262,7 @@ impl Set {
 
         // Synchronize memory
         let (active, th) = self.active2_mut(id);
-        th.unpark(&active);
+        th.unpark(active);
     }
 
     /// Insert a point of sequential consistency
@@ -318,7 +306,7 @@ impl Set {
         self.seq_cst_causality = VersionVec::new();
     }
 
-    pub(crate) fn iter<'a>(&'a self) -> impl ExactSizeIterator<Item = (Id, &'a Thread)> + 'a {
+    pub(crate) fn iter(&self) -> impl ExactSizeIterator<Item = (Id, &Thread)> + '_ {
         let execution_id = self.execution_id;
         self.threads
             .iter()
@@ -326,9 +314,7 @@ impl Set {
             .map(move |(id, thread)| (Id::new(execution_id, id), thread))
     }
 
-    pub(crate) fn iter_mut<'a>(
-        &'a mut self,
-    ) -> impl ExactSizeIterator<Item = (Id, &'a mut Thread)> {
+    pub(crate) fn iter_mut(&mut self) -> impl ExactSizeIterator<Item = (Id, &mut Thread)> + '_ {
         let execution_id = self.execution_id;
         self.threads
             .iter_mut()

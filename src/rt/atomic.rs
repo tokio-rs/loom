@@ -468,7 +468,7 @@ impl State {
         // The modification order is initialized to the thread's current
         // causality. All reads / writes that happen before this store are
         // ordered before the store.
-        let happens_before = threads.active().causality.clone();
+        let happens_before = threads.active().causality;
 
         // Starting with the thread's causality covers WRITE-WRITE coherence
         let mut modification_order = happens_before;
@@ -904,10 +904,7 @@ impl FirstSeen {
 }
 
 fn is_seq_cst(order: Ordering) -> bool {
-    match order {
-        Ordering::SeqCst => true,
-        _ => false,
-    }
+    order == Ordering::SeqCst
 }
 
 fn range(cnt: u16) -> (usize, usize) {
