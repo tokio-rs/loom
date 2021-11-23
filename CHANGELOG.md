@@ -1,3 +1,14 @@
+# 0.5.3 (November 23, 2021)
+
+### Added
+
+- thread: Add mock versions of `thread::park` and `Thread::unpark` (#240)
+
+### Changed
+
+- Don't attempt to clean up Mutex when threads are deadlocked (#236)
+- Update tracing-subscriber to 0.3 (#238)
+
 # 0.5.2 (October 7, 2021)
 
 ### Added
