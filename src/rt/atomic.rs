@@ -418,6 +418,7 @@ impl State {
         };
 
         // All subsequent accesses must happen-after.
+        state.unsync_mut_locations.track(location, &threads);
         state.track_unsync_mut(threads);
 
         // Store the initial thread
