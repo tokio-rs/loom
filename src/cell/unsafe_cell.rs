@@ -52,7 +52,8 @@ pub struct UnsafeCell<T: ?Sized> {
 /// [here]: #correct-usage
 #[derive(Debug)]
 pub struct ConstPtr<T: ?Sized> {
-    guard: rt::cell::Reading,
+    /// Drop guard representing the lifetime of the `ConstPtr`'s access.
+    _guard: rt::cell::Reading,
     ptr: *const T,
 }
 
@@ -95,7 +96,8 @@ pub struct ConstPtr<T: ?Sized> {
 /// [here]: #correct-usage
 #[derive(Debug)]
 pub struct MutPtr<T: ?Sized> {
-    guard: rt::cell::Writing,
+    /// Drop guard representing the lifetime of the `ConstPtr`'s access.
+    _guard: rt::cell::Writing,
     ptr: *mut T,
 }
 
@@ -162,7 +164,7 @@ impl<T: ?Sized> UnsafeCell<T> {
     #[track_caller]
     pub fn get(&self) -> ConstPtr<T> {
         ConstPtr {
-            guard: self.state.start_read(location!()),
+            _guard: self.state.start_read(location!()),
             ptr: self.data.get(),
         }
     }
@@ -189,7 +191,7 @@ impl<T: ?Sized> UnsafeCell<T> {
     #[track_caller]
     pub fn get_mut(&self) -> MutPtr<T> {
         MutPtr {
-            guard: self.state.start_write(location!()),
+            _guard: self.state.start_write(location!()),
             ptr: self.data.get(),
         }
     }

@@ -72,7 +72,8 @@ pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
 #[derive(Debug)]
 pub struct Track<T> {
     value: T,
-    obj: rt::Allocation,
+    /// Drop guard tracking the allocation's lifetime.
+    _obj: rt::Allocation,
 }
 
 impl<T> Track<T> {
@@ -80,7 +81,7 @@ impl<T> Track<T> {
     pub fn new(value: T) -> Track<T> {
         Track {
             value,
-            obj: rt::Allocation::new(),
+            _obj: rt::Allocation::new(),
         }
     }
 
