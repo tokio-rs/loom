@@ -45,7 +45,7 @@ impl Scheduler {
     where
         F: FnOnce(&mut Execution) -> R,
     {
-        Self::with_state(|state| f(&mut state.execution))
+        Self::with_state(|state| f(state.execution))
     }
 
     /// Perform a context switch
