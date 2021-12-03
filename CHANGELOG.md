@@ -1,3 +1,14 @@
+# 0.5.4 (December 3, 2021)
+
+### Added
+
+- cell: Add `ConstPtr` and `MutPtr` RAII guards to `UnsafeCell` (#219)
+
+### Changed
+
+- Improve error message when execution state is unavailable (such as when
+  running outside of `loom::model`) (#242)
+  
 # 0.5.3 (November 23, 2021)
 
 ### Added
