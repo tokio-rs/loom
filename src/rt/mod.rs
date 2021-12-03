@@ -14,7 +14,7 @@ pub(crate) use self::atomic::{fence, Atomic};
 mod location;
 pub(crate) use self::location::Location;
 
-mod cell;
+pub(crate) mod cell;
 pub(crate) use self::cell::Cell;
 
 mod condvar;
