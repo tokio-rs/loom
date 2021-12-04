@@ -93,7 +93,7 @@ macro_rules! assert_path_len {
     ($branches:expr) => {{
         assert!(
             $branches.len() < $branches.capacity(),
-            "Model exeeded maximum number of branches. This is often caused \
+            "Model exceeded maximum number of branches. This is often caused \
              by an algorithm requiring the processor to make progress, e.g. \
              spin locks.",
         );
