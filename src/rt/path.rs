@@ -92,7 +92,12 @@ pub(crate) enum Thread {
 macro_rules! assert_path_len {
     ($branches:expr) => {{
         assert!(
-            $branches.len() < $branches.capacity(),
+            // if we are panicking, we may be performing a branch due to a
+            // `Drop` impl (e.g., for `Arc`, or for a user type that does an
+            // atomic operation in its `Drop` impl). if that's the case,
+            // asserting this again will double panic. therefore, short-circuit
+            // the assertion if the thread is panicking.
+            $branches.len() < $branches.capacity() || std::thread::panicking(),
             "Model exceeded maximum number of branches. This is often caused \
              by an algorithm requiring the processor to make progress, e.g. \
              spin locks.",
