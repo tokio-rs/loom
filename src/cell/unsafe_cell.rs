@@ -209,7 +209,7 @@ impl<T> From<T> for UnsafeCell<T> {
     }
 }
 
-impl<T> ConstPtr<T> {
+impl<T: ?Sized> ConstPtr<T> {
     /// Dereference the raw pointer.
     ///
     /// # Safety
@@ -377,7 +377,7 @@ impl<T> ConstPtr<T> {
     }
 }
 
-impl<T> MutPtr<T> {
+impl<T: ?Sized> MutPtr<T> {
     /// Dereference the raw pointer.
     ///
     /// # Safety
