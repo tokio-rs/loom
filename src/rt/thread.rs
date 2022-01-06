@@ -67,7 +67,7 @@ impl Id {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum State {
-    Runnable,
+    Runnable { unparked: bool },
     Blocked,
     Yield,
     Terminated,
@@ -84,7 +84,7 @@ impl Thread {
     fn new(id: Id) -> Thread {
         Thread {
             id,
-            state: State::Runnable,
+            state: State::Runnable { unparked: false },
             critical: false,
             operation: None,
             causality: VersionVec::new(),
@@ -97,11 +97,11 @@ impl Thread {
     }
 
     pub(crate) fn is_runnable(&self) -> bool {
-        matches!(self.state, State::Runnable)
+        matches!(self.state, State::Runnable { .. })
     }
 
     pub(crate) fn set_runnable(&mut self) {
-        self.state = State::Runnable;
+        self.state = State::Runnable { unparked: false };
     }
 
     pub(crate) fn set_blocked(&mut self) {
@@ -143,9 +143,16 @@ impl Thread {
 
     pub(crate) fn unpark(&mut self, unparker: &Thread) {
         self.causality.join(&unparker.causality);
+        self.set_unparked();
+    }
 
+    /// Unpark a thread's state. If it is already runnable, store the unpark for
+    /// a future call to `park`.
+    fn set_unparked(&mut self) {
         if self.is_blocked() || self.is_yield() {
             self.set_runnable();
+        } else if self.is_runnable() {
+            self.state = State::Runnable { unparked: true }
         }
     }
 }
@@ -257,6 +264,10 @@ impl Set {
 
     pub(crate) fn unpark(&mut self, id: Id) {
         if id == self.active_id() {
+            // The thread is unparking itself. We don't have to join its
+            // causality with the unparker's causality in this case, since the
+            // thread *is* the unparker. Just unpark its state.
+            self.active_mut().set_unparked();
             return;
         }
 

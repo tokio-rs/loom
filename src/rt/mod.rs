@@ -82,17 +82,32 @@ where
 
 /// Marks the current thread as blocked
 pub fn park() {
-    execution(|execution| {
+    let switch = execution(|execution| {
+        use thread::State;
         let thread = execution.threads.active_id();
+        let active = execution.threads.active_mut();
 
-        trace!(?thread, "park");
+        trace!(?thread, ?active.state, "park");
+
+        match active.state {
+            // The thread was previously unparked while it was active. Instead
+            // of parking, consume the unpark.
+            State::Runnable { unparked: true } => {
+                active.set_runnable();
+                return false;
+            }
+            // The thread doesn't have a saved unpark; set its state to blocked.
+            _ => active.set_blocked(),
+        };
 
         execution.threads.active_mut().set_blocked();
         execution.threads.active_mut().operation = None;
         execution.schedule()
     });
 
-    Scheduler::switch();
+    if switch {
+        Scheduler::switch();
+    }
 }
 
 /// Add an execution branch point.
