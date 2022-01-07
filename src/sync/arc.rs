@@ -189,6 +189,12 @@ impl<T: ?Sized> Drop for Arc<T> {
                 std::sync::Arc::strong_count(&self.inner),
                 "something odd is going on"
             );
+
+            rt::execution(|e| {
+                e.arc_objs
+                    .remove(&std::sync::Arc::as_ptr(&self.inner).cast())
+                    .expect("Arc object was removed before dropping last Arc");
+            });
         }
     }
 }
