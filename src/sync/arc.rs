@@ -7,21 +7,14 @@ use std::{mem, ops};
 #[derive(Debug)]
 pub struct Arc<T: ?Sized> {
     obj: std::sync::Arc<rt::Arc>,
-    inner: std::sync::Arc<Inner<T>>,
-}
-
-#[derive(Debug)]
-#[repr(C)]
-struct Inner<T: ?Sized> {
-    // This must be the first field to make into_raw / from_raw work
-    value: T,
+    inner: std::sync::Arc<T>,
 }
 
 impl<T> Arc<T> {
     /// Constructs a new `Arc<T>`.
     #[track_caller]
     pub fn new(value: T) -> Arc<T> {
-        let inner = std::sync::Arc::new(Inner { value });
+        let inner = std::sync::Arc::new(value);
         let obj = std::sync::Arc::new(rt::Arc::new(location!()));
         let objc = std::sync::Arc::clone(&obj);
 
@@ -84,7 +77,7 @@ impl<T: ?Sized> Arc<T> {
     pub fn get_mut(this: &mut Self) -> Option<&mut T> {
         if this.obj.get_mut() {
             assert_eq!(1, std::sync::Arc::strong_count(&this.inner));
-            Some(&mut std::sync::Arc::get_mut(&mut this.inner).unwrap().value)
+            Some(std::sync::Arc::get_mut(&mut this.inner).unwrap())
         } else {
             None
         }
@@ -105,7 +98,7 @@ impl<T: ?Sized> Arc<T> {
 
     /// Provides a raw pointer to the data.
     pub fn as_ptr(this: &Self) -> *const T {
-        std::sync::Arc::as_ptr(&this.inner) as *const T
+        std::sync::Arc::as_ptr(&this.inner)
     }
 
     /// Constructs an `Arc` from a raw pointer.
@@ -129,7 +122,7 @@ impl<T: ?Sized> Arc<T> {
     /// [into_raw]: Arc::into_raw
     /// [transmute]: core::mem::transmute
     pub unsafe fn from_raw(ptr: *const T) -> Self {
-        let inner = std::sync::Arc::from_raw(ptr as *const Inner<T>);
+        let inner = std::sync::Arc::from_raw(ptr);
         let obj = rt::execution(|e| std::sync::Arc::clone(&e.arc_objs[&ptr.cast()]));
         Arc { inner, obj }
     }
@@ -139,7 +132,7 @@ impl<T: ?Sized> ops::Deref for Arc<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.inner.value
+        &self.inner
     }
 }
 
