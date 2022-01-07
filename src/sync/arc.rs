@@ -14,15 +14,9 @@ impl<T> Arc<T> {
     /// Constructs a new `Arc<T>`.
     #[track_caller]
     pub fn new(value: T) -> Arc<T> {
-        let inner = std::sync::Arc::new(value);
-        let obj = std::sync::Arc::new(rt::Arc::new(location!()));
-        let objc = std::sync::Arc::clone(&obj);
+        let std = std::sync::Arc::new(value);
 
-        rt::execution(|e| {
-            e.arc_objs.insert(&*inner as *const _ as *const _, objc);
-        });
-
-        Arc { obj, inner }
+        Arc::from_std(std)
     }
 
     /// Constructs a new `Pin<Arc<T>>`.
@@ -37,6 +31,46 @@ impl<T> Arc<T> {
 }
 
 impl<T: ?Sized> Arc<T> {
+    /// Converts `std::sync::Arc` to `loom::sync::Arc`
+    ///
+    /// This is needed to create `Arc<T>` where `T: !Sized`
+    ///
+    /// ## Panics
+    ///
+    /// If the provided arc has copies (ie if it is not unique).
+    ///
+    /// ## Examples
+    ///
+    /// ```rust
+    /// use loom::sync::Arc;
+    ///
+    /// # loom::model::model(|| {
+    /// // std's arc can be automatcally coerced
+    /// let std = std::sync::Arc::new([1, 2, 3]);
+    /// let loom: Arc<[u8]> = Arc::from_std(std);
+    ///
+    /// let std = std::sync::Arc::new([1, 2, 3]);
+    /// let loom: Arc<dyn Sync + Send> = Arc::from_std(std);
+    /// # });
+    /// ```
+    #[track_caller]
+    pub fn from_std(mut std: std::sync::Arc<T>) -> Self {
+        assert!(
+            std::sync::Arc::get_mut(&mut std).is_some(),
+            "Arc provided to `from_std` is not unique"
+        );
+
+        let obj = std::sync::Arc::new(rt::Arc::new(location!()));
+        let objc = std::sync::Arc::clone(&obj);
+
+        rt::execution(|e| {
+            e.arc_objs
+                .insert(std::sync::Arc::as_ptr(&std) as *const (), objc);
+        });
+
+        Arc { obj, inner: std }
+    }
+
     /// Gets the number of strong (`Arc`) pointers to this value.
     pub fn strong_count(_this: &Self) -> usize {
         unimplemented!("no tests checking this? DELETED!")
