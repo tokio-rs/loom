@@ -103,3 +103,23 @@ fn thread_names() {
         let _ = th.join();
     })
 }
+
+#[test]
+fn park_unpark_loom() {
+    loom::model(|| {
+        println!("unpark");
+        thread::current().unpark();
+        println!("park");
+        thread::park();
+        println!("it did not deadlock");
+    });
+}
+
+#[test]
+fn park_unpark_std() {
+    println!("unpark");
+    std::thread::current().unpark();
+    println!("park");
+    std::thread::park();
+    println!("it did not deadlock");
+}
