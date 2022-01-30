@@ -37,7 +37,7 @@ impl<T: ?Sized> Arc<T> {
     ///
     /// ## Panics
     ///
-    /// If the provided arc has copies (ie if it is not unique).
+    /// If the provided `Arc` has copies (i.e., if it is not unique).
     ///
     /// ## Examples
     ///
@@ -45,7 +45,7 @@ impl<T: ?Sized> Arc<T> {
     /// use loom::sync::Arc;
     ///
     /// # loom::model::model(|| {
-    /// // std's arc can be automatcally coerced
+    /// // std's arc can be automatically coerced
     /// let std = std::sync::Arc::new([1, 2, 3]);
     /// let loom: Arc<[u8]> = Arc::from_std(std);
     ///
