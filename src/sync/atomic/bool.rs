@@ -3,6 +3,9 @@ use super::Atomic;
 use std::sync::atomic::Ordering;
 
 /// Mock implementation of `std::sync::atomic::AtomicBool`.
+///
+/// NOTE: Unlike `std::sync::atomic::AtomicBool`, this type has a different
+/// in-memory representation than `bool`.
 #[derive(Debug)]
 pub struct AtomicBool(Atomic<bool>);
 

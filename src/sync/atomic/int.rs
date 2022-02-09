@@ -10,10 +10,16 @@ macro_rules! doc_comment {
     };
 }
 
+#[rustfmt::skip] // rustfmt cannot properly format multi-line concat!.
 macro_rules! atomic_int {
     ($name: ident, $atomic_type: ty) => {
         doc_comment! {
-            concat!(" Mock implementation of `std::sync::atomic::", stringify!($name), "`."),
+            concat!(
+                " Mock implementation of `std::sync::atomic::", stringify!($name), "`.\n\n\
+                 NOTE: Unlike `std::sync::atomic::", stringify!($name), "`, \
+                 this type has a different in-memory representation than `",
+                 stringify!($atomic_type), "`.",
+            ),
             #[derive(Debug)]
             pub struct $name(Atomic<$atomic_type>);
         }

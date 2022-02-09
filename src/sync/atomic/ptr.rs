@@ -3,6 +3,9 @@ use super::Atomic;
 use std::sync::atomic::Ordering;
 
 /// Mock implementation of `std::sync::atomic::AtomicPtr`.
+///
+/// NOTE: Unlike `std::sync::atomic::AtomicPtr`, this type has a different
+/// in-memory representation than `*mut T`.
 #[derive(Debug)]
 pub struct AtomicPtr<T>(Atomic<*mut T>);
 
