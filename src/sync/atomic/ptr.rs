@@ -6,8 +6,13 @@ use std::sync::atomic::Ordering;
 ///
 /// NOTE: Unlike `std::sync::atomic::AtomicPtr`, this type has a different
 /// in-memory representation than `*mut T`.
-#[derive(Debug)]
 pub struct AtomicPtr<T>(Atomic<*mut T>);
+
+impl<T> std::fmt::Debug for AtomicPtr<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 impl<T> AtomicPtr<T> {
     /// Creates a new instance of `AtomicPtr`.
