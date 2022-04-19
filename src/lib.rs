@@ -235,7 +235,7 @@
 //! Put together, the command becomes (yes, we know this is not great... but it works):
 //!
 //! ```console
-//! LOOM_LOG=1 \
+//! LOOM_LOG=trace \
 //!     LOOM_LOCATION=1 \
 //!     LOOM_CHECKPOINT_INTERVAL=1 \
 //!     LOOM_CHECKPOINT_FILE=my_test.json \
