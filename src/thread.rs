@@ -2,7 +2,7 @@
 
 pub use crate::rt::thread::AccessError;
 pub use crate::rt::yield_now;
-use crate::rt::{self, Execution};
+use crate::rt::{self, Execution, Location};
 
 pub use std::thread::panicking;
 
@@ -120,13 +120,14 @@ pub fn current() -> Thread {
 ///
 /// Note that you may only have [`MAX_THREADS`](crate::MAX_THREADS) threads in a given loom tests
 /// _including_ the main thread.
+#[track_caller]
 pub fn spawn<F, T>(f: F) -> JoinHandle<T>
 where
     F: FnOnce() -> T,
     F: 'static,
     T: 'static,
 {
-    spawn_internal(f, None)
+    spawn_internal(f, None, location!())
 }
 
 /// Mock implementation of `std::thread::park`.
@@ -135,11 +136,12 @@ where
 ///
 /// A call to `park` does not guarantee that the thread will remain parked
 /// forever, and callers should be prepared for this possibility.
+#[track_caller]
 pub fn park() {
-    rt::park();
+    rt::park(location!());
 }
 
-fn spawn_internal<F, T>(f: F, name: Option<String>) -> JoinHandle<T>
+fn spawn_internal<F, T>(f: F, name: Option<String>, location: Location) -> JoinHandle<T>
 where
     F: FnOnce() -> T,
     F: 'static,
@@ -157,7 +159,7 @@ where
             });
 
             *result.lock().unwrap() = Some(Ok(f()));
-            notify.notify();
+            notify.notify(location);
         })
     };
 
@@ -196,20 +198,22 @@ impl Builder {
 
     /// Spawns a new thread by taking ownership of the `Builder`, and returns an
     /// `io::Result` to its `JoinHandle`.
+    #[track_caller]
     pub fn spawn<F, T>(self, f: F) -> io::Result<JoinHandle<T>>
     where
         F: FnOnce() -> T,
         F: Send + 'static,
         T: Send + 'static,
     {
-        Ok(spawn_internal(f, self.name))
+        Ok(spawn_internal(f, self.name, location!()))
     }
 }
 
 impl<T> JoinHandle<T> {
     /// Waits for the associated thread to finish.
+    #[track_caller]
     pub fn join(self) -> std::thread::Result<T> {
-        self.notify.wait();
+        self.notify.wait(location!());
         self.result.lock().unwrap().take().unwrap()
     }
 

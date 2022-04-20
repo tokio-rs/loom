@@ -5,6 +5,8 @@ use std::sync::atomic::Ordering::{Acquire, Release};
 
 use tracing::trace;
 
+use super::Location;
+
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Notify {
     state: object::Ref<State>,
@@ -49,8 +51,8 @@ impl Notify {
         })
     }
 
-    pub(crate) fn notify(self) {
-        self.state.branch_opaque();
+    pub(crate) fn notify(self, location: Location) {
+        self.state.branch_opaque(location);
 
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -82,7 +84,7 @@ impl Notify {
         });
     }
 
-    pub(crate) fn wait(self) {
+    pub(crate) fn wait(self, location: Location) {
         let (notified, spurious) = rt::execution(|execution| {
             let spurious = if self.state.get(&execution.objects).might_spur() {
                 execution.path.branch_spurious()
@@ -106,10 +108,10 @@ impl Notify {
         }
 
         if notified {
-            self.state.branch_opaque();
+            self.state.branch_opaque(location);
         } else {
             // This should become branch_disable
-            self.state.branch_acquire(true)
+            self.state.branch_acquire(true, location)
         }
 
         // Thread was notified
