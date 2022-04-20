@@ -81,7 +81,7 @@ where
 }
 
 /// Marks the current thread as blocked
-pub fn park() {
+pub(crate) fn park(location: Location) {
     let switch = execution(|execution| {
         use thread::State;
         let thread = execution.threads.active_id();
@@ -97,10 +97,10 @@ pub fn park() {
                 return false;
             }
             // The thread doesn't have a saved unpark; set its state to blocked.
-            _ => active.set_blocked(),
+            _ => active.set_blocked(location),
         };
 
-        execution.threads.active_mut().set_blocked();
+        execution.threads.active_mut().set_blocked(location);
         execution.threads.active_mut().operation = None;
         execution.schedule()
     });

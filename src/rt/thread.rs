@@ -3,6 +3,8 @@ use crate::rt::object::Operation;
 use crate::rt::vv::VersionVec;
 
 use std::{any::Any, collections::HashMap, fmt, ops};
+
+use super::Location;
 pub(crate) struct Thread {
     pub id: Id,
 
@@ -68,7 +70,7 @@ impl Id {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum State {
     Runnable { unparked: bool },
-    Blocked,
+    Blocked(Location),
     Yield,
     Terminated,
 }
@@ -104,12 +106,12 @@ impl Thread {
         self.state = State::Runnable { unparked: false };
     }
 
-    pub(crate) fn set_blocked(&mut self) {
-        self.state = State::Blocked;
+    pub(crate) fn set_blocked(&mut self, location: Location) {
+        self.state = State::Blocked(location);
     }
 
     pub(crate) fn is_blocked(&self) -> bool {
-        matches!(self.state, State::Blocked)
+        matches!(self.state, State::Blocked(..))
     }
 
     pub(crate) fn is_yield(&self) -> bool {

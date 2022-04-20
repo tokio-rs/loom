@@ -1,4 +1,4 @@
-use crate::rt::{object, Access, Synchronize, VersionVec};
+use crate::rt::{object, Access, Location, Synchronize, VersionVec};
 use std::collections::VecDeque;
 use std::sync::atomic::Ordering::{Acquire, Release};
 
@@ -61,8 +61,8 @@ impl Channel {
         })
     }
 
-    pub(crate) fn send(&self) {
-        self.state.branch_action(Action::MsgSend);
+    pub(crate) fn send(&self, location: Location) {
+        self.state.branch_action(Action::MsgSend, location);
         super::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
             state.msg_cnt = state.msg_cnt.checked_add(1).expect("overflow");
@@ -95,8 +95,9 @@ impl Channel {
         })
     }
 
-    pub(crate) fn recv(&self) {
-        self.state.branch_disable(Action::MsgRecv, self.is_empty());
+    pub(crate) fn recv(&self, location: Location) {
+        self.state
+            .branch_disable(Action::MsgRecv, self.is_empty(), location);
         super::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
             let thread_id = execution.threads.active_id();
@@ -117,7 +118,8 @@ impl Channel {
                         if operation.object() == self.state.erase()
                             && operation.action() == object::Action::Channel(Action::MsgRecv)
                         {
-                            thread.set_blocked();
+                            let location = operation.location();
+                            thread.set_blocked(location);
                         }
                     }
                 }
