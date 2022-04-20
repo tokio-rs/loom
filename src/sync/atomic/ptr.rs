@@ -3,8 +3,16 @@ use super::Atomic;
 use std::sync::atomic::Ordering;
 
 /// Mock implementation of `std::sync::atomic::AtomicPtr`.
-#[derive(Debug)]
+///
+/// NOTE: Unlike `std::sync::atomic::AtomicPtr`, this type has a different
+/// in-memory representation than `*mut T`.
 pub struct AtomicPtr<T>(Atomic<*mut T>);
+
+impl<T> std::fmt::Debug for AtomicPtr<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 impl<T> AtomicPtr<T> {
     /// Creates a new instance of `AtomicPtr`.

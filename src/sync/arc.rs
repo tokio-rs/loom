@@ -108,8 +108,9 @@ impl<T: ?Sized> Arc<T> {
 
     /// Returns a mutable reference to the inner value, if there are
     /// no other `Arc` pointers to the same value.
+    #[track_caller]
     pub fn get_mut(this: &mut Self) -> Option<&mut T> {
-        if this.obj.get_mut() {
+        if this.obj.get_mut(location!()) {
             assert_eq!(1, std::sync::Arc::strong_count(&this.inner));
             Some(std::sync::Arc::get_mut(&mut this.inner).unwrap())
         } else {
@@ -172,7 +173,7 @@ impl<T: ?Sized> ops::Deref for Arc<T> {
 
 impl<T: ?Sized> Clone for Arc<T> {
     fn clone(&self) -> Arc<T> {
-        self.obj.ref_inc();
+        self.obj.ref_inc(location!());
 
         Arc {
             inner: self.inner.clone(),
@@ -183,7 +184,7 @@ impl<T: ?Sized> Clone for Arc<T> {
 
 impl<T: ?Sized> Drop for Arc<T> {
     fn drop(&mut self) {
-        if self.obj.ref_dec() {
+        if self.obj.ref_dec(location!()) {
             assert_eq!(
                 1,
                 std::sync::Arc::strong_count(&self.inner),
