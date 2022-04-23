@@ -33,7 +33,7 @@ impl<T> Arc<T> {
 impl<T: ?Sized> Arc<T> {
     /// Converts `std::sync::Arc` to `loom::sync::Arc`
     ///
-    /// This is needed to create `Arc<T>` where `T: !Sized`
+    /// This is needed to create a `loom::sync::Arc<T>` where `T: !Sized`
     ///
     /// ## Panics
     ///
