@@ -7,7 +7,7 @@ use std::{mem, ops};
 #[derive(Debug)]
 pub struct Arc<T: ?Sized> {
     obj: std::sync::Arc<rt::Arc>,
-    inner: std::sync::Arc<T>,
+    value: std::sync::Arc<T>,
 }
 
 impl<T> Arc<T> {
@@ -68,7 +68,7 @@ impl<T: ?Sized> Arc<T> {
                 .insert(std::sync::Arc::as_ptr(&std) as *const (), objc);
         });
 
-        Arc { obj, inner: std }
+        Arc { obj, value: std }
     }
 
     /// Gets the number of strong (`Arc`) pointers to this value.
@@ -111,8 +111,8 @@ impl<T: ?Sized> Arc<T> {
     #[track_caller]
     pub fn get_mut(this: &mut Self) -> Option<&mut T> {
         if this.obj.get_mut(location!()) {
-            assert_eq!(1, std::sync::Arc::strong_count(&this.inner));
-            Some(std::sync::Arc::get_mut(&mut this.inner).unwrap())
+            assert_eq!(1, std::sync::Arc::strong_count(&this.value));
+            Some(std::sync::Arc::get_mut(&mut this.value).unwrap())
         } else {
             None
         }
@@ -121,7 +121,7 @@ impl<T: ?Sized> Arc<T> {
     /// Returns `true` if the two `Arc`s point to the same value (not
     /// just values that compare as equal).
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
-        std::sync::Arc::ptr_eq(&this.inner, &other.inner)
+        std::sync::Arc::ptr_eq(&this.value, &other.value)
     }
 
     /// Consumes the `Arc`, returning the wrapped pointer.
@@ -133,7 +133,7 @@ impl<T: ?Sized> Arc<T> {
 
     /// Provides a raw pointer to the data.
     pub fn as_ptr(this: &Self) -> *const T {
-        std::sync::Arc::as_ptr(&this.inner)
+        std::sync::Arc::as_ptr(&this.value)
     }
 
     /// Constructs an `Arc` from a raw pointer.
@@ -159,7 +159,7 @@ impl<T: ?Sized> Arc<T> {
     pub unsafe fn from_raw(ptr: *const T) -> Self {
         let inner = std::sync::Arc::from_raw(ptr);
         let obj = rt::execution(|e| std::sync::Arc::clone(&e.arc_objs[&ptr.cast()]));
-        Arc { inner, obj }
+        Arc { value: inner, obj }
     }
 }
 
@@ -167,7 +167,7 @@ impl<T: ?Sized> ops::Deref for Arc<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.inner
+        &self.value
     }
 }
 
@@ -176,7 +176,7 @@ impl<T: ?Sized> Clone for Arc<T> {
         self.obj.ref_inc(location!());
 
         Arc {
-            inner: self.inner.clone(),
+            value: self.value.clone(),
             obj: self.obj.clone(),
         }
     }
@@ -187,13 +187,13 @@ impl<T: ?Sized> Drop for Arc<T> {
         if self.obj.ref_dec(location!()) {
             assert_eq!(
                 1,
-                std::sync::Arc::strong_count(&self.inner),
+                std::sync::Arc::strong_count(&self.value),
                 "something odd is going on"
             );
 
             rt::execution(|e| {
                 e.arc_objs
-                    .remove(&std::sync::Arc::as_ptr(&self.inner).cast())
+                    .remove(&std::sync::Arc::as_ptr(&self.value).cast())
                     .expect("Arc object was removed before dropping last Arc");
             });
         }
