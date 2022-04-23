@@ -31,9 +31,9 @@ impl<T> Arc<T> {
 }
 
 impl<T: ?Sized> Arc<T> {
-    /// Converts `std::sync::Arc` to `loom::sync::Arc`
+    /// Converts `std::sync::Arc` to `loom::sync::Arc`.
     ///
-    /// This is needed to create a `loom::sync::Arc<T>` where `T: !Sized`
+    /// This is needed to create a `loom::sync::Arc<T>` where `T: !Sized`.
     ///
     /// ## Panics
     ///
@@ -41,16 +41,36 @@ impl<T: ?Sized> Arc<T> {
     ///
     /// ## Examples
     ///
+    /// While `std::sync::Arc` with `T: !Sized` can be created by coercing an
+    /// `std::sync::Arc` with a sized value:
+    ///
+    /// ```rust
+    /// let sized: std::sync::Arc<[u8; 3]> = std::sync::Arc::new([1, 2, 3]);
+    /// let _unsized: std::sync::Arc<[u8]> = sized; // coercion
+    /// ```
+    ///
+    /// `loom::sync::Arc` can't be created in the same way:
+    ///
+    /// ```compile_fail,E0308
+    /// use loom::sync::Arc;
+    ///
+    /// let sized: Arc<[u8; 3]> = Arc::new([1, 2, 3]);
+    /// let _unsized: Arc<[u8]> = sized; // error: mismatched types
+    /// ```
+    ///
+    /// This is because `std::sync::Arc` uses an unstable trait called `CoerceUnsized`
+    /// that loom can't use. To create `loom::sync::Arc` with an unsized inner value
+    /// first create a `std::sync::Arc` of an appropriate type and then use this method:
+    ///
     /// ```rust
     /// use loom::sync::Arc;
     ///
     /// # loom::model::model(|| {
-    /// // std's arc can be automatically coerced
-    /// let std = std::sync::Arc::new([1, 2, 3]);
+    /// let std: std::sync::Arc<[u8]> = std::sync::Arc::new([1, 2, 3]);
     /// let loom: Arc<[u8]> = Arc::from_std(std);
     ///
-    /// let std = std::sync::Arc::new([1, 2, 3]);
-    /// let loom: Arc<dyn Sync + Send> = Arc::from_std(std);
+    /// let std: std::sync::Arc<dyn Send + Sync> = std::sync::Arc::new([1, 2, 3]);
+    /// let loom: Arc<dyn Send + Sync> = Arc::from_std(std);
     /// # });
     /// ```
     #[track_caller]
