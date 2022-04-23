@@ -5,34 +5,90 @@ use std::{mem, ops};
 
 /// Mock implementation of `std::sync::Arc`.
 #[derive(Debug)]
-pub struct Arc<T> {
-    inner: std::sync::Arc<Inner<T>>,
-}
-
-#[derive(Debug)]
-#[repr(C)]
-struct Inner<T> {
-    // This must be the first field to make into_raw / from_raw work
-    value: T,
-
-    obj: rt::Arc,
+pub struct Arc<T: ?Sized> {
+    obj: std::sync::Arc<rt::Arc>,
+    value: std::sync::Arc<T>,
 }
 
 impl<T> Arc<T> {
     /// Constructs a new `Arc<T>`.
     #[track_caller]
     pub fn new(value: T) -> Arc<T> {
-        let inner = std::sync::Arc::new(Inner {
-            value,
-            obj: rt::Arc::new(location!()),
-        });
+        let std = std::sync::Arc::new(value);
 
-        Arc { inner }
+        Arc::from_std(std)
     }
 
     /// Constructs a new `Pin<Arc<T>>`.
     pub fn pin(data: T) -> Pin<Arc<T>> {
         unsafe { Pin::new_unchecked(Arc::new(data)) }
+    }
+
+    /// Returns the inner value, if the `Arc` has exactly one strong reference.
+    pub fn try_unwrap(_this: Arc<T>) -> Result<T, Arc<T>> {
+        unimplemented!();
+    }
+}
+
+impl<T: ?Sized> Arc<T> {
+    /// Converts `std::sync::Arc` to `loom::sync::Arc`.
+    ///
+    /// This is needed to create a `loom::sync::Arc<T>` where `T: !Sized`.
+    ///
+    /// ## Panics
+    ///
+    /// If the provided `Arc` has copies (i.e., if it is not unique).
+    ///
+    /// ## Examples
+    ///
+    /// While `std::sync::Arc` with `T: !Sized` can be created by coercing an
+    /// `std::sync::Arc` with a sized value:
+    ///
+    /// ```rust
+    /// let sized: std::sync::Arc<[u8; 3]> = std::sync::Arc::new([1, 2, 3]);
+    /// let _unsized: std::sync::Arc<[u8]> = sized; // coercion
+    /// ```
+    ///
+    /// `loom::sync::Arc` can't be created in the same way:
+    ///
+    /// ```compile_fail,E0308
+    /// use loom::sync::Arc;
+    ///
+    /// let sized: Arc<[u8; 3]> = Arc::new([1, 2, 3]);
+    /// let _unsized: Arc<[u8]> = sized; // error: mismatched types
+    /// ```
+    ///
+    /// This is because `std::sync::Arc` uses an unstable trait called `CoerceUnsized`
+    /// that loom can't use. To create `loom::sync::Arc` with an unsized inner value
+    /// first create a `std::sync::Arc` of an appropriate type and then use this method:
+    ///
+    /// ```rust
+    /// use loom::sync::Arc;
+    ///
+    /// # loom::model::model(|| {
+    /// let std: std::sync::Arc<[u8]> = std::sync::Arc::new([1, 2, 3]);
+    /// let loom: Arc<[u8]> = Arc::from_std(std);
+    ///
+    /// let std: std::sync::Arc<dyn Send + Sync> = std::sync::Arc::new([1, 2, 3]);
+    /// let loom: Arc<dyn Send + Sync> = Arc::from_std(std);
+    /// # });
+    /// ```
+    #[track_caller]
+    pub fn from_std(mut std: std::sync::Arc<T>) -> Self {
+        assert!(
+            std::sync::Arc::get_mut(&mut std).is_some(),
+            "Arc provided to `from_std` is not unique"
+        );
+
+        let obj = std::sync::Arc::new(rt::Arc::new(location!()));
+        let objc = std::sync::Arc::clone(&obj);
+
+        rt::execution(|e| {
+            e.arc_objs
+                .insert(std::sync::Arc::as_ptr(&std) as *const (), objc);
+        });
+
+        Arc { obj, value: std }
     }
 
     /// Gets the number of strong (`Arc`) pointers to this value.
@@ -74,9 +130,9 @@ impl<T> Arc<T> {
     /// no other `Arc` pointers to the same value.
     #[track_caller]
     pub fn get_mut(this: &mut Self) -> Option<&mut T> {
-        if this.inner.obj.get_mut(location!()) {
-            assert_eq!(1, std::sync::Arc::strong_count(&this.inner));
-            Some(&mut std::sync::Arc::get_mut(&mut this.inner).unwrap().value)
+        if this.obj.get_mut(location!()) {
+            assert_eq!(1, std::sync::Arc::strong_count(&this.value));
+            Some(std::sync::Arc::get_mut(&mut this.value).unwrap())
         } else {
             None
         }
@@ -85,7 +141,7 @@ impl<T> Arc<T> {
     /// Returns `true` if the two `Arc`s point to the same value (not
     /// just values that compare as equal).
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
-        std::sync::Arc::ptr_eq(&this.inner, &other.inner)
+        std::sync::Arc::ptr_eq(&this.value, &other.value)
     }
 
     /// Consumes the `Arc`, returning the wrapped pointer.
@@ -97,7 +153,7 @@ impl<T> Arc<T> {
 
     /// Provides a raw pointer to the data.
     pub fn as_ptr(this: &Self) -> *const T {
-        std::sync::Arc::as_ptr(&this.inner) as *const T
+        std::sync::Arc::as_ptr(&this.value)
     }
 
     /// Constructs an `Arc` from a raw pointer.
@@ -121,42 +177,45 @@ impl<T> Arc<T> {
     /// [into_raw]: Arc::into_raw
     /// [transmute]: core::mem::transmute
     pub unsafe fn from_raw(ptr: *const T) -> Self {
-        let inner = std::sync::Arc::from_raw(ptr as *const Inner<T>);
-        Arc { inner }
-    }
-
-    /// Returns the inner value, if the `Arc` has exactly one strong reference.
-    pub fn try_unwrap(_this: Arc<T>) -> Result<T, Arc<T>> {
-        unimplemented!();
+        let inner = std::sync::Arc::from_raw(ptr);
+        let obj = rt::execution(|e| std::sync::Arc::clone(&e.arc_objs[&ptr.cast()]));
+        Arc { value: inner, obj }
     }
 }
 
-impl<T> ops::Deref for Arc<T> {
+impl<T: ?Sized> ops::Deref for Arc<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.inner.value
+        &self.value
     }
 }
 
-impl<T> Clone for Arc<T> {
+impl<T: ?Sized> Clone for Arc<T> {
     fn clone(&self) -> Arc<T> {
-        self.inner.obj.ref_inc(location!());
+        self.obj.ref_inc(location!());
 
         Arc {
-            inner: self.inner.clone(),
+            value: self.value.clone(),
+            obj: self.obj.clone(),
         }
     }
 }
 
-impl<T> Drop for Arc<T> {
+impl<T: ?Sized> Drop for Arc<T> {
     fn drop(&mut self) {
-        if self.inner.obj.ref_dec(location!()) {
+        if self.obj.ref_dec(location!()) {
             assert_eq!(
                 1,
-                std::sync::Arc::strong_count(&self.inner),
+                std::sync::Arc::strong_count(&self.value),
                 "something odd is going on"
             );
+
+            rt::execution(|e| {
+                e.arc_objs
+                    .remove(&std::sync::Arc::as_ptr(&self.value).cast())
+                    .expect("Arc object was removed before dropping last Arc");
+            });
         }
     }
 }
