@@ -77,3 +77,13 @@ fn detect_mem_leak() {
         std::mem::forget(num);
     });
 }
+
+#[test]
+fn try_unwrap() {
+    loom::model(|| {
+        let num = Arc::new(0usize);
+        let num2 = Arc::clone(&num);
+        drop(num2);
+        let _ = Arc::try_unwrap(num).unwrap();
+    });
+}

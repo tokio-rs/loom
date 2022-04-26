@@ -1,7 +1,7 @@
 use crate::rt;
 
 use std::pin::Pin;
-use std::{mem, ops};
+use std::{mem, ops, ptr};
 
 /// Mock implementation of `std::sync::Arc`.
 #[derive(Debug)]
@@ -25,8 +25,30 @@ impl<T> Arc<T> {
     }
 
     /// Returns the inner value, if the `Arc` has exactly one strong reference.
-    pub fn try_unwrap(_this: Arc<T>) -> Result<T, Arc<T>> {
-        unimplemented!();
+    pub fn try_unwrap(this: Arc<T>) -> Result<T, Arc<T>> {
+        if this.obj.get_mut(location!()) {
+            assert_eq!(1, std::sync::Arc::strong_count(&this.value));
+
+            // work around our inability to destruct the object normally,
+            // because of the `Drop` presense.
+            this.obj.ref_dec(location!());
+            this.unregister();
+
+            let arc_value = unsafe {
+                let _arc_obj = ptr::read(&this.obj);
+                let arc_value = ptr::read(&this.value);
+
+                mem::forget(this);
+
+                arc_value
+            };
+            match std::sync::Arc::try_unwrap(arc_value) {
+                Ok(value) => Ok(value),
+                Err(_) => unreachable!(),
+            }
+        } else {
+            Err(this)
+        }
     }
 }
 
@@ -181,6 +203,15 @@ impl<T: ?Sized> Arc<T> {
         let obj = rt::execution(|e| std::sync::Arc::clone(&e.arc_objs[&ptr.cast()]));
         Arc { value: inner, obj }
     }
+
+    /// Unregister this object before it's gone.
+    fn unregister(&self) {
+        rt::execution(|e| {
+            e.arc_objs
+                .remove(&std::sync::Arc::as_ptr(&self.value).cast())
+                .expect("Arc object was removed before dropping last Arc");
+        });
+    }
 }
 
 impl<T: ?Sized> ops::Deref for Arc<T> {
@@ -210,12 +241,7 @@ impl<T: ?Sized> Drop for Arc<T> {
                 std::sync::Arc::strong_count(&self.value),
                 "something odd is going on"
             );
-
-            rt::execution(|e| {
-                e.arc_objs
-                    .remove(&std::sync::Arc::as_ptr(&self.value).cast())
-                    .expect("Arc object was removed before dropping last Arc");
-            });
+            self.unregister();
         }
     }
 }
