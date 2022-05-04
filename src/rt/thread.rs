@@ -8,8 +8,6 @@ use super::Location;
 pub(crate) struct Thread {
     pub id: Id,
 
-    pub span: tracing::Span,
-
     /// If the thread is runnable, blocked, or terminated.
     pub state: State,
 
@@ -35,6 +33,9 @@ pub(crate) struct Thread {
     pub yield_count: usize,
 
     locals: LocalMap,
+
+    /// `tracing` span used to associate diagnostics with the current thread.
+    span: tracing::Span,
 }
 
 #[derive(Debug)]
@@ -53,6 +54,9 @@ pub(crate) struct Set {
     /// Sequential consistency causality. All sequentially consistent operations
     /// synchronize with this causality.
     pub seq_cst_causality: VersionVec,
+
+    /// `tracing` span used as the parent for new thread spans.
+    iteration_span: tracing::Span,
 }
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone)]
@@ -85,10 +89,10 @@ struct LocalKeyId(usize);
 struct LocalValue(Option<Box<dyn Any>>);
 
 impl Thread {
-    fn new(id: Id) -> Thread {
+    fn new(id: Id, parent_span: &tracing::Span) -> Thread {
         Thread {
             id,
-            span: tracing::info_span!(parent: None, "thread", id = id.id),
+            span: tracing::info_span!(parent: parent_span.id(), "thread", id = id.id),
             state: State::Runnable { unparked: false },
             critical: false,
             operation: None,
@@ -187,15 +191,18 @@ impl Set {
     /// The set may contain up to `max_threads` threads.
     pub(crate) fn new(execution_id: execution::Id, max_threads: usize) -> Set {
         let mut threads = Vec::with_capacity(max_threads);
-
+        // Capture the current iteration's span to be used as each thread
+        // span's parent.
+        let iteration_span = tracing::Span::current();
         // Push initial thread
-        threads.push(Thread::new(Id::new(execution_id, 0)));
+        threads.push(Thread::new(Id::new(execution_id, 0), &iteration_span));
 
         Set {
             execution_id,
             threads,
             active: Some(0),
             seq_cst_causality: VersionVec::new(),
+            iteration_span,
         }
     }
 
@@ -211,8 +218,10 @@ impl Set {
         let id = self.threads.len();
 
         // Push the thread onto the stack
-        self.threads
-            .push(Thread::new(Id::new(self.execution_id, id)));
+        self.threads.push(Thread::new(
+            Id::new(self.execution_id, id),
+            &self.iteration_span,
+        ));
 
         Id::new(self.execution_id, id)
     }
@@ -323,8 +332,10 @@ impl Set {
     }
 
     pub(crate) fn clear(&mut self, execution_id: execution::Id) {
+        self.iteration_span = tracing::Span::current();
         self.threads.clear();
-        self.threads.push(Thread::new(Id::new(execution_id, 0)));
+        self.threads
+            .push(Thread::new(Id::new(execution_id, 0), &self.iteration_span));
 
         self.execution_id = execution_id;
         self.active = Some(0);
