@@ -19,9 +19,10 @@ pub use std::alloc::Layout;
 /// See [`GlobalAlloc::alloc`].
 ///
 /// [`GlobalAlloc::alloc`]: std::alloc::GlobalAlloc::alloc
+#[track_caller]
 pub unsafe fn alloc(layout: Layout) -> *mut u8 {
     let ptr = std::alloc::alloc(layout);
-    rt::alloc(ptr);
+    rt::alloc(ptr, location!());
     ptr
 }
 
@@ -40,9 +41,10 @@ pub unsafe fn alloc(layout: Layout) -> *mut u8 {
 /// See [`GlobalAlloc::alloc_zeroed`].
 ///
 /// [`GlobalAlloc::alloc_zeroed`]: std::alloc::GlobalAlloc::alloc_zeroed
+#[track_caller]
 pub unsafe fn alloc_zeroed(layout: Layout) -> *mut u8 {
     let ptr = std::alloc::alloc_zeroed(layout);
-    rt::alloc(ptr);
+    rt::alloc(ptr, location!());
     ptr
 }
 
@@ -63,8 +65,9 @@ pub unsafe fn alloc_zeroed(layout: Layout) -> *mut u8 {
 /// See [`GlobalAlloc::dealloc`].
 ///
 /// [`GlobalAlloc::dealloc`]: std::alloc::GlobalAlloc::dealloc
+#[track_caller]
 pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
-    rt::dealloc(ptr);
+    rt::dealloc(ptr, location!());
     std::alloc::dealloc(ptr, layout)
 }
 
@@ -78,10 +81,11 @@ pub struct Track<T> {
 
 impl<T> Track<T> {
     /// Track a value for leaks
+    #[track_caller]
     pub fn new(value: T) -> Track<T> {
         Track {
             value,
-            _obj: rt::Allocation::new(),
+            _obj: rt::Allocation::new(location!()),
         }
     }
 
