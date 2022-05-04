@@ -8,6 +8,8 @@ use super::Location;
 pub(crate) struct Thread {
     pub id: Id,
 
+    pub span: tracing::Span,
+
     /// If the thread is runnable, blocked, or terminated.
     pub state: State,
 
@@ -86,6 +88,7 @@ impl Thread {
     fn new(id: Id) -> Thread {
         Thread {
             id,
+            span: tracing::info_span!(parent: None, "thread", id = id.id),
             state: State::Runnable { unparked: false },
             critical: false,
             operation: None,
@@ -231,6 +234,15 @@ impl Set {
     }
 
     pub(crate) fn set_active(&mut self, id: Option<Id>) {
+        tracing::dispatcher::get_default(|subscriber| {
+            if let Some(span_id) = self.active().span.id() {
+                subscriber.exit(&span_id)
+            }
+
+            if let Some(span_id) = id.and_then(|id| self.threads.get(id.id)?.span.id()) {
+                subscriber.enter(&span_id);
+            }
+        });
         self.active = id.map(Id::as_usize);
     }
 
