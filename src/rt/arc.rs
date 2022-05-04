@@ -56,7 +56,7 @@ impl Arc {
                 last_ref_dec: None,
             });
 
-            trace!(?state, "Arc::new");
+            trace!(?state, %location, "Arc::new");
 
             Arc { state }
         })
