@@ -138,12 +138,15 @@ impl Arc {
 }
 
 impl State {
-    pub(super) fn check_for_leaks(&self) {
+    pub(super) fn check_for_leaks(&self, index: usize) {
         if self.ref_cnt != 0 {
             if self.allocated.is_captured() {
-                panic!("Arc leaked.\n  Allocated: {}", self.allocated);
+                panic!(
+                    "Arc leaked.\n  Allocated: {}\n      Index: {}",
+                    self.allocated, index
+                );
             } else {
-                panic!("Arc leaked.");
+                panic!("Arc leaked.\n  Index: {}", index);
             }
         }
     }
