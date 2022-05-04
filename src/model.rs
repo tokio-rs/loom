@@ -219,6 +219,8 @@ where
 {
     let subscriber = fmt::Subscriber::builder()
         .with_env_filter(EnvFilter::from_env("LOOM_LOG"))
+        .with_test_writer()
+        .without_time()
         .finish();
 
     subscriber::with_default(subscriber, || {
