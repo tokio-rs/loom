@@ -252,7 +252,7 @@ impl Store {
             match entry {
                 Entry::Alloc(entry) => entry.check_for_leaks(index),
                 Entry::Arc(entry) => entry.check_for_leaks(index),
-                Entry::Channel(entry) => entry.check_for_leaks(),
+                Entry::Channel(entry) => entry.check_for_leaks(index),
                 _ => {}
             }
         }

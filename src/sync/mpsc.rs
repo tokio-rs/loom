@@ -3,9 +3,11 @@
 use crate::rt;
 
 /// Mock implementation of `std::sync::mpsc::channel`.
+#[track_caller]
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
+    let location = location!();
     let (sender_channel, receiver_channel) = std::sync::mpsc::channel();
-    let channel = std::sync::Arc::new(rt::Channel::new());
+    let channel = std::sync::Arc::new(rt::Channel::new(location));
     let sender = Sender {
         object: std::sync::Arc::clone(&channel),
         sender: sender_channel,
