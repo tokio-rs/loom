@@ -133,6 +133,9 @@ impl Builder {
     where
         F: Fn() + Sync + Send + 'static,
     {
+        let mut i = 1;
+        let mut _span = tracing::info_span!("iter", message = i).entered();
+
         let mut execution =
             Execution::new(self.max_threads, self.max_branches, self.preemption_bound);
         let mut scheduler = Scheduler::new(self.max_threads);
@@ -149,17 +152,15 @@ impl Builder {
 
         let f = Arc::new(f);
 
-        let mut i = 0;
-
         let start = Instant::now();
-
         loop {
-            i += 1;
-
             if i % self.checkpoint_interval == 0 {
-                info!("");
-                info!(" ================== Iteration {} ==================", i);
-                info!("");
+                info!(parent: None, "");
+                info!(
+                    parent: None,
+                    " ================== Iteration {} ==================", i
+                );
+                info!(parent: None, "");
 
                 if let Some(ref path) = self.checkpoint_file {
                     checkpoint::store_execution_path(&execution.path, path);
@@ -193,10 +194,16 @@ impl Builder {
 
             execution.check_for_leaks();
 
+            i += 1;
+
+            // Create the next iteration's `tracing` span before trying to step to the next
+            // execution, as the `Execution` will capture the current span when
+            // it's reset.
+            _span = tracing::info_span!(parent: None, "iter", message = i).entered();
             if let Some(next) = execution.step() {
                 execution = next;
             } else {
-                info!("Completed in {} iterations", i);
+                info!(parent: None, "Completed in {} iterations", i - 1);
                 return;
             }
         }
