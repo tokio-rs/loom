@@ -248,11 +248,11 @@ impl Store {
 
     /// Panics if any leaks were detected
     pub(crate) fn check_for_leaks(&self) {
-        for entry in &self.entries[..] {
+        for (index, entry) in self.entries.iter().enumerate() {
             match entry {
-                Entry::Alloc(entry) => entry.check_for_leaks(),
-                Entry::Arc(entry) => entry.check_for_leaks(),
-                Entry::Channel(entry) => entry.check_for_leaks(),
+                Entry::Alloc(entry) => entry.check_for_leaks(index),
+                Entry::Arc(entry) => entry.check_for_leaks(index),
+                Entry::Channel(entry) => entry.check_for_leaks(index),
                 _ => {}
             }
         }

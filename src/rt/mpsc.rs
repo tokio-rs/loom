@@ -36,6 +36,8 @@ pub(super) struct State {
     /// A synchronization point per message synchronizing the receiving thread
     /// with the channel state at the point when the received message was sent.
     receiver_synchronize: VecDeque<Synchronize>,
+
+    created: Location,
 }
 
 /// Actions performed on the Channel.
@@ -48,7 +50,7 @@ pub(super) enum Action {
 }
 
 impl Channel {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(location: Location) -> Self {
         super::execution(|execution| {
             let state = execution.objects.insert(State {
                 msg_cnt: 0,
@@ -56,7 +58,10 @@ impl Channel {
                 last_recv_access: None,
                 sender_synchronize: Synchronize::new(),
                 receiver_synchronize: VecDeque::new(),
+                created: location,
             });
+
+            tracing::trace!(?state, %location, "mpsc::channel");
             Self { state }
         })
     }
@@ -138,8 +143,23 @@ impl Channel {
 }
 
 impl State {
-    pub(super) fn check_for_leaks(&self) {
-        assert_eq!(0, self.msg_cnt, "Messages leaked");
+    pub(super) fn check_for_leaks(&self, index: usize) {
+        if self.msg_cnt != 0 {
+            if self.created.is_captured() {
+                panic!(
+                    "Messages leaked.\n  \
+                    Channel created: {}\n            \
+                    Index: {}\n        \
+                    Messages: {}",
+                    self.created, index, self.msg_cnt
+                );
+            } else {
+                panic!(
+                    "Messages leaked.\n     Index: {}\n  Messages: {}",
+                    index, self.msg_cnt
+                );
+            }
+        }
     }
 
     pub(super) fn last_dependent_access(&self, action: Action) -> Option<&Access> {

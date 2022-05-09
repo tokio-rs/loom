@@ -56,7 +56,7 @@ impl Arc {
                 last_ref_dec: None,
             });
 
-            trace!(?state, "Arc::new");
+            trace!(?state, %location, "Arc::new");
 
             Arc { state }
         })
@@ -69,7 +69,7 @@ impl Arc {
             let state = self.state.get_mut(&mut execution.objects);
             state.ref_cnt = state.ref_cnt.checked_add(1).expect("overflow");
 
-            trace!(state = ?self.state, ref_cnt = ?state.ref_cnt, "Arc::ref_inc");
+            trace!(state = ?self.state, ref_cnt = ?state.ref_cnt, %location, "Arc::ref_inc");
         })
     }
 
@@ -87,7 +87,7 @@ impl Arc {
 
             let is_only_ref = state.ref_cnt == 1;
 
-            trace!(state = ?self.state, ?is_only_ref, "Arc::get_mut");
+            trace!(state = ?self.state, ?is_only_ref, %location, "Arc::get_mut");
 
             is_only_ref
         })
@@ -105,7 +105,7 @@ impl Arc {
             // Decrement the ref count
             state.ref_cnt -= 1;
 
-            trace!(state = ?self.state, ref_cnt = ?state.ref_cnt, "Arc::ref_dec");
+            trace!(state = ?self.state, ref_cnt = ?state.ref_cnt, %location, "Arc::ref_dec");
 
             // Synchronize the threads.
             state
@@ -138,12 +138,15 @@ impl Arc {
 }
 
 impl State {
-    pub(super) fn check_for_leaks(&self) {
+    pub(super) fn check_for_leaks(&self, index: usize) {
         if self.ref_cnt != 0 {
             if self.allocated.is_captured() {
-                panic!("Arc leaked.\n  Allocated: {}", self.allocated);
+                panic!(
+                    "Arc leaked.\n  Allocated: {}\n      Index: {}",
+                    self.allocated, index
+                );
             } else {
-                panic!("Arc leaked.");
+                panic!("Arc leaked.\n  Index: {}", index);
             }
         }
     }

@@ -105,6 +105,7 @@ impl<T: ?Sized> Arc<T> {
     /// The pointer must have been obtained through `Arc::into_raw`, and the
     /// associated `Arc` instance must be valid (i.e. the strong count must be at
     /// least 1) for the duration of this method.
+    #[track_caller]
     pub unsafe fn increment_strong_count(ptr: *const T) {
         // Retain Arc, but don't touch refcount by wrapping in ManuallyDrop
         let arc = mem::ManuallyDrop::new(Arc::<T>::from_raw(ptr));
@@ -122,6 +123,7 @@ impl<T: ?Sized> Arc<T> {
     /// least 1) when invoking this method. This method can be used to release the final
     /// `Arc` and backing storage, but **should not** be called after the final `Arc` has been
     /// released.
+    #[track_caller]
     pub unsafe fn decrement_strong_count(ptr: *const T) {
         mem::drop(Arc::from_raw(ptr));
     }
@@ -176,6 +178,7 @@ impl<T: ?Sized> Arc<T> {
     ///
     /// [into_raw]: Arc::into_raw
     /// [transmute]: core::mem::transmute
+    #[track_caller]
     pub unsafe fn from_raw(ptr: *const T) -> Self {
         let inner = std::sync::Arc::from_raw(ptr);
         let obj = rt::execution(|e| std::sync::Arc::clone(&e.arc_objs[&ptr.cast()]));
@@ -192,6 +195,7 @@ impl<T: ?Sized> ops::Deref for Arc<T> {
 }
 
 impl<T: ?Sized> Clone for Arc<T> {
+    #[track_caller]
     fn clone(&self) -> Arc<T> {
         self.obj.ref_inc(location!());
 
@@ -203,6 +207,7 @@ impl<T: ?Sized> Clone for Arc<T> {
 }
 
 impl<T: ?Sized> Drop for Arc<T> {
+    #[track_caller]
     fn drop(&mut self) {
         if self.obj.ref_dec(location!()) {
             assert_eq!(
@@ -221,12 +226,14 @@ impl<T: ?Sized> Drop for Arc<T> {
 }
 
 impl<T: Default> Default for Arc<T> {
+    #[track_caller]
     fn default() -> Arc<T> {
         Arc::new(Default::default())
     }
 }
 
 impl<T> From<T> for Arc<T> {
+    #[track_caller]
     fn from(t: T) -> Self {
         Arc::new(t)
     }
