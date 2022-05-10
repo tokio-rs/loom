@@ -5,6 +5,8 @@ use std::collections::VecDeque;
 
 use tracing::trace;
 
+use super::Location;
+
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Condvar {
     state: object::Ref<State>,
@@ -35,8 +37,8 @@ impl Condvar {
     }
 
     /// Blocks the current thread until this condition variable receives a notification.
-    pub(crate) fn wait(&self, mutex: &Mutex) {
-        self.state.branch_opaque();
+    pub(crate) fn wait(&self, mutex: &Mutex, location: Location) {
+        self.state.branch_opaque(location);
 
         rt::execution(|execution| {
             trace!(state = ?self.state, ?mutex, "Condvar::wait");
@@ -51,15 +53,15 @@ impl Condvar {
         mutex.release_lock();
 
         // Disable the current thread
-        rt::park();
+        rt::park(location);
 
         // Acquire the lock again
-        mutex.acquire_lock();
+        mutex.acquire_lock(location);
     }
 
     /// Wakes up one blocked thread on this condvar.
-    pub(crate) fn notify_one(&self) {
-        self.state.branch_opaque();
+    pub(crate) fn notify_one(&self, location: Location) {
+        self.state.branch_opaque(location);
 
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -76,8 +78,8 @@ impl Condvar {
     }
 
     /// Wakes up all blocked threads on this condvar.
-    pub(crate) fn notify_all(&self) {
-        self.state.branch_opaque();
+    pub(crate) fn notify_all(&self, location: Location) {
+        self.state.branch_opaque(location);
 
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);

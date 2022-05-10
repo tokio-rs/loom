@@ -1,5 +1,6 @@
 //! Mock implementation of `std::sync::atomic`.
 
+#[allow(clippy::module_inception)]
 mod atomic;
 use self::atomic::Atomic;
 

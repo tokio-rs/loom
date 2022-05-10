@@ -10,10 +10,16 @@ macro_rules! doc_comment {
     };
 }
 
+#[rustfmt::skip] // rustfmt cannot properly format multi-line concat!.
 macro_rules! atomic_int {
     ($name: ident, $atomic_type: ty) => {
         doc_comment! {
-            concat!(" Mock implementation of `std::sync::atomic::", stringify!($name), "`."),
+            concat!(
+                " Mock implementation of `std::sync::atomic::", stringify!($name), "`.\n\n\
+                 NOTE: Unlike `std::sync::atomic::", stringify!($name), "`, \
+                 this type has a different in-memory representation than `",
+                 stringify!($atomic_type), "`.",
+            ),
             #[derive(Debug)]
             pub struct $name(Atomic<$atomic_type>);
         }
@@ -34,6 +40,13 @@ macro_rules! atomic_int {
             }
 
             /// Load the value without any synchronization.
+            ///
+            /// # Safety
+            ///
+            /// An unsynchronized atomic load technically always has undefined behavior.
+            /// However, if the atomic value is not currently visible by other threads,
+            /// this *should* always be equivalent to a non-atomic load of an un-shared
+            /// integer value.
             #[track_caller]
             pub unsafe fn unsync_load(&self) -> $atomic_type {
                 self.0.unsync_load()

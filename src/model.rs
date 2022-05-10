@@ -13,6 +13,7 @@ const DEFAULT_MAX_BRANCHES: usize = 1_000;
 
 /// Configure a model
 #[derive(Debug)]
+#[non_exhaustive] // Support adding more fields in the future
 pub struct Builder {
     /// Max number of threads to check as part of the execution.
     ///
@@ -64,9 +65,6 @@ pub struct Builder {
     ///
     /// Defaults to existence of `LOOM_LOG` environment variable.
     pub log: bool,
-
-    // Support adding more fields in the future
-    _p: (),
 }
 
 impl Builder {
@@ -77,17 +75,12 @@ impl Builder {
         let checkpoint_interval = env::var("LOOM_CHECKPOINT_INTERVAL")
             .map(|v| {
                 v.parse()
-                    .ok()
                     .expect("invalid value for `LOOM_CHECKPOINT_INTERVAL`")
             })
             .unwrap_or(20_000);
 
         let max_branches = env::var("LOOM_MAX_BRANCHES")
-            .map(|v| {
-                v.parse()
-                    .ok()
-                    .expect("invalid value for `LOOM_MAX_BRANCHES`")
-            })
+            .map(|v| v.parse().expect("invalid value for `LOOM_MAX_BRANCHES`"))
             .unwrap_or(DEFAULT_MAX_BRANCHES);
 
         let location = env::var("LOOM_LOCATION").is_ok();
@@ -96,10 +89,7 @@ impl Builder {
 
         let max_duration = env::var("LOOM_MAX_DURATION")
             .map(|v| {
-                let secs = v
-                    .parse()
-                    .ok()
-                    .expect("invalid value for `LOOM_MAX_DURATION`");
+                let secs = v.parse().expect("invalid value for `LOOM_MAX_DURATION`");
                 Duration::from_secs(secs)
             })
             .ok();
@@ -107,25 +97,16 @@ impl Builder {
         let max_permutations = env::var("LOOM_MAX_PERMUTATIONS")
             .map(|v| {
                 v.parse()
-                    .ok()
                     .expect("invalid value for `LOOM_MAX_PERMUTATIONS`")
             })
             .ok();
 
         let preemption_bound = env::var("LOOM_MAX_PREEMPTIONS")
-            .map(|v| {
-                v.parse()
-                    .ok()
-                    .expect("invalid value for `LOOM_MAX_PREEMPTIONS`")
-            })
+            .map(|v| v.parse().expect("invalid value for `LOOM_MAX_PREEMPTIONS`"))
             .ok();
 
         let checkpoint_file = env::var("LOOM_CHECKPOINT_FILE")
-            .map(|v| {
-                v.parse()
-                    .ok()
-                    .expect("invalid value for `LOOM_CHECKPOINT_FILE`")
-            })
+            .map(|v| v.parse().expect("invalid value for `LOOM_CHECKPOINT_FILE`"))
             .ok();
 
         Builder {
@@ -138,7 +119,6 @@ impl Builder {
             checkpoint_interval,
             location,
             log,
-            _p: (),
         }
     }
 
@@ -153,6 +133,9 @@ impl Builder {
     where
         F: Fn() + Sync + Send + 'static,
     {
+        let mut i = 1;
+        let mut _span = tracing::info_span!("iter", message = i).entered();
+
         let mut execution =
             Execution::new(self.max_threads, self.max_branches, self.preemption_bound);
         let mut scheduler = Scheduler::new(self.max_threads);
@@ -169,17 +152,15 @@ impl Builder {
 
         let f = Arc::new(f);
 
-        let mut i = 0;
-
         let start = Instant::now();
-
         loop {
-            i += 1;
-
             if i % self.checkpoint_interval == 0 {
-                info!("");
-                info!(" ================== Iteration {} ==================", i);
-                info!("");
+                info!(parent: None, "");
+                info!(
+                    parent: None,
+                    " ================== Iteration {} ==================", i
+                );
+                info!(parent: None, "");
 
                 if let Some(ref path) = self.checkpoint_file {
                     checkpoint::store_execution_path(&execution.path, path);
@@ -213,13 +194,25 @@ impl Builder {
 
             execution.check_for_leaks();
 
+            i += 1;
+
+            // Create the next iteration's `tracing` span before trying to step to the next
+            // execution, as the `Execution` will capture the current span when
+            // it's reset.
+            _span = tracing::info_span!(parent: None, "iter", message = i).entered();
             if let Some(next) = execution.step() {
                 execution = next;
             } else {
-                info!("Completed in {} iterations", i);
+                info!(parent: None, "Completed in {} iterations", i - 1);
                 return;
             }
         }
+    }
+}
+
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -233,6 +226,8 @@ where
 {
     let subscriber = fmt::Subscriber::builder()
         .with_env_filter(EnvFilter::from_env("LOOM_LOG"))
+        .with_test_writer()
+        .without_time()
         .finish();
 
     subscriber::with_default(subscriber, || {

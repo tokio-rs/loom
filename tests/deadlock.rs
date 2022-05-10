@@ -23,9 +23,6 @@ fn two_mutexes_deadlock() {
             })
         };
         let th2 = {
-            let a = a.clone();
-            let b = b.clone();
-
             thread::spawn(move || {
                 let b_lock = b.lock().unwrap();
                 let a_lock = a.lock().unwrap();

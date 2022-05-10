@@ -1,3 +1,7 @@
+#[macro_use]
+mod location;
+pub(crate) use self::location::Location;
+
 mod access;
 use self::access::Access;
 
@@ -10,11 +14,7 @@ pub(crate) use self::arc::Arc;
 mod atomic;
 pub(crate) use self::atomic::{fence, Atomic};
 
-#[macro_use]
-mod location;
-pub(crate) use self::location::Location;
-
-mod cell;
+pub(crate) mod cell;
 pub(crate) use self::cell::Cell;
 
 mod condvar;
@@ -81,18 +81,33 @@ where
 }
 
 /// Marks the current thread as blocked
-pub fn park() {
-    execution(|execution| {
+pub(crate) fn park(location: Location) {
+    let switch = execution(|execution| {
+        use thread::State;
         let thread = execution.threads.active_id();
+        let active = execution.threads.active_mut();
 
-        trace!(?thread, "park");
+        trace!(?thread, ?active.state, "park");
 
-        execution.threads.active_mut().set_blocked();
+        match active.state {
+            // The thread was previously unparked while it was active. Instead
+            // of parking, consume the unpark.
+            State::Runnable { unparked: true } => {
+                active.set_runnable();
+                return false;
+            }
+            // The thread doesn't have a saved unpark; set its state to blocked.
+            _ => active.set_blocked(location),
+        };
+
+        execution.threads.active_mut().set_blocked(location);
         execution.threads.active_mut().operation = None;
         execution.schedule()
     });
 
-    Scheduler::switch();
+    if switch {
+        Scheduler::switch();
+    }
 }
 
 /// Add an execution branch point.
@@ -123,8 +138,7 @@ where
     execution(|execution| {
         execution.threads.active_causality_inc();
         trace!("synchronize");
-        let ret = f(execution);
-        ret
+        f(execution)
     })
 }
 

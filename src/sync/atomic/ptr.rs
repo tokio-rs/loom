@@ -3,8 +3,16 @@ use super::Atomic;
 use std::sync::atomic::Ordering;
 
 /// Mock implementation of `std::sync::atomic::AtomicPtr`.
-#[derive(Debug)]
+///
+/// NOTE: Unlike `std::sync::atomic::AtomicPtr`, this type has a different
+/// in-memory representation than `*mut T`.
 pub struct AtomicPtr<T>(Atomic<*mut T>);
+
+impl<T> std::fmt::Debug for AtomicPtr<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 impl<T> AtomicPtr<T> {
     /// Creates a new instance of `AtomicPtr`.
@@ -14,6 +22,13 @@ impl<T> AtomicPtr<T> {
     }
 
     /// Load the value without any synchronization.
+    ///
+    /// # Safety
+    ///
+    /// An unsynchronized atomic load technically always has undefined behavior.
+    /// However, if the atomic value is not currently visible by other threads,
+    /// this *should* always be equivalent to a non-atomic load of an un-shared
+    /// `*mut T` value.
     pub unsafe fn unsync_load(&self) -> *mut T {
         self.0.unsync_load()
     }

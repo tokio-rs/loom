@@ -106,7 +106,7 @@ impl PanicBuilder {
 
                 let th = thread
                     .map(|th| format!("thread #{} @ ", th))
-                    .unwrap_or("".to_string());
+                    .unwrap_or_else(String::new);
 
                 msg.push_str(&format!("\n    {}{}: {}{}", spaces, key, th, location));
             }

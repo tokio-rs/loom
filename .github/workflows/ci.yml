@@ -22,7 +22,7 @@ jobs:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Install Rust
       run: rustup update stable && rustup default stable
     - name: Check formatting
@@ -37,7 +37,7 @@ jobs:
     name: minrust
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install Rust
         run: rustup update 1.51.0 && rustup default 1.51.0
       - name: Check
@@ -48,7 +48,7 @@ jobs:
     name: stable
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install Rust
         run: rustup update stable && rustup default stable
       - name: Test

@@ -92,8 +92,13 @@ pub(crate) enum Thread {
 macro_rules! assert_path_len {
     ($branches:expr) => {{
         assert!(
-            $branches.len() < $branches.capacity(),
-            "Model exeeded maximum number of branches. This is often caused \
+            // if we are panicking, we may be performing a branch due to a
+            // `Drop` impl (e.g., for `Arc`, or for a user type that does an
+            // atomic operation in its `Drop` impl). if that's the case,
+            // asserting this again will double panic. therefore, short-circuit
+            // the assertion if the thread is panicking.
+            $branches.len() < $branches.capacity() || std::thread::panicking(),
+            "Model exceeded maximum number of branches. This is often caused \
              by an algorithm requiring the processor to make progress, e.g. \
              spin locks.",
         );
@@ -280,7 +285,7 @@ impl Path {
             .threads
             .iter()
             .enumerate()
-            .find(|&(_, ref th)| th.is_active())
+            .find(|&(_, th)| th.is_active())
             .map(|(i, _)| thread::Id::new(execution_id, i))
     }
 
@@ -348,11 +353,9 @@ impl Path {
                 let schedule = schedule_ref.get_mut(&mut self.branches);
 
                 // Transition the active thread to visited.
-                schedule
-                    .threads
-                    .iter_mut()
-                    .find(|th| th.is_active())
-                    .map(|th| *th = Thread::Visited);
+                if let Some(thread) = schedule.threads.iter_mut().find(|th| th.is_active()) {
+                    *thread = Thread::Visited;
+                }
 
                 // Find a pending thread and transition it to active
                 let rem = schedule
@@ -407,10 +410,8 @@ impl Schedule {
 
     /// Compute the number of preemptions for the current state of the branch
     fn preemptions(&self) -> u8 {
-        if self.initial_active.is_some() {
-            if self.initial_active != self.active_thread_index() {
-                return self.preemptions + 1;
-            }
+        if self.initial_active.is_some() && self.initial_active != self.active_thread_index() {
+            return self.preemptions + 1;
         }
 
         self.preemptions
@@ -448,26 +449,17 @@ impl Schedule {
 
 impl Thread {
     fn explore(&mut self) {
-        match *self {
-            Thread::Skip => {
-                *self = Thread::Pending;
-            }
-            _ => {}
+        if *self == Thread::Skip {
+            *self = Thread::Pending;
         }
     }
 
     fn is_pending(&self) -> bool {
-        match *self {
-            Thread::Pending => true,
-            _ => false,
-        }
+        *self == Thread::Pending
     }
 
     fn is_active(&self) -> bool {
-        match *self {
-            Thread::Active => true,
-            _ => false,
-        }
+        *self == Thread::Active
     }
 
     fn is_enabled(&self) -> bool {

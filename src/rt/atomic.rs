@@ -226,7 +226,7 @@ impl<T: Numeric> Atomic<T> {
 
     /// Loads a value from the atomic cell.
     pub(crate) fn load(&self, location: Location, ordering: Ordering) -> T {
-        self.branch(Action::Load);
+        self.branch(Action::Load, location);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -271,7 +271,7 @@ impl<T: Numeric> Atomic<T> {
 
     /// Stores a value into the atomic cell.
     pub(crate) fn store(&self, location: Location, val: T, ordering: Ordering) {
-        self.branch(Action::Store);
+        self.branch(Action::Store, location);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -304,7 +304,7 @@ impl<T: Numeric> Atomic<T> {
     where
         F: FnOnce(T) -> Result<T, E>,
     {
-        self.branch(Action::Rmw);
+        self.branch(Action::Rmw, location);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -384,9 +384,9 @@ impl<T: Numeric> Atomic<T> {
         f(&mut reset.0)
     }
 
-    fn branch(&self, action: Action) {
+    fn branch(&self, action: Action, location: Location) {
         let r = self.state;
-        r.branch_action(action);
+        r.branch_action(action, location);
         assert!(
             r.ref_eq(self.state),
             "Internal state mutated during branch. This is \
@@ -468,7 +468,7 @@ impl State {
         // The modification order is initialized to the thread's current
         // causality. All reads / writes that happen before this store are
         // ordered before the store.
-        let happens_before = threads.active().causality.clone();
+        let happens_before = threads.active().causality;
 
         // Starting with the thread's causality covers WRITE-WRITE coherence
         let mut modification_order = happens_before;
@@ -904,10 +904,7 @@ impl FirstSeen {
 }
 
 fn is_seq_cst(order: Ordering) -> bool {
-    match order {
-        Ordering::SeqCst => true,
-        _ => false,
-    }
+    order == Ordering::SeqCst
 }
 
 fn range(cnt: u16) -> (usize, usize) {

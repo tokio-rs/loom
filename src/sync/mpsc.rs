@@ -3,9 +3,11 @@
 use crate::rt;
 
 /// Mock implementation of `std::sync::mpsc::channel`.
+#[track_caller]
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
+    let location = location!();
     let (sender_channel, receiver_channel) = std::sync::mpsc::channel();
-    let channel = std::sync::Arc::new(rt::Channel::new());
+    let channel = std::sync::Arc::new(rt::Channel::new(location));
     let sender = Sender {
         object: std::sync::Arc::clone(&channel),
         sender: sender_channel,
@@ -27,8 +29,9 @@ pub struct Sender<T> {
 impl<T> Sender<T> {
     /// Attempts to send a value on this channel, returning it back if it could
     /// not be sent.
+    #[track_caller]
     pub fn send(&self, msg: T) -> Result<(), std::sync::mpsc::SendError<T>> {
-        self.object.send();
+        self.object.send(location!());
         self.sender.send(msg)
     }
 }
@@ -52,8 +55,9 @@ pub struct Receiver<T> {
 impl<T> Receiver<T> {
     /// Attempts to wait for a value on this receiver, returning an error if the
     /// corresponding channel has hung up.
+    #[track_caller]
     pub fn recv(&self) -> Result<T, std::sync::mpsc::RecvError> {
-        self.object.recv();
+        self.object.recv(location!());
         self.receiver.recv()
     }
     /// Attempts to wait for a value on this receiver, returning an error if the

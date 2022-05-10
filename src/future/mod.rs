@@ -13,6 +13,7 @@ use std::mem;
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
 /// Block the current thread, driving `f` to completion.
+#[track_caller]
 pub fn block_on<F>(f: F) -> F::Output
 where
     F: Future,
@@ -21,14 +22,14 @@ where
 
     let notify = Arc::new(rt::Notify::new(false, true));
 
-    let mut waker = unsafe {
+    let waker = unsafe {
         mem::ManuallyDrop::new(Waker::from_raw(RawWaker::new(
             &*notify as *const _ as *const (),
             waker_vtable(),
         )))
     };
 
-    let mut cx = Context::from_waker(&mut waker);
+    let mut cx = Context::from_waker(&waker);
 
     loop {
         match f.as_mut().poll(&mut cx) {
@@ -36,7 +37,7 @@ where
             Poll::Pending => {}
         }
 
-        notify.wait();
+        notify.wait(location!());
     }
 }
 
@@ -63,13 +64,13 @@ unsafe fn clone_arc_raw(data: *const ()) -> RawWaker {
 
 unsafe fn wake_arc_raw(data: *const ()) {
     let notify: Arc<rt::Notify> = Arc::from_raw(data as *const _);
-    notify.notify();
+    notify.notify(location!());
 }
 
 unsafe fn wake_by_ref_arc_raw(data: *const ()) {
     // Retain Arc, but don't touch refcount by wrapping in ManuallyDrop
     let arc = mem::ManuallyDrop::new(Arc::<rt::Notify>::from_raw(data as *const _));
-    arc.notify();
+    arc.notify(location!());
 }
 
 unsafe fn drop_arc_raw(data: *const ()) {

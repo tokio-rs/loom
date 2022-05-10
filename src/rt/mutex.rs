@@ -1,5 +1,5 @@
 use crate::rt::object;
-use crate::rt::{thread, Access, Synchronize, VersionVec};
+use crate::rt::{thread, Access, Location, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
@@ -41,13 +41,13 @@ impl Mutex {
         })
     }
 
-    pub(crate) fn acquire_lock(&self) {
-        self.state.branch_acquire(self.is_locked());
+    pub(crate) fn acquire_lock(&self, location: Location) {
+        self.state.branch_acquire(self.is_locked(), location);
         assert!(self.post_acquire(), "expected to be able to acquire lock");
     }
 
-    pub(crate) fn try_acquire_lock(&self) -> bool {
-        self.state.branch_opaque();
+    pub(crate) fn try_acquire_lock(&self, location: Location) -> bool {
+        self.state.branch_opaque(location);
         self.post_acquire()
     }
 
@@ -118,15 +118,13 @@ impl Mutex {
                     continue;
                 }
 
-                let obj = thread
-                    .operation
-                    .as_ref()
-                    .map(|operation| operation.object());
-
-                if obj == Some(self.state.erase()) {
-                    trace!(state = ?self.state, thread = ?id,
-                           "Mutex::post_acquire");
-                    thread.set_blocked();
+                if let Some(operation) = thread.operation.as_ref() {
+                    if operation.object() == self.state.erase() {
+                        let location = operation.location();
+                        trace!(state = ?self.state, thread = ?id,
+                            "Mutex::post_acquire");
+                        thread.set_blocked(location);
+                    }
                 }
             }
 

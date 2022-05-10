@@ -1,5 +1,5 @@
 use crate::rt::object;
-use crate::rt::{thread, Access, Execution, Synchronize, VersionVec};
+use crate::rt::{thread, Access, Execution, Location, Synchronize, VersionVec};
 
 use std::collections::HashSet;
 use std::sync::atomic::Ordering::{Acquire, Release};
@@ -53,9 +53,9 @@ impl RwLock {
 
     /// Acquire the read lock.
     /// Fail to acquire read lock if already *write* locked.
-    pub(crate) fn acquire_read_lock(&self) {
+    pub(crate) fn acquire_read_lock(&self, location: Location) {
         self.state
-            .branch_disable(Action::Read, self.is_write_locked());
+            .branch_disable(Action::Read, self.is_write_locked(), location);
 
         assert!(
             self.post_acquire_read_lock(),
@@ -65,10 +65,11 @@ impl RwLock {
 
     /// Acquire write lock.
     /// Fail to acquire write lock if either read or write locked.
-    pub(crate) fn acquire_write_lock(&self) {
+    pub(crate) fn acquire_write_lock(&self, location: Location) {
         self.state.branch_disable(
             Action::Write,
             self.is_write_locked() || self.is_read_locked(),
+            location,
         );
 
         assert!(
@@ -77,13 +78,13 @@ impl RwLock {
         );
     }
 
-    pub(crate) fn try_acquire_read_lock(&self) -> bool {
-        self.state.branch_action(Action::Read);
+    pub(crate) fn try_acquire_read_lock(&self, location: Location) -> bool {
+        self.state.branch_action(Action::Read, location);
         self.post_acquire_read_lock()
     }
 
-    pub(crate) fn try_acquire_write_lock(&self) -> bool {
-        self.state.branch_action(Action::Write);
+    pub(crate) fn try_acquire_write_lock(&self, location: Location) -> bool {
+        self.state.branch_action(Action::Write, location);
         self.post_acquire_write_lock()
     }
 
@@ -154,22 +155,18 @@ impl RwLock {
 
     /// Returns `true` if RwLock is read locked
     fn is_read_locked(&self) -> bool {
-        super::execution(
-            |execution| match self.state.get(&mut execution.objects).lock {
-                Some(Locked::Read(_)) => true,
-                _ => false,
-            },
-        )
+        super::execution(|execution| {
+            let lock = &self.state.get(&execution.objects).lock;
+            matches!(lock, Some(Locked::Read(_)))
+        })
     }
 
     /// Returns `true` if RwLock is write locked.
     fn is_write_locked(&self) -> bool {
-        super::execution(
-            |execution| match self.state.get(&mut execution.objects).lock {
-                Some(Locked::Write(_)) => true,
-                _ => false,
-            },
-        )
+        super::execution(|execution| {
+            let lock = &self.state.get(&execution.objects).lock;
+            matches!(lock, Some(Locked::Write(_)))
+        })
     }
 
     fn post_acquire_read_lock(&self) -> bool {
@@ -216,7 +213,8 @@ impl RwLock {
                 };
 
                 if op.action() == Action::Write {
-                    th.set_blocked();
+                    let location = op.location();
+                    th.set_blocked(location);
                 }
             }
 
@@ -249,7 +247,8 @@ impl RwLock {
 
                 match th.operation.as_ref() {
                     Some(op) if op.object() == self.state.erase() => {
-                        th.set_blocked();
+                        let location = op.location();
+                        th.set_blocked(location);
                     }
                     _ => continue,
                 };

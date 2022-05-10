@@ -24,6 +24,8 @@ pub(crate) struct Execution {
     /// Maps raw allocations to LeakTrack objects
     pub(super) raw_allocations: HashMap<usize, Allocation>,
 
+    pub(crate) arc_objs: HashMap<*const (), std::sync::Arc<super::Arc>>,
+
     /// Maximum number of concurrent threads
     pub(super) max_threads: usize,
 
@@ -62,6 +64,7 @@ impl Execution {
             lazy_statics: lazy_static::Set::new(),
             objects: object::Store::with_capacity(max_branches),
             raw_allocations: HashMap::new(),
+            arc_objs: HashMap::new(),
             max_threads,
             max_history: 7,
             location: false,
@@ -98,6 +101,7 @@ impl Execution {
         let mut objects = self.objects;
         let mut lazy_statics = self.lazy_statics;
         let mut raw_allocations = self.raw_allocations;
+        let mut arc_objs = self.arc_objs;
 
         let mut threads = self.threads;
 
@@ -108,6 +112,7 @@ impl Execution {
         objects.clear();
         lazy_statics.reset();
         raw_allocations.clear();
+        arc_objs.clear();
 
         threads.clear(id);
 
@@ -118,6 +123,7 @@ impl Execution {
             objects,
             lazy_statics,
             raw_allocations,
+            arc_objs,
             max_threads,
             max_history,
             location,
