@@ -140,8 +140,9 @@ impl Arc {
         })
     }
 
+    #[track_caller]
     pub(crate) fn strong_count(&self) -> usize {
-        self.branch(Action::Inspect);
+        self.branch(Action::Inspect, location!());
 
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);

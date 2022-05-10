@@ -92,8 +92,9 @@ impl<T: ?Sized> Arc<T> {
     }
 
     /// Gets the number of strong (`Arc`) pointers to this value.
+    #[track_caller]
     pub fn strong_count(this: &Self) -> usize {
-        this.inner.obj.strong_count()
+        this.obj.strong_count()
     }
 
     /// Increments the strong reference count on the `Arc<T>` associated with the
