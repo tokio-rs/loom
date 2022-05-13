@@ -1,3 +1,26 @@
+# 0.5.5 (May 10, 2022)
+
+### Added
+
+- sync: Add `Arc::from_std` without `T: Sized` bound (#226)
+- sync: Implement `Debug` for `AtomicPtr` for all `T` (#255)
+- logs: Add location tracking for threads and atomic operations (#258)
+- logs: Add additional location tracking to `Arc`, `alloc`, and `mpsc` (#265)
+- logs: Improve `tracing` configuration for `LOOM_LOG` (#266)
+- logs: Add a span for the current model's iteration (#267)
+
+### Documented
+
+- Add note about in-memory representation of atomic types (#253)
+- Document `LOOM_LOG` syntax (#257)
+
+### Fixed
+
+- Fix double panic when exceeding the branch limit in `Drop` (#245)
+- cell: Allow using `{Mut,Const}Ptr::{deref,with}` when the pointee is `!Sized`
+  (#247)
+- thread: Fix semantics of `thread::park` after `Thread::unpark` (#250)
+
 # 0.5.4 (December 3, 2021)
 
 ### Added
