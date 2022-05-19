@@ -37,7 +37,7 @@ impl Thread {
         self.name.as_deref()
     }
 
-    /// Mock implementation of [`std::thread::unpark`].
+    /// Mock implementation of [`std::thread::Thread::unpark`].
     ///
     /// Atomically makes the handle's token available if it is not already.
     ///
