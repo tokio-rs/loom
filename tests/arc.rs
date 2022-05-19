@@ -4,6 +4,7 @@ use loom::cell::UnsafeCell;
 use loom::sync::atomic::AtomicBool;
 use loom::sync::atomic::Ordering::{Acquire, Release};
 use loom::sync::Arc;
+use loom::sync::Notify;
 use loom::thread;
 
 struct State {
@@ -79,11 +80,51 @@ fn detect_mem_leak() {
 }
 
 #[test]
-fn try_unwrap() {
+fn try_unwrap_succeeds() {
     loom::model(|| {
         let num = Arc::new(0usize);
         let num2 = Arc::clone(&num);
         drop(num2);
+        let _ = Arc::try_unwrap(num).unwrap();
+    });
+}
+
+#[test]
+fn try_unwrap_fails() {
+    loom::model(|| {
+        let num = Arc::new(0usize);
+        let num2 = Arc::clone(&num);
+        assert!(Arc::try_unwrap(&num).is_err());
+
+        drop(num2);
+
+        let _ = Arc::try_unwrap(num).unwrap();
+    });
+}
+
+#[test]
+fn try_unwrap_multithreaded() {
+    loom::model(|| {
+        let num = Arc::new(0usize);
+        let num2 = Arc::clone(&num);
+        let can_drop = Arc::new(Notify::new());
+        let thread = {
+            let can_drop = can_drop.clone();
+            thread::spawn(move || {
+                can_drop.wait();
+                drop(num2);
+            })
+        };
+
+        // The other thread is holding the other arc clone, so we can't unwrap the arc.
+        assert!(Arc::try_unwrap(&num).is_err());
+
+        // Allow the thread to proceed.
+        can_drop.notify();
+
+        // After the thread drops the other clone, the arc should be
+        // unwrappable.
+        thread.join().unwrap();
         let _ = Arc::try_unwrap(num).unwrap();
     });
 }
