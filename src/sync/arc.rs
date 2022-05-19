@@ -37,7 +37,7 @@ impl<T> Arc<T> {
         this.obj.ref_dec(location!());
         this.unregister();
 
-        // Use the same patter of unwrapping as `std` does.
+        // Use the same pattern of unwrapping as `std` does.
         // We can't normally move the field out of the object
         // because it implements `drop`.
         let arc_value = unsafe {
