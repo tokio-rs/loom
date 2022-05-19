@@ -25,29 +25,32 @@ impl<T> Arc<T> {
     }
 
     /// Returns the inner value, if the `Arc` has exactly one strong reference.
+    #[track_caller]
     pub fn try_unwrap(this: Arc<T>) -> Result<T, Arc<T>> {
-        if this.obj.get_mut(location!()) {
-            assert_eq!(1, std::sync::Arc::strong_count(&this.value));
+        if !this.obj.get_mut(location!()) {
+            return Err(this);
+        }
 
-            // work around our inability to destruct the object normally,
-            // because of the `Drop` presense.
-            this.obj.ref_dec(location!());
-            this.unregister();
+        assert_eq!(1, std::sync::Arc::strong_count(&this.value));
+        // work around our inability to destruct the object normally,
+        // because of the `Drop` presense.
+        this.obj.ref_dec(location!());
+        this.unregister();
 
-            let arc_value = unsafe {
-                let _arc_obj = ptr::read(&this.obj);
-                let arc_value = ptr::read(&this.value);
+        // Use the same patter of unwrapping as `std` does.
+        // We can't normally move the field out of the object
+        // because it implements `drop`.
+        let arc_value = unsafe {
+            let _arc_obj = ptr::read(&this.obj);
+            let arc_value = ptr::read(&this.value);
 
-                mem::forget(this);
+            mem::forget(this);
 
-                arc_value
-            };
-            match std::sync::Arc::try_unwrap(arc_value) {
-                Ok(value) => Ok(value),
-                Err(_) => unreachable!(),
-            }
-        } else {
-            Err(this)
+            arc_value
+        };
+        match std::sync::Arc::try_unwrap(arc_value) {
+            Ok(value) => Ok(value),
+            Err(_) => unreachable!(),
         }
     }
 }
