@@ -1,3 +1,17 @@
+# 0.5.6 (May 19, 2022)
+
+### Added
+
+- cell: add `UnsafeCell::into_inner` for parity with `std` (#272)
+- sync: re-enable `Arc::strong_count` (#172) 
+- sync: implement `Arc::try_unwrap` (#262) 
+- sync: add `mpsc::Receiver::try_recv` (#262)
+
+### Documented
+
+- show feature flags in docs (#151)
+- fix broken RustDoc links (#273)
+
 # 0.5.5 (May 10, 2022)
 
 ### Added
