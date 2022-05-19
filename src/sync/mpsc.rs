@@ -68,6 +68,15 @@ impl<T> Receiver<T> {
     ) -> Result<T, std::sync::mpsc::RecvTimeoutError> {
         unimplemented!("std::sync::mpsc::Receiver::recv_timeout is not supported yet in Loom.")
     }
+
+    /// Attempts to return a pending value on this receiver without blocking.
+    pub fn try_recv(&self) -> Result<T, std::sync::mpsc::TryRecvError> {
+        if self.object.is_empty() {
+            return Err(std::sync::mpsc::TryRecvError::Empty);
+        } else {
+            self.recv().map_err(|e| e.into())
+        }
+    }
 }
 
 impl<T> Drop for Receiver<T> {
