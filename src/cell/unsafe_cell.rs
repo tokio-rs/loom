@@ -112,6 +112,11 @@ impl<T> UnsafeCell<T> {
             data: std::cell::UnsafeCell::new(data),
         }
     }
+
+    /// Unwraps the value.
+    pub fn into_inner(self) -> T {
+        self.data.into_inner()
+    }
 }
 
 impl<T: ?Sized> UnsafeCell<T> {
