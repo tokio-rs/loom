@@ -37,6 +37,7 @@ impl Synchronize {
     }
 
     pub fn sync_store(&mut self, threads: &mut thread::Set, order: Ordering) {
+        self.happens_before.join(&threads.active().released);
         match order {
             Relaxed | Acquire => {
                 // Nothing happens!

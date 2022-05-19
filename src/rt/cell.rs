@@ -18,7 +18,7 @@ pub(super) struct State {
     /// `true` if in a `with_mut` closure.
     is_writing: bool,
 
-    /// The transitive closure of all immutable accessses of `data`.
+    /// The transitive closure of all immutable accesses of `data`.
     read_access: VersionVec,
 
     /// Location for the *last* time a thread read from the cell.
@@ -29,6 +29,16 @@ pub(super) struct State {
 
     /// Location for the *last* time a thread wrote to the cell
     write_locations: LocationSet,
+}
+
+#[derive(Debug)]
+pub(crate) struct Reading {
+    state: object::Ref<State>,
+}
+
+#[derive(Debug)]
+pub(crate) struct Writing {
+    state: object::Ref<State>,
 }
 
 impl Cell {
@@ -42,30 +52,9 @@ impl Cell {
         })
     }
 
-    pub(crate) fn with<R>(&self, location: Location, f: impl FnOnce() -> R) -> R {
-        struct Reset {
-            state: object::Ref<State>,
-        }
-
-        impl Drop for Reset {
-            fn drop(&mut self) {
-                rt::execution(|execution| {
-                    let state = self.state.get_mut(&mut execution.objects);
-
-                    assert!(state.is_reading > 0);
-                    assert!(!state.is_writing);
-
-                    state.is_reading -= 1;
-
-                    if !std::thread::panicking() {
-                        state.track_read(&execution.threads);
-                    }
-                })
-            }
-        }
-
+    pub(crate) fn start_read(&self, location: Location) -> Reading {
         // Enter the read closure
-        let _reset = rt::synchronize(|execution| {
+        rt::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
 
             assert!(!state.is_writing, "currently writing to cell");
@@ -74,34 +63,13 @@ impl Cell {
             state.read_locations.track(location, &execution.threads);
             state.track_read(&execution.threads);
 
-            Reset { state: self.state }
-        });
-
-        f()
+            Reading { state: self.state }
+        })
     }
 
-    pub(crate) fn with_mut<R>(&self, location: Location, f: impl FnOnce() -> R) -> R {
-        struct Reset(object::Ref<State>);
-
-        impl Drop for Reset {
-            fn drop(&mut self) {
-                rt::execution(|execution| {
-                    let state = self.0.get_mut(&mut execution.objects);
-
-                    assert!(state.is_writing);
-                    assert!(state.is_reading == 0);
-
-                    state.is_writing = false;
-
-                    if !std::thread::panicking() {
-                        state.track_write(&execution.threads);
-                    }
-                })
-            }
-        }
-
-        // Enter the read closure
-        let _reset = rt::synchronize(|execution| {
+    pub(crate) fn start_write(&self, location: Location) -> Writing {
+        // Enter the write closure
+        rt::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
 
             assert!(state.is_reading == 0, "currently reading from cell");
@@ -111,24 +79,22 @@ impl Cell {
             state.write_locations.track(location, &execution.threads);
             state.track_write(&execution.threads);
 
-            Reset(self.state)
-        });
-
-        f()
+            Writing { state: self.state }
+        })
     }
 }
 
 impl State {
     fn new(threads: &thread::Set, location: Location) -> State {
-        let version = threads.active().causality.clone();
+        let version = threads.active().causality;
 
         State {
             created_location: location,
             is_reading: 0,
             is_writing: false,
-            read_access: version.clone(),
+            read_access: version,
             read_locations: LocationSet::new(),
-            write_access: version.clone(),
+            write_access: version,
             write_locations: LocationSet::new(),
         }
     }
@@ -167,7 +133,7 @@ impl State {
                 .fire();
         }
 
-        // Check that there are no concurrent immutable accesss, i.e., every
+        // Check that there are no concurrent immutable accesses, i.e., every
         // immutable access must happen-before this mutable access.
         if let Some(reader) = current.ahead(&self.read_access) {
             location::panic(
@@ -180,5 +146,43 @@ impl State {
         }
 
         self.write_access.join(current);
+    }
+}
+
+// === impl Reading ===
+
+impl Drop for Reading {
+    fn drop(&mut self) {
+        rt::execution(|execution| {
+            let state = self.state.get_mut(&mut execution.objects);
+
+            assert!(state.is_reading > 0);
+            assert!(!state.is_writing);
+
+            state.is_reading -= 1;
+
+            if !std::thread::panicking() {
+                state.track_read(&execution.threads);
+            }
+        })
+    }
+}
+
+// === impl Writing ===
+
+impl Drop for Writing {
+    fn drop(&mut self) {
+        rt::execution(|execution| {
+            let state = self.state.get_mut(&mut execution.objects);
+
+            assert!(state.is_writing);
+            assert!(state.is_reading == 0);
+
+            state.is_writing = false;
+
+            if !std::thread::panicking() {
+                state.track_write(&execution.threads);
+            }
+        })
     }
 }

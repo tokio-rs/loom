@@ -5,11 +5,7 @@ macro_rules! location {
         let enabled = crate::rt::execution(|execution| execution.location);
 
         if enabled {
-            #[cfg(loom_nightly)]
             let location = crate::rt::Location::from(std::panic::Location::caller());
-
-            #[cfg(not(loom_nightly))]
-            let location = crate::rt::Location::panic();
 
             location
         } else {
@@ -110,7 +106,7 @@ impl PanicBuilder {
 
                 let th = thread
                     .map(|th| format!("thread #{} @ ", th))
-                    .unwrap_or("".to_string());
+                    .unwrap_or_else(String::new);
 
                 msg.push_str(&format!("\n    {}{}: {}{}", spaces, key, th, location));
             }
@@ -122,7 +118,6 @@ impl PanicBuilder {
 
 // ===== impl Location cfg =====
 
-#[cfg(loom_nightly)]
 mod cfg {
     use std::fmt;
 
@@ -150,34 +145,6 @@ mod cfg {
             } else {
                 write!(fmt, "")
             }
-        }
-    }
-}
-
-#[cfg(not(loom_nightly))]
-mod cfg {
-    use std::fmt;
-
-    #[derive(Debug, Default, Clone, Copy)]
-    pub(crate) struct Location;
-
-    impl Location {
-        pub(crate) fn panic() -> Location {
-            panic!("set `loom_nightly` cfg to enable location tracking.");
-        }
-
-        pub(crate) fn disabled() -> Location {
-            Location
-        }
-
-        pub(crate) fn is_captured(&self) -> bool {
-            false
-        }
-    }
-
-    impl fmt::Display for Location {
-        fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(fmt, "[enable `nightly` feature for caller locations]")
         }
     }
 }

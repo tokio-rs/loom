@@ -1,3 +1,123 @@
+# 0.5.5 (May 10, 2022)
+
+### Added
+
+- sync: Add `Arc::from_std` without `T: Sized` bound (#226)
+- sync: Implement `Debug` for `AtomicPtr` for all `T` (#255)
+- logs: Add location tracking for threads and atomic operations (#258)
+- logs: Add additional location tracking to `Arc`, `alloc`, and `mpsc` (#265)
+- logs: Improve `tracing` configuration for `LOOM_LOG` (#266)
+- logs: Add a span for the current model's iteration (#267)
+
+### Documented
+
+- Add note about in-memory representation of atomic types (#253)
+- Document `LOOM_LOG` syntax (#257)
+
+### Fixed
+
+- Fix double panic when exceeding the branch limit in `Drop` (#245)
+- cell: Allow using `{Mut,Const}Ptr::{deref,with}` when the pointee is `!Sized`
+  (#247)
+- thread: Fix semantics of `thread::park` after `Thread::unpark` (#250)
+
+# 0.5.4 (December 3, 2021)
+
+### Added
+
+- cell: Add `ConstPtr` and `MutPtr` RAII guards to `UnsafeCell` (#219)
+
+### Changed
+
+- Improve error message when execution state is unavailable (such as when
+  running outside of `loom::model`) (#242)
+  
+# 0.5.3 (November 23, 2021)
+
+### Added
+
+- thread: Add mock versions of `thread::park` and `Thread::unpark` (#240)
+
+### Changed
+
+- Don't attempt to clean up Mutex when threads are deadlocked (#236)
+- Update tracing-subscriber to 0.3 (#238)
+
+# 0.5.2 (October 7, 2021)
+
+### Added
+
+- Add a loom::cell::Cell, which provides a basic wrapper of the loom UnsafeCell (#196)
+- Arc counter manipulations (#225)
+- Implement `Mutex::into_inner` and `RwLock::into_inner` (#215)
+- Implement `Release`, `AcqRel`, and `SeqCst` fences (#220)
+- `Arc::as_ptr` added (#230)
+- `Arc::pin` added (#224)
+
+### Changed
+
+- Remove implicit `T: Sized` requirement from `UnsafeCell` (#222)
+- Update tracing (#227)
+
+# 0.5.1 (July 2, 2021)
+
+### Added
+
+- Add several methods to atomic integer types (#217)
+
+# 0.5.0 (April 12, 2021)
+
+### Breaking
+
+- Bump MSRV to 1.51 (#205)
+
+### Added
+
+- Add `From` implementation to `Mutex` (#131)
+- Add `From` implementation to `RwLock` (#209)
+- Add `From` implementation to atomic types (#210)
+- Add `fetch_update` to atomics (#212)
+
+### Changed
+
+- Move `futures-util` to `dev-dependencies` (#208)
+- Update `generator` to 0.7 (#203)
+
+# 0.4.1 (April 1, 2021)
+
+### Added
+
+- Add a `loom::hint` module containing mocked versions of `spin_loop` and `unreachable_unchecked`. (#197)
+
+### Changed
+
+- Switch to non-deprecated `compare_exchange` (#201)
+
+# 0.4.0 (December 3, 2020)
+
+### Added
+- `AtomicI8`, `AtomicI16`, `AtomicI32`, `AtomicI64`, and `AtomicIsize` (#189)
+
+### Breaking
+- Bump MSRV to `1.45` (#183)
+
+# 0.3.6 (October 8, 2020)
+
+### Added
+- `thread::Thread` and `thread::ThreadId` (#175)
+
+# 0.3.5 (July 26, 2020)
+
+### Fixed
+- An example in the README failing to compile (#132)
+
+### Changed
+- Updated `scoped-tls` to 1.0.0 (#153)
+
+### Added
+- `Send` and `Sync` impls for `JoinHandle` (#145)
+- `Default` impls for `Mutex`, `RwLock`, and `Condvar` (#138)
+
 # 0.3.4 (May 2, 2020)
 
 ### Fixed

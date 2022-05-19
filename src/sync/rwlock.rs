@@ -3,7 +3,7 @@ use crate::rt;
 use std::ops;
 use std::sync::{LockResult, TryLockError, TryLockResult};
 
-/// Mock implementatoin of `std::sync::RwLock`
+/// Mock implementation of `std::sync::RwLock`
 #[derive(Debug)]
 pub struct RwLock<T> {
     object: rt::RwLock,
@@ -43,8 +43,9 @@ impl<T> RwLock<T> {
     /// lock when this method returns. This method does not provide any
     /// guarantees with respect to the ordering of whether contentious readers
     /// or writers will acquire the lock first.
+    #[track_caller]
     pub fn read(&self) -> LockResult<RwLockReadGuard<'_, T>> {
-        self.object.acquire_read_lock();
+        self.object.acquire_read_lock(location!());
 
         Ok(RwLockReadGuard {
             lock: self,
@@ -59,8 +60,9 @@ impl<T> RwLock<T> {
     /// access when it is dropped.
     ///
     /// This function does not block.
+    #[track_caller]
     pub fn try_read(&self) -> TryLockResult<RwLockReadGuard<'_, T>> {
-        if self.object.try_acquire_read_lock() {
+        if self.object.try_acquire_read_lock(location!()) {
             Ok(RwLockReadGuard {
                 lock: self,
                 data: Some(self.data.try_read().expect("loom::RwLock state corrupt")),
@@ -75,8 +77,9 @@ impl<T> RwLock<T> {
     ///
     /// This function will not return while other writers or other readers
     /// currently have access to the lock.
+    #[track_caller]
     pub fn write(&self) -> LockResult<RwLockWriteGuard<'_, T>> {
-        self.object.acquire_write_lock();
+        self.object.acquire_write_lock(location!());
 
         Ok(RwLockWriteGuard {
             lock: self,
@@ -91,8 +94,9 @@ impl<T> RwLock<T> {
     /// it is dropped.
     ///
     /// This function does not block.
+    #[track_caller]
     pub fn try_write(&self) -> TryLockResult<RwLockWriteGuard<'_, T>> {
-        if self.object.try_acquire_write_lock() {
+        if self.object.try_acquire_write_lock(location!()) {
             Ok(RwLockWriteGuard {
                 lock: self,
                 data: Some(self.data.try_write().expect("loom::RwLock state corrupt")),
@@ -104,13 +108,22 @@ impl<T> RwLock<T> {
 
     /// Consumes this `RwLock`, returning the underlying data.
     pub fn into_inner(self) -> LockResult<T> {
-        unimplemented!()
+        Ok(self.data.into_inner().expect("loom::RwLock state corrupt"))
     }
 }
 
 impl<T: Default> Default for RwLock<T> {
+    /// Creates a `RwLock<T>`, with the `Default` value for T.
     fn default() -> Self {
         Self::new(Default::default())
+    }
+}
+
+impl<T> From<T> for RwLock<T> {
+    /// Creates a new rwlock in an unlocked state ready for use.
+    /// This is equivalent to [`RwLock::new`].
+    fn from(t: T) -> Self {
+        Self::new(t)
     }
 }
 

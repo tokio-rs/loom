@@ -1,34 +1,60 @@
 //! An atomic cell
 //!
-//! # Coherence
+//! See the CDSChecker paper for detailed explanation.
 //!
-//! The coherence rules are implemented as follows.
+//! # Modification order implications (figure 7)
 //!
-//! - Read-Read:
+//! - Read-Read Coherence:
 //!
 //!   On `load`, all stores are iterated, finding stores that were read by
 //!   actions in the current thread's causality. These loads happen-before the
 //!   current load. The `modification_order` of these happen-before loads are
 //!   joined into the current load's `modification_order`.
 //!
-//! - Write-Read:
+//! - Write-Read Coherence:
 //!
 //!   On `load`, all stores are iterated, finding stores that happens-before the
 //!   current thread's causality. The `modification_order` of these stores are
 //!   joined into the current load's `modification_order`.
 //!
-//! - Read-Write:
+//! - Read-Write Coherence:
 //!
 //!   On `store`, find all existing stores that were read in the current
 //!   thread's causality. Join these stores' `modification_order` into the new
 //!   store's modification order.
 //!
-//! - Write-Write:
+//! - Write-Write Coherence:
 //!
 //!   The `modification_order` is initialized to the thread's causality. Any
 //!   store that happened in the thread causality will be earlier in the
 //!   modification order.
+//!
+//! - Seq-cst/MO Consistency:
+//!
+//! - Seq-cst Write-Read Coherence:
+//!
+//! - RMW/MO Consistency: Subsumed by Write-Write Coherence?
+//!
+//! - RMW Atomicity:
+//!
+//!
+//! # Fence modification order implications (figure 9)
+//!
+//! - SC Fences Restrict RF:
+//! - SC Fences Restrict RF (Collapsed Store):
+//! - SC Fences Restrict RF (Collapsed Load):
+//! - SC Fences Impose MO:
+//! - SC Fences Impose MO (Collapsed 1st Store):
+//! - SC Fences Impose MO (Collapsed 2st Store):
+//!
+//!
+//! # Fence Synchronization implications (figure 10)
+//!
+//! - Fence Synchronization
+//! - Fence Synchronization (Collapsed Store)
+//! - Fence Synchronization (Collapsed Load)
 
+use crate::rt::execution::Execution;
 use crate::rt::location::{self, Location, LocationSet};
 use crate::rt::object;
 use crate::rt::{
@@ -39,6 +65,8 @@ use std::cmp;
 use std::marker::PhantomData;
 use std::sync::atomic::Ordering;
 use std::u16;
+
+use tracing::trace;
 
 #[derive(Debug)]
 pub(crate) struct Atomic<T> {
@@ -137,27 +165,47 @@ struct FirstSeen([u16; MAX_THREADS]);
 
 /// Implements atomic fence behavior
 pub(crate) fn fence(ordering: Ordering) {
-    use std::sync::atomic::Ordering::Acquire;
-
-    assert_eq!(
-        ordering, Acquire,
-        "only Acquire fences are currently supported"
-    );
-
-    rt::synchronize(|execution| {
-        // Find all stores for all atomic objects and, if they have been read by
-        // the current thread, establish an acquire synchronization.
-        for state in execution.objects.iter_mut::<State>() {
-            // Iterate all the stores
-            for store in state.stores_mut() {
-                if !store.first_seen.is_seen_by_current(&execution.threads) {
-                    continue;
-                }
-
-                store.sync.sync_load(&mut execution.threads, ordering);
-            }
-        }
+    rt::synchronize(|execution| match ordering {
+        Ordering::Acquire => fence_acq(execution),
+        Ordering::Release => fence_rel(execution),
+        Ordering::AcqRel => fence_acqrel(execution),
+        Ordering::SeqCst => fence_seqcst(execution),
+        Ordering::Relaxed => panic!("there is no such thing as a relaxed fence"),
+        order => unimplemented!("unimplemented ordering {:?}", order),
     });
+}
+
+fn fence_acq(execution: &mut Execution) {
+    // Find all stores for all atomic objects and, if they have been read by
+    // the current thread, establish an acquire synchronization.
+    for state in execution.objects.iter_mut::<State>() {
+        // Iterate all the stores
+        for store in state.stores_mut() {
+            if !store.first_seen.is_seen_by_current(&execution.threads) {
+                continue;
+            }
+
+            store
+                .sync
+                .sync_load(&mut execution.threads, Ordering::Acquire);
+        }
+    }
+}
+
+fn fence_rel(execution: &mut Execution) {
+    // take snapshot of cur view and record as rel view
+    let active = execution.threads.active_mut();
+    active.released = active.causality;
+}
+
+fn fence_acqrel(execution: &mut Execution) {
+    fence_acq(execution);
+    fence_rel(execution);
+}
+
+fn fence_seqcst(execution: &mut Execution) {
+    fence_acqrel(execution);
+    execution.threads.seq_cst_fence();
 }
 
 impl<T: Numeric> Atomic<T> {
@@ -166,6 +214,8 @@ impl<T: Numeric> Atomic<T> {
         rt::execution(|execution| {
             let state = State::new(&mut execution.threads, value.into_u64(), location);
             let state = execution.objects.insert(state);
+
+            trace!(?state, "Atomic::new");
 
             Atomic {
                 state,
@@ -176,7 +226,7 @@ impl<T: Numeric> Atomic<T> {
 
     /// Loads a value from the atomic cell.
     pub(crate) fn load(&self, location: Location, ordering: Ordering) -> T {
-        self.branch(Action::Load);
+        self.branch(Action::Load, location);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -192,6 +242,8 @@ impl<T: Numeric> Atomic<T> {
 
             // Get the store to return from this load.
             let index = execution.path.branch_load();
+
+            trace!(state = ?self.state, ?ordering, "Atomic::load");
 
             T::from_u64(state.load(&mut execution.threads, index, location, ordering))
         })
@@ -209,6 +261,8 @@ impl<T: Numeric> Atomic<T> {
             // An unsync load counts as a "read" access
             state.track_unsync_load(&execution.threads);
 
+            trace!(state = ?self.state, "Atomic::unsync_load");
+
             // Return the value
             let index = index(state.cnt - 1);
             T::from_u64(state.stores[index].value)
@@ -217,7 +271,7 @@ impl<T: Numeric> Atomic<T> {
 
     /// Stores a value into the atomic cell.
     pub(crate) fn store(&self, location: Location, val: T, ordering: Ordering) {
-        self.branch(Action::Store);
+        self.branch(Action::Store, location);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -227,6 +281,8 @@ impl<T: Numeric> Atomic<T> {
             // An atomic store counts as a read access to the underlying memory
             // cell.
             state.track_store(&execution.threads);
+
+            trace!(state = ?self.state, ?ordering, "Atomic::store");
 
             // Do the store
             state.store(
@@ -248,7 +304,7 @@ impl<T: Numeric> Atomic<T> {
     where
         F: FnOnce(T) -> Result<T, E>,
     {
-        self.branch(Action::Rmw);
+        self.branch(Action::Rmw, location);
 
         super::synchronize(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -263,6 +319,8 @@ impl<T: Numeric> Atomic<T> {
 
             // Get the store to use for the read portion of the rmw operation.
             let index = execution.path.branch_load();
+
+            trace!(state = ?self.state, ?success, ?failure, "Atomic::rmw");
 
             state
                 .rmw(
@@ -290,6 +348,8 @@ impl<T: Numeric> Atomic<T> {
             // Verify the mutation may happen
             state.track_unsync_mut(&execution.threads);
             state.is_mutating = true;
+
+            trace!(state = ?self.state, "Atomic::with_mut");
 
             // Return the value of the most recent store
             let index = index(state.cnt - 1);
@@ -324,9 +384,9 @@ impl<T: Numeric> Atomic<T> {
         f(&mut reset.0)
     }
 
-    fn branch(&self, action: Action) {
+    fn branch(&self, action: Action, location: Location) {
         let r = self.state;
-        r.branch_action(action);
+        r.branch_action(action, location);
         assert!(
             r.ref_eq(self.state),
             "Internal state mutated during branch. This is \
@@ -408,7 +468,7 @@ impl State {
         // The modification order is initialized to the thread's current
         // causality. All reads / writes that happen before this store are
         // ordered before the store.
-        let happens_before = threads.active().causality.clone();
+        let happens_before = threads.active().causality;
 
         // Starting with the thread's causality covers WRITE-WRITE coherence
         let mut modification_order = happens_before;
@@ -688,6 +748,7 @@ impl State {
                 let mo_i = store_i.modification_order;
                 let mo_j = store_j.modification_order;
 
+                // TODO: this sometimes fails
                 assert_ne!(mo_i, mo_j);
 
                 if mo_i < mo_j {
@@ -843,10 +904,7 @@ impl FirstSeen {
 }
 
 fn is_seq_cst(order: Ordering) -> bool {
-    match order {
-        Ordering::SeqCst => true,
-        _ => false,
-    }
+    order == Ordering::SeqCst
 }
 
 fn range(cnt: u16) -> (usize, usize) {

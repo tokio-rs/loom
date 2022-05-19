@@ -29,8 +29,9 @@ impl<T> Mutex<T> {
 
 impl<T> Mutex<T> {
     /// Acquires a mutex, blocking the current thread until it is able to do so.
+    #[track_caller]
     pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {
-        self.object.acquire_lock();
+        self.object.acquire_lock(location!());
 
         Ok(MutexGuard {
             lock: self,
@@ -45,8 +46,9 @@ impl<T> Mutex<T> {
     /// guard is dropped.
     ///
     /// This function does not block.
+    #[track_caller]
     pub fn try_lock(&self) -> TryLockResult<MutexGuard<'_, T>> {
-        if self.object.try_acquire_lock() {
+        if self.object.try_acquire_lock(location!()) {
             Ok(MutexGuard {
                 lock: self,
                 data: Some(self.data.lock().unwrap()),
@@ -55,11 +57,25 @@ impl<T> Mutex<T> {
             Err(TryLockError::WouldBlock)
         }
     }
+
+    /// Consumes this mutex, returning the underlying data.
+    pub fn into_inner(self) -> LockResult<T> {
+        Ok(self.data.into_inner().unwrap())
+    }
 }
 
 impl<T: ?Sized + Default> Default for Mutex<T> {
+    /// Creates a `Mutex<T>`, with the `Default` value for T.
     fn default() -> Self {
         Self::new(Default::default())
+    }
+}
+
+impl<T> From<T> for Mutex<T> {
+    /// Creates a new mutex in an unlocked state ready for use.
+    /// This is equivalent to [`Mutex::new`].
+    fn from(t: T) -> Self {
+        Self::new(t)
     }
 }
 

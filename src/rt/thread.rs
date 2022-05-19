@@ -3,6 +3,8 @@ use crate::rt::object::Operation;
 use crate::rt::vv::VersionVec;
 
 use std::{any::Any, collections::HashMap, fmt, ops};
+
+use super::Location;
 pub(crate) struct Thread {
     pub id: Id,
 
@@ -18,6 +20,9 @@ pub(crate) struct Thread {
     /// Tracks observed causality
     pub causality: VersionVec,
 
+    /// Tracks the the view of the lastest release fence
+    pub released: VersionVec,
+
     /// Tracks DPOR relations
     pub dpor_vv: VersionVec,
 
@@ -28,6 +33,9 @@ pub(crate) struct Thread {
     pub yield_count: usize,
 
     locals: LocalMap,
+
+    /// `tracing` span used to associate diagnostics with the current thread.
+    span: tracing::Span,
 }
 
 #[derive(Debug)]
@@ -46,6 +54,9 @@ pub(crate) struct Set {
     /// Sequential consistency causality. All sequentially consistent operations
     /// synchronize with this causality.
     pub seq_cst_causality: VersionVec,
+
+    /// `tracing` span used as the parent for new thread spans.
+    iteration_span: tracing::Span,
 }
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone)]
@@ -54,10 +65,18 @@ pub(crate) struct Id {
     id: usize,
 }
 
+impl Id {
+    /// Returns an integer ID unique to this current execution (for use in
+    /// [`thread::ThreadId`]'s `Debug` impl)
+    pub(crate) fn public_id(&self) -> usize {
+        self.id
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum State {
-    Runnable,
-    Blocked,
+    Runnable { unparked: bool },
+    Blocked(Location),
     Yield,
     Terminated,
 }
@@ -70,13 +89,15 @@ struct LocalKeyId(usize);
 struct LocalValue(Option<Box<dyn Any>>);
 
 impl Thread {
-    fn new(id: Id) -> Thread {
+    fn new(id: Id, parent_span: &tracing::Span) -> Thread {
         Thread {
             id,
-            state: State::Runnable,
+            span: tracing::info_span!(parent: parent_span.id(), "thread", id = id.id),
+            state: State::Runnable { unparked: false },
             critical: false,
             operation: None,
             causality: VersionVec::new(),
+            released: VersionVec::new(),
             dpor_vv: VersionVec::new(),
             last_yield: None,
             yield_count: 0,
@@ -85,32 +106,23 @@ impl Thread {
     }
 
     pub(crate) fn is_runnable(&self) -> bool {
-        match self.state {
-            State::Runnable => true,
-            _ => false,
-        }
+        matches!(self.state, State::Runnable { .. })
     }
 
     pub(crate) fn set_runnable(&mut self) {
-        self.state = State::Runnable;
+        self.state = State::Runnable { unparked: false };
     }
 
-    pub(crate) fn set_blocked(&mut self) {
-        self.state = State::Blocked;
+    pub(crate) fn set_blocked(&mut self, location: Location) {
+        self.state = State::Blocked(location);
     }
 
     pub(crate) fn is_blocked(&self) -> bool {
-        match self.state {
-            State::Blocked => true,
-            _ => false,
-        }
+        matches!(self.state, State::Blocked(..))
     }
 
     pub(crate) fn is_yield(&self) -> bool {
-        match self.state {
-            State::Yield => true,
-            _ => false,
-        }
+        matches!(self.state, State::Yield)
     }
 
     pub(crate) fn set_yield(&mut self) {
@@ -120,10 +132,7 @@ impl Thread {
     }
 
     pub(crate) fn is_terminated(&self) -> bool {
-        match self.state {
-            State::Terminated => true,
-            _ => false,
-        }
+        matches!(self.state, State::Terminated)
     }
 
     pub(crate) fn set_terminated(&mut self) {
@@ -134,7 +143,7 @@ impl Thread {
         let mut locals = Vec::with_capacity(self.locals.len());
 
         // run the Drop impls of any mock thread-locals created by this thread.
-        for (_, local) in &mut self.locals {
+        for local in self.locals.values_mut() {
             locals.push(local.0.take());
         }
 
@@ -143,9 +152,16 @@ impl Thread {
 
     pub(crate) fn unpark(&mut self, unparker: &Thread) {
         self.causality.join(&unparker.causality);
+        self.set_unparked();
+    }
 
+    /// Unpark a thread's state. If it is already runnable, store the unpark for
+    /// a future call to `park`.
+    fn set_unparked(&mut self) {
         if self.is_blocked() || self.is_yield() {
             self.set_runnable();
+        } else if self.is_runnable() {
+            self.state = State::Runnable { unparked: true }
         }
     }
 }
@@ -160,6 +176,7 @@ impl fmt::Debug for Thread {
             .field("critical", &self.critical)
             .field("operation", &self.operation)
             .field("causality", &self.causality)
+            .field("released", &self.released)
             .field("dpor_vv", &self.dpor_vv)
             .field("last_yield", &self.last_yield)
             .field("yield_count", &self.yield_count)
@@ -174,15 +191,18 @@ impl Set {
     /// The set may contain up to `max_threads` threads.
     pub(crate) fn new(execution_id: execution::Id, max_threads: usize) -> Set {
         let mut threads = Vec::with_capacity(max_threads);
-
+        // Capture the current iteration's span to be used as each thread
+        // span's parent.
+        let iteration_span = tracing::Span::current();
         // Push initial thread
-        threads.push(Thread::new(Id::new(execution_id, 0)));
+        threads.push(Thread::new(Id::new(execution_id, 0), &iteration_span));
 
         Set {
             execution_id,
             threads,
             active: Some(0),
             seq_cst_causality: VersionVec::new(),
+            iteration_span,
         }
     }
 
@@ -198,8 +218,10 @@ impl Set {
         let id = self.threads.len();
 
         // Push the thread onto the stack
-        self.threads
-            .push(Thread::new(Id::new(self.execution_id, id)));
+        self.threads.push(Thread::new(
+            Id::new(self.execution_id, id),
+            &self.iteration_span,
+        ));
 
         Id::new(self.execution_id, id)
     }
@@ -221,6 +243,15 @@ impl Set {
     }
 
     pub(crate) fn set_active(&mut self, id: Option<Id>) {
+        tracing::dispatcher::get_default(|subscriber| {
+            if let Some(span_id) = self.active().span.id() {
+                subscriber.exit(&span_id)
+            }
+
+            if let Some(span_id) = id.and_then(|id| self.threads.get(id.id)?.span.id()) {
+                subscriber.enter(&span_id);
+            }
+        });
         self.active = id.map(Id::as_usize);
     }
 
@@ -256,31 +287,62 @@ impl Set {
 
     pub(crate) fn unpark(&mut self, id: Id) {
         if id == self.active_id() {
+            // The thread is unparking itself. We don't have to join its
+            // causality with the unparker's causality in this case, since the
+            // thread *is* the unparker. Just unpark its state.
+            self.active_mut().set_unparked();
             return;
         }
 
         // Synchronize memory
         let (active, th) = self.active2_mut(id);
-        th.unpark(&active);
+        th.unpark(active);
     }
 
     /// Insert a point of sequential consistency
+    /// TODO
+    /// - Deprecate SeqCst accesses and allow SeqCst fences only. The semantics of SeqCst accesses
+    ///   is complex and difficult to implement correctly. On the other hand, SeqCst fence has
+    ///   well-understood and clear semantics in the absence of SeqCst accesses, and can be used
+    ///   for enforcing the read-after-write (RAW) ordering which is probably what the user want to
+    ///   achieve with SeqCst.
+    /// - Revisit the other uses of this function. They probably don't require sequential
+    ///   consistency. E.g. see https://en.cppreference.com/w/cpp/named_req/Mutex
+    ///
+    /// References
+    /// - The "scfix" paper, which proposes a memory model called RC11 that fixes SeqCst
+    ///   semantics. of C11. https://plv.mpi-sws.org/scfix/
+    /// - Some fixes from the "scfix" paper has been incorporated into C/C++20:
+    ///   http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p0668r5.html
+    /// - The "promising semantics" paper, which propose an intuitive semantics of SeqCst fence in
+    ///   the absence of SC accesses. https://sf.snu.ac.kr/promise-concurrency/
     pub(crate) fn seq_cst(&mut self) {
-        // The previous implementation of sequential consistency was incorrect.
+        // The previous implementation of sequential consistency was incorrect (though it's correct
+        // for `fence(SeqCst)`-only scenario; use `seq_cst_fence` for `fence(SeqCst)`).
         // As a quick fix, just disable it. This may fail to model correct code,
         // but will not silently allow bugs.
     }
 
+    pub(crate) fn seq_cst_fence(&mut self) {
+        self.threads[self.active.unwrap()]
+            .causality
+            .join(&self.seq_cst_causality);
+        self.seq_cst_causality
+            .join(&self.threads[self.active.unwrap()].causality);
+    }
+
     pub(crate) fn clear(&mut self, execution_id: execution::Id) {
+        self.iteration_span = tracing::Span::current();
         self.threads.clear();
-        self.threads.push(Thread::new(Id::new(execution_id, 0)));
+        self.threads
+            .push(Thread::new(Id::new(execution_id, 0), &self.iteration_span));
 
         self.execution_id = execution_id;
         self.active = Some(0);
         self.seq_cst_causality = VersionVec::new();
     }
 
-    pub(crate) fn iter<'a>(&'a self) -> impl ExactSizeIterator<Item = (Id, &'a Thread)> + 'a {
+    pub(crate) fn iter(&self) -> impl ExactSizeIterator<Item = (Id, &Thread)> + '_ {
         let execution_id = self.execution_id;
         self.threads
             .iter()
@@ -288,9 +350,7 @@ impl Set {
             .map(move |(id, thread)| (Id::new(execution_id, id), thread))
     }
 
-    pub(crate) fn iter_mut<'a>(
-        &'a mut self,
-    ) -> impl ExactSizeIterator<Item = (Id, &'a mut Thread)> {
+    pub(crate) fn iter_mut(&mut self) -> impl ExactSizeIterator<Item = (Id, &mut Thread)> + '_ {
         let execution_id = self.execution_id;
         self.threads
             .iter_mut()

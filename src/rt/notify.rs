@@ -3,6 +3,10 @@ use crate::rt::{self, Access, Synchronize, VersionVec};
 
 use std::sync::atomic::Ordering::{Acquire, Release};
 
+use tracing::trace;
+
+use super::Location;
+
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Notify {
     state: object::Ref<State>,
@@ -16,7 +20,7 @@ pub(super) struct State {
     /// True if the notify woke up spuriously last time
     did_spur: bool,
 
-    /// When true, notification is sequentiall consistent.
+    /// When true, notification is sequential consistent.
     seq_cst: bool,
 
     /// `true` if there is a pending notification to consume.
@@ -41,12 +45,14 @@ impl Notify {
                 synchronize: Synchronize::new(),
             });
 
+            trace!(?state, ?seq_cst, ?spurious, "Notify::new");
+
             Notify { state }
         })
     }
 
-    pub(crate) fn notify(self) {
-        self.state.branch_opaque();
+    pub(crate) fn notify(self, location: Location) {
+        self.state.branch_opaque(location);
 
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
@@ -70,13 +76,15 @@ impl Notify {
                     .map(|operation| operation.object());
 
                 if obj == Some(self.state.erase()) {
+                    trace!(state = ?self.state, thread = ?thread.id, "Notify::notify");
+
                     thread.unpark(active);
                 }
             }
         });
     }
 
-    pub(crate) fn wait(self) {
+    pub(crate) fn wait(self, location: Location) {
         let (notified, spurious) = rt::execution(|execution| {
             let spurious = if self.state.get(&execution.objects).might_spur() {
                 execution.path.branch_spurious()
@@ -90,7 +98,8 @@ impl Notify {
                 state.did_spur = true;
             }
 
-            (state.notified, spurious)
+            trace!(state = ?self.state, notified = ?state.notified, ?spurious, "Notify::wait 1");
+            dbg!((state.notified, spurious))
         });
 
         if spurious {
@@ -99,14 +108,15 @@ impl Notify {
         }
 
         if notified {
-            self.state.branch_opaque();
+            self.state.branch_opaque(location);
         } else {
             // This should become branch_disable
-            self.state.branch_acquire(true)
+            self.state.branch_acquire(true, location)
         }
 
         // Thread was notified
         super::execution(|execution| {
+            trace!(state = ?self.state, "Notify::wait 2");
             let state = self.state.get_mut(&mut execution.objects);
 
             assert!(state.notified);

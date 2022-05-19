@@ -1,8 +1,10 @@
 use crate::rt;
-use crate::rt::{Access, Execution, VersionVec};
+use crate::rt::{Access, Execution, Location, VersionVec};
 
 use std::fmt;
 use std::marker::PhantomData;
+
+use tracing::trace;
 
 #[cfg(feature = "checkpoint")]
 use serde::{Deserialize, Serialize};
@@ -46,6 +48,7 @@ pub(super) struct Ref<T = ()> {
 pub(super) struct Operation {
     obj: Ref,
     action: Action,
+    location: Location,
 }
 
 // TODO: move to separate file
@@ -106,6 +109,9 @@ macro_rules! objects {
 
 objects! {
     #[derive(Debug)]
+    // Many of the common variants of this enum are quite large --- only `Entry`
+    // and `Alloc` are significantly smaller than most other variants.
+    #[allow(clippy::large_enum_variant)]
     Entry,
 
     // State tracking allocations. Used for leak detection.
@@ -179,7 +185,7 @@ impl<T> Store<T> {
         self.entries.clear();
     }
 
-    pub(super) fn iter_ref<'a, O>(&'a self) -> impl DoubleEndedIterator<Item = Ref<O>> + 'a
+    pub(super) fn iter_ref<O>(&self) -> impl DoubleEndedIterator<Item = Ref<O>> + '_
     where
         O: Object<Entry = T>,
     {
@@ -242,11 +248,11 @@ impl Store {
 
     /// Panics if any leaks were detected
     pub(crate) fn check_for_leaks(&self) {
-        for entry in &self.entries[..] {
+        for (index, entry) in self.entries.iter().enumerate() {
             match entry {
-                Entry::Alloc(entry) => entry.check_for_leaks(),
-                Entry::Arc(entry) => entry.check_for_leaks(),
-                Entry::Channel(entry) => entry.check_for_leaks(),
+                Entry::Alloc(entry) => entry.check_for_leaks(index),
+                Entry::Arc(entry) => entry.check_for_leaks(index),
+                Entry::Channel(entry) => entry.check_for_leaks(index),
                 _ => {}
             }
         }
@@ -324,39 +330,54 @@ impl<T> fmt::Debug for Ref<T> {
 // TODO: These fns shouldn't be on Ref
 impl<T: Object<Entry = Entry>> Ref<T> {
     // TODO: rename `branch_disable`
-    pub(super) fn branch_acquire(self, is_locked: bool) {
+    pub(super) fn branch_acquire(self, is_locked: bool, location: Location) {
         super::branch(|execution| {
-            self.set_action(execution, Action::Opaque);
+            trace!(obj = ?self, ?is_locked, "Object::branch_acquire");
+
+            self.set_action(execution, Action::Opaque, location);
 
             if is_locked {
                 // The mutex is currently blocked, cannot make progress
-                execution.threads.active_mut().set_blocked();
+                execution.threads.active_mut().set_blocked(location);
             }
         })
     }
 
-    pub(super) fn branch_action(self, action: impl Into<Action>) {
+    pub(super) fn branch_action(
+        self,
+        action: impl Into<Action> + std::fmt::Debug,
+        location: Location,
+    ) {
         super::branch(|execution| {
-            self.set_action(execution, action.into());
+            trace!(obj = ?self, ?action, "Object::branch_action");
+
+            self.set_action(execution, action.into(), location);
         })
     }
 
-    pub(super) fn branch_disable(self, action: impl Into<Action> + std::fmt::Debug, disable: bool) {
+    pub(super) fn branch_disable(
+        self,
+        action: impl Into<Action> + std::fmt::Debug,
+        disable: bool,
+        location: Location,
+    ) {
         super::branch(|execution| {
-            self.set_action(execution, action.into());
+            trace!(obj = ?self, ?action, ?disable, "Object::branch_disable");
+
+            self.set_action(execution, action.into(), location);
 
             if disable {
                 // Cannot make progress.
-                execution.threads.active_mut().set_blocked();
+                execution.threads.active_mut().set_blocked(location);
             }
         })
     }
 
-    pub(super) fn branch_opaque(self) {
-        self.branch_action(Action::Opaque)
+    pub(super) fn branch_opaque(self, location: Location) {
+        self.branch_action(Action::Opaque, location)
     }
 
-    fn set_action(self, execution: &mut Execution, action: Action) {
+    fn set_action(self, execution: &mut Execution, action: Action, location: Location) {
         assert!(
             T::get_ref(&execution.objects.entries[self.index]).is_some(),
             "failed to get object for ref {:?}",
@@ -366,6 +387,7 @@ impl<T: Object<Entry = Entry>> Ref<T> {
         execution.threads.active_mut().operation = Some(Operation {
             obj: self.erase(),
             action,
+            location,
         });
     }
 }
@@ -374,59 +396,64 @@ impl Operation {
     pub(super) fn object(&self) -> Ref {
         self.obj
     }
+
     pub(super) fn action(&self) -> Action {
         self.action
     }
+
+    pub(super) fn location(&self) -> Location {
+        self.location
+    }
 }
 
-impl Into<rt::arc::Action> for Action {
-    fn into(self) -> rt::arc::Action {
-        match self {
+impl From<Action> for rt::arc::Action {
+    fn from(action: Action) -> Self {
+        match action {
             Action::Arc(action) => action,
             _ => unreachable!(),
         }
     }
 }
 
-impl Into<rt::atomic::Action> for Action {
-    fn into(self) -> rt::atomic::Action {
-        match self {
+impl From<Action> for rt::atomic::Action {
+    fn from(action: Action) -> Self {
+        match action {
             Action::Atomic(action) => action,
             _ => unreachable!(),
         }
     }
 }
 
-impl Into<rt::mpsc::Action> for Action {
-    fn into(self) -> rt::mpsc::Action {
-        match self {
+impl From<Action> for rt::mpsc::Action {
+    fn from(action: Action) -> Self {
+        match action {
             Action::Channel(action) => action,
             _ => unreachable!(),
         }
     }
 }
 
-impl Into<Action> for rt::arc::Action {
-    fn into(self) -> Action {
-        Action::Arc(self)
+impl From<rt::arc::Action> for Action {
+    fn from(action: rt::arc::Action) -> Self {
+        Action::Arc(action)
     }
 }
 
-impl Into<Action> for rt::atomic::Action {
-    fn into(self) -> Action {
-        Action::Atomic(self)
+impl From<rt::atomic::Action> for Action {
+    fn from(action: rt::atomic::Action) -> Self {
+        Action::Atomic(action)
     }
 }
 
-impl Into<Action> for rt::mpsc::Action {
-    fn into(self) -> Action {
-        Action::Channel(self)
+impl From<rt::mpsc::Action> for Action {
+    fn from(action: rt::mpsc::Action) -> Self {
+        Action::Channel(action)
     }
 }
 
-impl Into<Action> for rt::rwlock::Action {
-    fn into(self) -> Action {
-        Action::RwLock(self)
+impl From<rt::rwlock::Action> for Action {
+    fn from(action: rt::rwlock::Action) -> Self {
+        Action::RwLock(action)
     }
 }
 

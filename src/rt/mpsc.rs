@@ -1,4 +1,4 @@
-use crate::rt::{object, Access, Synchronize, VersionVec};
+use crate::rt::{object, Access, Location, Synchronize, VersionVec};
 use std::collections::VecDeque;
 use std::sync::atomic::Ordering::{Acquire, Release};
 
@@ -36,6 +36,8 @@ pub(super) struct State {
     /// A synchronization point per message synchronizing the receiving thread
     /// with the channel state at the point when the received message was sent.
     receiver_synchronize: VecDeque<Synchronize>,
+
+    created: Location,
 }
 
 /// Actions performed on the Channel.
@@ -48,7 +50,7 @@ pub(super) enum Action {
 }
 
 impl Channel {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(location: Location) -> Self {
         super::execution(|execution| {
             let state = execution.objects.insert(State {
                 msg_cnt: 0,
@@ -56,13 +58,16 @@ impl Channel {
                 last_recv_access: None,
                 sender_synchronize: Synchronize::new(),
                 receiver_synchronize: VecDeque::new(),
+                created: location,
             });
+
+            tracing::trace!(?state, %location, "mpsc::channel");
             Self { state }
         })
     }
 
-    pub(crate) fn send(&self) {
-        self.state.branch_action(Action::MsgSend);
+    pub(crate) fn send(&self, location: Location) {
+        self.state.branch_action(Action::MsgSend, location);
         super::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
             state.msg_cnt = state.msg_cnt.checked_add(1).expect("overflow");
@@ -72,7 +77,7 @@ impl Channel {
                 .sync_store(&mut execution.threads, Release);
             state
                 .receiver_synchronize
-                .push_back(state.sender_synchronize.clone());
+                .push_back(state.sender_synchronize);
 
             if state.msg_cnt == 1 {
                 // Unblock all threads that are blocked waiting on this channel
@@ -95,8 +100,9 @@ impl Channel {
         })
     }
 
-    pub(crate) fn recv(&self) {
-        self.state.branch_disable(Action::MsgRecv, self.is_empty());
+    pub(crate) fn recv(&self, location: Location) {
+        self.state
+            .branch_disable(Action::MsgRecv, self.is_empty(), location);
         super::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
             let thread_id = execution.threads.active_id();
@@ -117,7 +123,8 @@ impl Channel {
                         if operation.object() == self.state.erase()
                             && operation.action() == object::Action::Channel(Action::MsgRecv)
                         {
-                            thread.set_blocked();
+                            let location = operation.location();
+                            thread.set_blocked(location);
                         }
                     }
                 }
@@ -136,8 +143,23 @@ impl Channel {
 }
 
 impl State {
-    pub(super) fn check_for_leaks(&self) {
-        assert_eq!(0, self.msg_cnt, "Messages leaked");
+    pub(super) fn check_for_leaks(&self, index: usize) {
+        if self.msg_cnt != 0 {
+            if self.created.is_captured() {
+                panic!(
+                    "Messages leaked.\n  \
+                    Channel created: {}\n            \
+                    Index: {}\n        \
+                    Messages: {}",
+                    self.created, index, self.msg_cnt
+                );
+            } else {
+                panic!(
+                    "Messages leaked.\n     Index: {}\n  Messages: {}",
+                    index, self.msg_cnt
+                );
+            }
+        }
     }
 
     pub(super) fn last_dependent_access(&self, action: Action) -> Option<&Access> {

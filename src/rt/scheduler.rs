@@ -45,7 +45,7 @@ impl Scheduler {
     where
         F: FnOnce(&mut Execution) -> R,
     {
-        STATE.with(|state| f(&mut state.borrow_mut().execution))
+        Self::with_state(|state| f(state.execution))
     }
 
     /// Perform a context switch
@@ -69,16 +69,14 @@ impl Scheduler {
             ptr::null(),
             &RawWakerVTable::new(noop_clone, noop, noop, noop),
         );
-        let mut waker = unsafe { Waker::from_raw(raw_waker) };
-        let mut cx = Context::from_waker(&mut waker);
+        let waker = unsafe { Waker::from_raw(raw_waker) };
+        let mut cx = Context::from_waker(&waker);
 
         assert!(switch.poll(&mut cx).is_ready());
     }
 
     pub(crate) fn spawn(f: Box<dyn FnOnce()>) {
-        STATE.with(|state| {
-            state.borrow_mut().queued_spawn.push_back(f);
-        });
+        Self::with_state(|state| state.queued_spawn.push_back(f));
     }
 
     pub(crate) fn run<F>(&mut self, execution: &mut Execution, f: F)
@@ -110,7 +108,7 @@ impl Scheduler {
 
     fn tick(&mut self, thread: thread::Id, execution: &mut Execution) {
         let state = RefCell::new(State {
-            execution: execution,
+            execution,
             queued_spawn: &mut self.queued_spawn,
         });
 
@@ -119,6 +117,17 @@ impl Scheduler {
         STATE.set(unsafe { transmute_lt(&state) }, || {
             threads[thread.as_usize()].resume();
         });
+    }
+
+    fn with_state<F, R>(f: F) -> R
+    where
+        F: FnOnce(&mut State<'_>) -> R,
+    {
+        if !STATE.is_set() {
+            panic!("cannot access Loom execution state from outside a Loom model. \
+            are you accessing a Loom synchronization primitive from outside a Loom test (a call to `model` or `check`)?")
+        }
+        STATE.with(|state| f(&mut state.borrow_mut()))
     }
 }
 

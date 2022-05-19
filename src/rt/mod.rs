@@ -1,3 +1,7 @@
+#[macro_use]
+mod location;
+pub(crate) use self::location::Location;
+
 mod access;
 use self::access::Access;
 
@@ -10,11 +14,7 @@ pub(crate) use self::arc::Arc;
 mod atomic;
 pub(crate) use self::atomic::{fence, Atomic};
 
-#[macro_use]
-mod location;
-pub(crate) use self::location::Location;
-
-mod cell;
+pub(crate) mod cell;
 pub(crate) use self::cell::Cell;
 
 mod condvar;
@@ -56,35 +56,58 @@ pub(crate) mod thread;
 mod vv;
 pub(crate) use self::vv::VersionVec;
 
+use tracing::trace;
+
 /// Maximum number of threads that can be included in a model.
-pub(crate) const MAX_THREADS: usize = 4;
+pub const MAX_THREADS: usize = 4;
 
 /// Maximum number of atomic store history to track per-cell.
 pub(crate) const MAX_ATOMIC_HISTORY: usize = 7;
 
-pub fn spawn<F>(f: F)
+pub(crate) fn spawn<F>(f: F) -> crate::rt::thread::Id
 where
     F: FnOnce() + 'static,
 {
-    execution(|execution| {
-        execution.new_thread();
-    });
+    let id = execution(|execution| execution.new_thread());
+
+    trace!(thread = ?id, "spawn");
 
     Scheduler::spawn(Box::new(move || {
         f();
         thread_done();
     }));
+
+    id
 }
 
 /// Marks the current thread as blocked
-pub fn park() {
-    execution(|execution| {
-        execution.threads.active_mut().set_blocked();
+pub(crate) fn park(location: Location) {
+    let switch = execution(|execution| {
+        use thread::State;
+        let thread = execution.threads.active_id();
+        let active = execution.threads.active_mut();
+
+        trace!(?thread, ?active.state, "park");
+
+        match active.state {
+            // The thread was previously unparked while it was active. Instead
+            // of parking, consume the unpark.
+            State::Runnable { unparked: true } => {
+                active.set_runnable();
+                return false;
+            }
+            // The thread doesn't have a saved unpark; set its state to blocked.
+            _ => active.set_blocked(location),
+        };
+
+        execution.threads.active_mut().set_blocked(location);
         execution.threads.active_mut().operation = None;
         execution.schedule()
     });
 
-    Scheduler::switch();
+    if switch {
+        Scheduler::switch();
+    }
 }
 
 /// Add an execution branch point.
@@ -94,7 +117,11 @@ where
 {
     let (ret, switch) = execution(|execution| {
         let ret = f(execution);
-        (ret, execution.schedule())
+        let switch = execution.schedule();
+
+        trace!(?switch, "branch");
+
+        (ret, switch)
     });
 
     if switch {
@@ -110,8 +137,8 @@ where
 {
     execution(|execution| {
         execution.threads.active_causality_inc();
-        let ret = f(execution);
-        ret
+        trace!("synchronize");
+        f(execution)
     })
 }
 
@@ -121,9 +148,15 @@ where
 /// progress.
 pub fn yield_now() {
     let switch = execution(|execution| {
+        let thread = execution.threads.active_id();
+
         execution.threads.active_mut().set_yield();
         execution.threads.active_mut().operation = None;
-        execution.schedule()
+        let switch = execution.schedule();
+
+        trace!(?thread, ?switch, "yield_now");
+
+        switch
     });
 
     if switch {
@@ -139,14 +172,26 @@ where
 }
 
 pub fn thread_done() {
-    let locals = execution(|execution| execution.threads.active_mut().drop_locals());
+    let locals = execution(|execution| {
+        let thread = execution.threads.active_id();
+
+        trace!(?thread, "thread_done: drop locals");
+
+        execution.threads.active_mut().drop_locals()
+    });
 
     // Drop outside of the execution context
     drop(locals);
 
     execution(|execution| {
+        let thread = execution.threads.active_id();
+
         execution.threads.active_mut().operation = None;
         execution.threads.active_mut().set_terminated();
-        execution.schedule();
+        let switch = execution.schedule();
+
+        trace!(?thread, ?switch, "thread_done: terminate");
+
+        switch
     });
 }
