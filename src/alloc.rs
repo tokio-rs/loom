@@ -65,6 +65,8 @@ pub unsafe fn alloc_zeroed(layout: Layout) -> *mut u8 {
 /// See [`GlobalAlloc::dealloc`].
 ///
 /// [`GlobalAlloc::dealloc`]: std::alloc::GlobalAlloc::dealloc
+/// [`loom::alloc::alloc`]: crate::alloc::alloc
+/// [`loom::alloc::alloc_zeroed`]: crate::alloc::alloc_zeroed
 #[track_caller]
 pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
     rt::dealloc(ptr, location!());
