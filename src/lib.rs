@@ -1,4 +1,5 @@
 #![deny(missing_debug_implementations, missing_docs, rust_2018_idioms)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! Loom is a tool for testing concurrent programs.
 //!
@@ -349,6 +350,7 @@ macro_rules! if_futures {
     ($($t:tt)*) => {
         cfg_if::cfg_if! {
             if #[cfg(feature = "futures")] {
+                #[cfg_attr(docsrs, doc(cfg(feature = "futures")))]
                 $($t)*
             }
         }
