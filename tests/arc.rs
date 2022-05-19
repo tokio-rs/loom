@@ -94,7 +94,7 @@ fn try_unwrap_fails() {
     loom::model(|| {
         let num = Arc::new(0usize);
         let num2 = Arc::clone(&num);
-        assert!(Arc::try_unwrap(&num).is_err());
+        let num = Arc::try_unwrap(num).unwrap_err();
 
         drop(num2);
 
@@ -117,7 +117,7 @@ fn try_unwrap_multithreaded() {
         };
 
         // The other thread is holding the other arc clone, so we can't unwrap the arc.
-        assert!(Arc::try_unwrap(&num).is_err());
+        let num = Arc::try_unwrap(num).unwrap_err();
 
         // Allow the thread to proceed.
         can_drop.notify();
