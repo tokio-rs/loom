@@ -43,6 +43,25 @@ jobs:
       - name: Check
         run: cargo check --all-features
 
+  # Minimal dependency versions
+  minimal-dependency-versions:
+    name: minimal dependency versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        run: rustup update stable && rustup default stable
+      - name: Install nightly Rust
+        run: rustup update nightly
+      - name: Set all dependencies to lowest allowed versions
+        run: cargo +nightly update -Z minimal-versions
+      - name: Test
+        run: cargo test
+      - name: Check --features checkpoint
+        run: cargo check --features checkpoint
+      - name: Test --features futures
+        run: cargo test --features futures
+
   # Stable
   stable:
     name: stable
