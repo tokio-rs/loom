@@ -4,6 +4,7 @@ pub use crate::rt::thread::AccessError;
 pub use crate::rt::yield_now;
 use crate::rt::{self, Execution, Location};
 
+#[doc(no_inline)]
 pub use std::thread::panicking;
 
 use std::marker::PhantomData;
