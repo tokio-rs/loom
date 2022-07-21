@@ -16,4 +16,5 @@ pub use self::mutex::{Mutex, MutexGuard};
 pub use self::notify::Notify;
 pub use self::rwlock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
+#[doc(no_inline)]
 pub use std::sync::{LockResult, TryLockResult};
