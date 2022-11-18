@@ -166,7 +166,7 @@ impl Path {
     pub(super) fn branch_load(&mut self) -> usize {
         assert!(!self.is_traversed(), "[loom internal bug]");
 
-        let load = object::Ref::from_usize(self.pos)
+        let load = object::Ref::from_usize(self.pos, self.branches.get_id())
             .downcast::<Load>(&self.branches)
             .expect("Reached unexpected exploration state. Is the model fully deterministic?")
             .get(&self.branches);
@@ -184,7 +184,7 @@ impl Path {
             self.branches.insert(Spurious(false));
         }
 
-        let spurious = object::Ref::from_usize(self.pos)
+        let spurious = object::Ref::from_usize(self.pos, self.branches.get_id())
             .downcast::<Spurious>(&self.branches)
             .expect("Reached unexpected exploration state. Is the model fully deterministic?")
             .get(&self.branches)
@@ -274,7 +274,7 @@ impl Path {
             schedule.preemptions = preemptions;
         }
 
-        let schedule = object::Ref::from_usize(self.pos)
+        let schedule = object::Ref::from_usize(self.pos, self.branches.get_id())
             .downcast::<Schedule>(&self.branches)
             .expect("Reached unexpected exploration state. Is the model fully deterministic?")
             .get(&self.branches);
@@ -290,7 +290,7 @@ impl Path {
     }
 
     pub(super) fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
-        let schedule = object::Ref::from_usize(point)
+        let schedule = object::Ref::from_usize(point, self.branches.get_id())
             .downcast::<Schedule>(&self.branches)
             .unwrap()
             .get_mut(&mut self.branches);
@@ -344,7 +344,7 @@ impl Path {
         // This is depth-first tree traversal.
         //
         for last in (0..self.branches.len()).rev() {
-            let last = object::Ref::from_usize(last);
+            let last = object::Ref::from_usize(last, self.branches.get_id());
 
             // Remove all objects that were created **after** this branch
             self.branches.truncate(last);

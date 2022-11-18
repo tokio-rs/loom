@@ -15,7 +15,14 @@ use serde::{Deserialize, Serialize};
 pub(super) struct Store<T = Entry> {
     /// Stored state for all objects.
     entries: Vec<T>,
+
+    /// A unique id for this store, used to track references
+    id: StoreId,
 }
+
+#[derive(Debug, Eq, PartialEq, Hash, Clone, Copy)]
+#[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
+pub(super) struct StoreId(usize);
 
 pub(super) trait Object: Sized {
     type Entry;
@@ -39,6 +46,10 @@ pub(super) trait Object: Sized {
 pub(super) struct Ref<T = ()> {
     /// Index in the store
     index: usize,
+
+    /// Id of the store that created this reference. Optional, since `Ref`s can also be created from
+    /// a bare `usize` index
+    store_id: StoreId,
 
     _p: PhantomData<T>,
 }
@@ -147,6 +158,7 @@ impl<T> Store<T> {
     pub(super) fn with_capacity(capacity: usize) -> Store<T> {
         Store {
             entries: Vec::with_capacity(capacity),
+            id: StoreId::new(),
         }
     }
 
@@ -162,6 +174,10 @@ impl<T> Store<T> {
         self.entries.reserve_exact(additional);
     }
 
+    pub(super) fn get_id(&self) -> StoreId {
+        self.id
+    }
+
     /// Insert an object into the store
     pub(super) fn insert<O>(&mut self, item: O) -> Ref<O>
     where
@@ -172,6 +188,7 @@ impl<T> Store<T> {
 
         Ref {
             index,
+            store_id: self.id,
             _p: PhantomData,
         }
     }
@@ -183,18 +200,22 @@ impl<T> Store<T> {
 
     pub(crate) fn clear(&mut self) {
         self.entries.clear();
+        self.id = StoreId::new();
     }
 
     pub(super) fn iter_ref<O>(&self) -> impl DoubleEndedIterator<Item = Ref<O>> + '_
     where
         O: Object<Entry = T>,
     {
+        let store_id = self.id;
+
         self.entries
             .iter()
             .enumerate()
             .filter(|(_, e)| O::get_ref(e).is_some())
-            .map(|(index, _)| Ref {
+            .map(move |(index, _)| Ref {
                 index,
+                store_id,
                 _p: PhantomData,
             })
     }
@@ -259,11 +280,27 @@ impl Store {
     }
 }
 
+impl StoreId {
+    pub(crate) fn new() -> StoreId {
+        use std::sync::atomic::AtomicUsize;
+        use std::sync::atomic::Ordering::Relaxed;
+
+        // The number picked here is arbitrary. It is mostly to avoid collision
+        // with "zero" to aid with debugging.
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(41_123_456);
+
+        let next = NEXT_ID.fetch_add(1, Relaxed);
+
+        StoreId(next)
+    }
+}
+
 impl<T> Ref<T> {
     /// Erase the type marker
     pub(super) fn erase(self) -> Ref<()> {
         Ref {
             index: self.index,
+            store_id: self.store_id,
             _p: PhantomData,
         }
     }
@@ -274,8 +311,18 @@ impl<T> Ref<T> {
 }
 
 impl<T: Object> Ref<T> {
+    /// Panic if the reference belongs to a different store
+    fn assert_store_id(self, store: &Store<T::Entry>) {
+        assert_eq!(
+            self.store_id, store.id,
+            "Tried to access an object using a reference that belongs to a different store. \
+                This might indicate you are trying to reuse an object from an earlier execution"
+        )
+    }
+
     /// Get a reference to the object associated with this reference from the store
     pub(super) fn get(self, store: &Store<T::Entry>) -> &T {
+        self.assert_store_id(&store);
         T::get_ref(&store.entries[self.index])
             .expect("[loom internal bug] unexpected object stored at reference")
     }
@@ -283,6 +330,7 @@ impl<T: Object> Ref<T> {
     /// Get a mutable reference to the object associated with this reference
     /// from the store
     pub(super) fn get_mut(self, store: &mut Store<T::Entry>) -> &mut T {
+        self.assert_store_id(&store);
         T::get_mut(&mut store.entries[self.index])
             .expect("[loom internal bug] unexpected object stored at reference")
     }
@@ -290,9 +338,10 @@ impl<T: Object> Ref<T> {
 
 impl Ref {
     /// Convert a store index `usize` into a ref
-    pub(super) fn from_usize(index: usize) -> Ref {
+    pub(super) fn from_usize(index: usize, store_id: StoreId) -> Ref {
         Ref {
             index,
+            store_id,
             _p: PhantomData,
         }
     }
@@ -303,6 +352,7 @@ impl Ref {
     {
         T::get_ref(&store.entries[self.index]).map(|_| Ref {
             index: self.index,
+            store_id: self.store_id,
             _p: PhantomData,
         })
     }
@@ -312,6 +362,7 @@ impl<T> Clone for Ref<T> {
     fn clone(&self) -> Ref<T> {
         Ref {
             index: self.index,
+            store_id: self.store_id,
             _p: PhantomData,
         }
     }
