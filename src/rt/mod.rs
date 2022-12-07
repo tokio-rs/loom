@@ -74,7 +74,7 @@ where
 
     Scheduler::spawn(Box::new(move || {
         f();
-        thread_done();
+        thread_done(false);
     }));
 
     id
@@ -171,7 +171,7 @@ where
     Scheduler::with_execution(f)
 }
 
-pub fn thread_done() {
+pub fn thread_done(is_main_thread: bool) {
     let locals = execution(|execution| {
         let thread = execution.threads.active_id();
 
@@ -180,8 +180,27 @@ pub fn thread_done() {
         execution.threads.active_mut().drop_locals()
     });
 
-    // Drop outside of the execution context
+    // Drop locals outside of the execution context
     drop(locals);
+
+    if is_main_thread {
+        // Note that the statics must be dropped AFTER
+        // dropping the thread local fields. The `Drop`
+        // implementation of a type stored in a thread
+        // local field may still try to access the global
+        // statics on drop, so we need to take extra care
+        // that the global statics outlive the thread locals.
+        let statics = execution(|execution| {
+            let thread = execution.threads.active_id();
+
+            trace!(?thread, "thread_done: drop statics from the main thread");
+
+            execution.lazy_statics.drop()
+        });
+
+        // Drop statics outside of the execution context
+        drop(statics);
+    }
 
     execution(|execution| {
         let thread = execution.threads.active_id();

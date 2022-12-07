@@ -107,3 +107,70 @@ fn drop() {
     // should also be dropped.
     assert_eq!(DROPS.load(Ordering::Acquire), 3);
 }
+
+/// Test that TLS destructors are allowed to access global statics
+/// when the TLS type is dropped.
+///
+/// This is a regression test for:
+/// <https://github.com/tokio-rs/loom/issues/152>
+#[test]
+fn lazy_static() {
+    loom::lazy_static! {
+        static ref ID: usize = 0x42;
+    }
+
+    loom::thread_local! {
+        static BAR: Bar = Bar;
+    }
+
+    struct Bar;
+
+    impl Drop for Bar {
+        fn drop(&mut self) {
+            let _ = &*ID;
+        }
+    }
+
+    loom::model(|| {
+        BAR.with(|_| ());
+    });
+}
+
+/// When a thread panics it runs the TLS destructors, which
+/// in turn may try to access a global static. If the drop
+/// order of TLS fields and global statics is switched, then
+/// this will trigger a panic from the TLS destructor, too.
+/// This causes a panic inside another panic, which will lead
+/// to loom triggering a segfault. This should not happen,
+/// because it should be allowed for TLS destructors to always
+/// access a global static.
+///
+/// This is a regression test for a slight varation of
+/// <https://github.com/tokio-rs/loom/issues/152>.
+#[test]
+#[should_panic(expected = "loom should not panic inside another panic")]
+fn lazy_static_panic() {
+    loom::lazy_static! {
+        static ref ID: usize = 0x42;
+    }
+
+    loom::thread_local! {
+        static BAR: Bar = Bar;
+    }
+
+    struct Bar;
+
+    impl Drop for Bar {
+        fn drop(&mut self) {
+            let _ = &*ID;
+        }
+    }
+
+    loom::model(|| {
+        // initialize the TLS destructor:
+        BAR.with(|_| ());
+        println!("about to panic");
+        // intentionally panic:
+        panic!("loom should not panic inside another panic");
+    });
+}

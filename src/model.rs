@@ -182,14 +182,37 @@ impl Builder {
             let f = f.clone();
 
             scheduler.run(&mut execution, move || {
+                /// the given closure `f` may panic when executed.
+                /// when this happens, we still want to ensure
+                /// that thread locals are destructed before the
+                /// global statics are dropped. therefore, we set
+                /// up a guard that is dropped as part of the unwind
+                /// logic when `f` panics. this guard in turn ensures,
+                /// through the implementation of `rt::thread_done`,
+                /// that thread local fields are dropped before the
+                /// global statics are dropped. without this guard,
+                /// a `Drop` implementation on a type that is stored
+                /// in a thread local field could access the lazy static,
+                /// and this then would in turn panic from the method
+                /// [`Lazy::get`](crate::lazy_static::Lazy), which
+                /// causes a panic inside a panic, which in turn causes
+                /// Rust to abort, triggering a segfault in `loom`.
+                struct PanicGuard;
+                impl Drop for PanicGuard {
+                    fn drop(&mut self) {
+                        rt::thread_done(true);
+                    }
+                }
+
+                // set up the panic guard
+                let panic_guard = PanicGuard;
+
+                // execute the closure, note that `f()` may panic!
                 f();
 
-                let lazy_statics = rt::execution(|execution| execution.lazy_statics.drop());
-
-                // drop outside of execution
-                drop(lazy_statics);
-
-                rt::thread_done();
+                // if `f()` didn't panic, then we terminate the
+                // main thread by dropping the guard ourselves.
+                drop(panic_guard);
             });
 
             execution.check_for_leaks();

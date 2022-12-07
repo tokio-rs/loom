@@ -1,4 +1,13 @@
 //! Mock implementation of the `lazy_static` crate.
+//!
+//! Note: unlike the [semantics] of the `lazy_static` crate, this
+//! mock implementation *will* drop its value when the program finishes.
+//! This is due to an implementation detail in `loom`: it will create
+//! many instances of the same program and this would otherwise lead
+//! to unbounded memory leaks due to instantiating the lazy static
+//! many times over.
+//!
+//! [semantics]: https://docs.rs/lazy_static/latest/lazy_static/#semantics
 
 use crate::rt;
 pub use crate::rt::thread::AccessError;
@@ -12,6 +21,15 @@ use std::fmt;
 use std::marker::PhantomData;
 
 /// Mock implementation of `lazy_static::Lazy`.
+///
+/// Note: unlike the [semantics] of the `lazy_static` crate, this
+/// mock implementation *will* drop its value when the program finishes.
+/// This is due to an implementation detail in `loom`: it will create
+/// many instances of the same program and this would otherwise lead
+/// to unbounded memory leaks due to instantiating the lazy static
+/// many times over.
+///
+/// [semantics]: https://docs.rs/lazy_static/latest/lazy_static/#semantics
 pub struct Lazy<T> {
     // Sadly, these fields have to be public, since function pointers in const
     // fns are unstable. When fn pointer arguments to const fns stabilize, these
