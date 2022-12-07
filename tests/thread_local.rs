@@ -162,6 +162,7 @@ fn lazy_static_panic() {
 
     impl Drop for Bar {
         fn drop(&mut self) {
+            assert!(BAR.try_with(|_| ()).is_err());
             let _ = &*ID;
         }
     }
@@ -169,8 +170,69 @@ fn lazy_static_panic() {
     loom::model(|| {
         // initialize the TLS destructor:
         BAR.with(|_| ());
-        println!("about to panic");
         // intentionally panic:
         panic!("loom should not panic inside another panic");
     });
+}
+
+/// Test that thread locals are properly destructed
+/// when a spawned thread panics, without causing
+/// a double panic.
+#[test]
+#[should_panic(expected = "loom should not panic inside another panic")]
+fn access_on_drop_during_panic_in_spawned_thread() {
+    use loom::{cell::Cell, thread};
+    use std::{
+        panic::catch_unwind,
+        sync::{Mutex, MutexGuard, PoisonError},
+    };
+
+    struct DropCounter {
+        instantiated: usize,
+        dropped: usize,
+    }
+
+    static DROPPED: Mutex<DropCounter> = Mutex::new(DropCounter {
+        instantiated: 0,
+        dropped: 0,
+    });
+
+    loom::thread_local! {
+        static BAR: Cell<Bar> = Cell::new(Bar({
+            let mut guard = DROPPED.lock().unwrap();
+            guard.instantiated += 1;
+            guard
+        }));
+    }
+
+    struct Bar(MutexGuard<'static, DropCounter>);
+    impl Drop for Bar {
+        fn drop(&mut self) {
+            assert!(BAR.try_with(|_| ()).is_err());
+            self.0.dropped += 1;
+        }
+    }
+
+    let result = catch_unwind(|| {
+        loom::model(|| {
+            thread::spawn(|| {
+                // initialize the TLS destructor and panic:
+                BAR.with(|_| {
+                    BAR.with(|_| {
+                        panic!();
+                    });
+                });
+            })
+            .join()
+            .unwrap();
+        });
+    });
+
+    let guard = DROPPED.lock().unwrap_or_else(PoisonError::into_inner);
+    assert_eq!(guard.instantiated, 1);
+    assert_eq!(guard.dropped, 1);
+
+    // propagate the panic from the spawned thread
+    // to the main thread.
+    result.expect("loom should not panic inside another panic");
 }

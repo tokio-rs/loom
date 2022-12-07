@@ -207,13 +207,13 @@ impl Execution {
 
         self.threads.set_active(next);
 
-        // There is no active thread. Unless all threads have terminated, the
-        // test has deadlocked.
+        // There is no active thread. Unless all threads have terminated
+        // or the current thread is panicking, the test has deadlocked.
         if !self.threads.is_active() {
             let terminal = self.threads.iter().all(|(_, th)| th.is_terminated());
 
             assert!(
-                terminal,
+                terminal || std::thread::panicking(),
                 "deadlock; threads = {:?}",
                 self.threads
                     .iter()

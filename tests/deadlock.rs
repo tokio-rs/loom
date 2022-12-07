@@ -6,7 +6,7 @@ use loom::thread;
 use std::rc::Rc;
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "deadlock; threads =")]
 fn two_mutexes_deadlock() {
     loom::model(|| {
         let a = Rc::new(Mutex::new(1));
