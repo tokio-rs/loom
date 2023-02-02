@@ -1,7 +1,8 @@
-use loom::sync::{Arc, RwLock};
+use loom::sync::{Arc, RwLock, TryLockResult};
 use loom::thread;
 
 use std::rc::Rc;
+use std::sync::TryLockError;
 
 #[test]
 fn rwlock_read_one() {
@@ -38,6 +39,67 @@ fn rwlock_read_two_write_one() {
 
         let _l = lock.write().unwrap();
         thread::yield_now();
+    });
+}
+
+#[test]
+fn rwlock_write_three() {
+    loom::model(|| {
+        let lock = Arc::new(RwLock::new(1));
+
+        for _ in 0..2 {
+            let lock = lock.clone();
+            thread::spawn(move || {
+                let _l = lock.write().unwrap();
+
+                thread::yield_now();
+            });
+        }
+
+        let _l = lock.write().unwrap();
+        thread::yield_now();
+    });
+}
+
+#[test]
+fn rwlock_write_then_try_write() {
+    loom::model(|| {
+        let lock = Arc::new(RwLock::new(1));
+
+        let _l1 = lock.write().unwrap();
+
+        assert!(matches!(
+            lock.try_write(),
+            TryLockResult::Err(TryLockError::WouldBlock)
+        ));
+    });
+}
+
+#[test]
+fn rwlock_write_then_try_read() {
+    loom::model(|| {
+        let lock = Arc::new(RwLock::new(1));
+
+        let _l1 = lock.write().unwrap();
+
+        assert!(matches!(
+            lock.try_read(),
+            TryLockResult::Err(TryLockError::WouldBlock)
+        ));
+    });
+}
+
+#[test]
+fn rwlock_read_then_try_write() {
+    loom::model(|| {
+        let lock = Arc::new(RwLock::new(1));
+
+        let _l1 = lock.write().unwrap();
+
+        assert!(matches!(
+            lock.try_write(),
+            TryLockResult::Err(TryLockError::WouldBlock)
+        ));
     });
 }
 

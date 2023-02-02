@@ -230,7 +230,8 @@ impl RwLock {
             // Set the lock to the current thread
             state.lock = match state.lock {
                 Some(Locked::Read(_)) => return false,
-                _ => Some(Locked::Write(thread_id)),
+                Some(Locked::Write(_)) => return false,
+                None => Some(Locked::Write(thread_id)),
             };
 
             state.synchronize.sync_load(&mut execution.threads, Acquire);
