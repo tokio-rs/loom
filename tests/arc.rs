@@ -128,3 +128,26 @@ fn try_unwrap_multithreaded() {
         let _ = Arc::try_unwrap(num).unwrap();
     });
 }
+
+/// Test that there is no double panic
+/// when a model with an Arc in an unspawned thread panics.
+#[test]
+#[should_panic(expected = "loom should not panic inside another panic")]
+fn access_on_drop_during_panic_in_unspawned_thread() {
+    use loom::sync::Arc;
+    use std::panic::catch_unwind;
+
+    let result = catch_unwind(|| {
+        loom::model(move || {
+            let arc = Arc::new(());
+            thread::spawn(move || {
+                let _arc = arc;
+            });
+            panic!();
+        });
+    });
+
+    // propagate the panic from the spawned thread
+    // to the main thread.
+    result.expect("loom should not panic inside another panic");
+}
