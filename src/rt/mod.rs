@@ -73,11 +73,11 @@ where
     trace!(thread = ?id, "spawn");
 
     Scheduler::spawn(Box::new(move || {
-        /// the given closure `f` may panic when executed.
-        /// when this happens, we still want to ensure that
-        /// thread locals are destructed. therefore, we set
-        /// up a guard that is dropped as part of the unwind
-        /// logic when `f` panics.
+        // the given closure `f` may panic when executed.
+        // when this happens, we still want to ensure that
+        // thread locals are destructed. therefore, we set
+        // up a guard that is dropped as part of the unwind
+        // logic when `f` panics.
         struct PanicGuard;
         impl Drop for PanicGuard {
             fn drop(&mut self) {
