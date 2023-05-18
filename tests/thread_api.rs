@@ -123,3 +123,17 @@ fn park_unpark_std() {
     std::thread::park();
     println!("it did not deadlock");
 }
+
+#[test]
+fn max_stack_size() {
+    const LARGE_STACK_SIZE: usize = 0x8000;
+    let mut builder = loom::model::Builder::new();
+
+    builder.thread_stack_size = LARGE_STACK_SIZE;
+
+    builder.check(|| {
+        let mut large_array = [0u8; LARGE_STACK_SIZE];
+        // Ensure the array actually gets allocated on the stack.
+        std::hint::black_box(&mut large_array);
+    })
+}

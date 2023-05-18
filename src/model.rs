@@ -1,6 +1,6 @@
 //! Model concurrent programs.
 
-use crate::rt::{self, Execution, Scheduler};
+use crate::rt::{self, Execution, Scheduler, ScheduleParams};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -10,6 +10,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 
 const DEFAULT_MAX_THREADS: usize = 4;
 const DEFAULT_MAX_BRANCHES: usize = 1_000;
+const DEFAULT_STACK_SIZE: usize = 0x1000;
 
 /// Configure a model
 #[derive(Debug)]
@@ -65,6 +66,12 @@ pub struct Builder {
     ///
     /// Defaults to existence of `LOOM_LOG` environment variable.
     pub log: bool,
+
+    /// Stack size for spawned threads.
+    ///
+    /// Defaults to `LOOM_STACK_SIZE` environment variable if it is set,
+    /// otherwise [`DEFAULT_STACK_SIZE`].
+    pub thread_stack_size: usize,
 }
 
 impl Builder {
@@ -109,6 +116,10 @@ impl Builder {
             .map(|v| v.parse().expect("invalid value for `LOOM_CHECKPOINT_FILE`"))
             .ok();
 
+        let thread_stack_size = env::var("LOOM_STACK_SIZE")
+            .map(|v| v.parse().expect("invalid value for `LOOM_STACK_SIZE'"))
+            .unwrap_or(DEFAULT_STACK_SIZE);
+
         Builder {
             max_threads: DEFAULT_MAX_THREADS,
             max_branches,
@@ -119,6 +130,7 @@ impl Builder {
             checkpoint_interval,
             location,
             log,
+            thread_stack_size,
         }
     }
 
@@ -138,7 +150,10 @@ impl Builder {
 
         let mut execution =
             Execution::new(self.max_threads, self.max_branches, self.preemption_bound);
-        let mut scheduler = Scheduler::new(self.max_threads);
+        let mut scheduler = Scheduler::new(ScheduleParams {
+            max_threads: self.max_threads,
+            stack_size: self.thread_stack_size,
+        });
 
         if let Some(ref path) = self.checkpoint_file {
             if path.exists() {
