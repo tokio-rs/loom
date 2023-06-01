@@ -64,7 +64,7 @@ pub const MAX_THREADS: usize = 4;
 /// Maximum number of atomic store history to track per-cell.
 pub(crate) const MAX_ATOMIC_HISTORY: usize = 7;
 
-pub(crate) fn spawn<F>(f: F) -> crate::rt::thread::Id
+pub(crate) fn spawn<F>(stack_size: Option<usize>, f: F) -> crate::rt::thread::Id
 where
     F: FnOnce() + 'static,
 {
@@ -72,10 +72,13 @@ where
 
     trace!(thread = ?id, "spawn");
 
-    Scheduler::spawn(Box::new(move || {
-        f();
-        thread_done();
-    }));
+    Scheduler::spawn(
+        stack_size,
+        Box::new(move || {
+            f();
+            thread_done();
+        }),
+    );
 
     id
 }
