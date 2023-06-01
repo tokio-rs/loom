@@ -143,3 +143,101 @@ fn park_unpark_std() {
     std::thread::park();
     println!("it did not deadlock");
 }
+
+fn incrementer(a: &loom::sync::atomic::AtomicUsize) -> impl FnOnce() + '_ {
+    move || {
+        let _ = a.fetch_add(1, loom::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+#[test]
+fn scoped_thread() {
+    loom::model(|| {
+        const SPAWN_COUNT: usize = 3;
+        let a = loom::sync::atomic::AtomicUsize::new(0);
+        thread::scope(|scope| {
+            for _i in 0..SPAWN_COUNT {
+                let _handle = scope.spawn(incrementer(&a));
+            }
+        });
+        assert_eq!(a.load(loom::sync::atomic::Ordering::Relaxed), SPAWN_COUNT);
+    })
+}
+
+#[test]
+fn scoped_thread_builder() {
+    loom::model(|| {
+        const SPAWN_COUNT: usize = 3;
+        let a = loom::sync::atomic::AtomicUsize::new(0);
+        thread::scope(|scope| {
+            for _i in 0..SPAWN_COUNT {
+                thread::Builder::new()
+                    .spawn_scoped(scope, incrementer(&a))
+                    .unwrap();
+            }
+        });
+        assert_eq!(a.load(loom::sync::atomic::Ordering::Relaxed), SPAWN_COUNT);
+    })
+}
+
+#[test]
+fn scoped_thread_join() {
+    loom::model(|| {
+        const JOIN_COUNT: usize = 2;
+        let a = loom::sync::atomic::AtomicUsize::new(0);
+        thread::scope(|scope| {
+            let handles = [(); JOIN_COUNT].map(|()| scope.spawn(incrementer(&a)));
+
+            // Spawn another thread that might increment `a` before the first
+            // threads finish.
+            let _other_handle = scope.spawn(incrementer(&a));
+
+            for h in handles {
+                h.join().unwrap()
+            }
+            let a = a.load(loom::sync::atomic::Ordering::Relaxed);
+            assert!(a == JOIN_COUNT || a == JOIN_COUNT + 1);
+        });
+        assert_eq!(
+            a.load(loom::sync::atomic::Ordering::Relaxed),
+            JOIN_COUNT + 1
+        );
+    })
+}
+
+#[test]
+fn multiple_scopes() {
+    loom::model(|| {
+        let a = loom::sync::atomic::AtomicUsize::new(0);
+
+        thread::scope(|scope| {
+            let _handle = scope.spawn(incrementer(&a));
+        });
+        assert_eq!(a.load(loom::sync::atomic::Ordering::Relaxed), 1);
+
+        thread::scope(|scope| {
+            let _handle = scope.spawn(incrementer(&a));
+        });
+        assert_eq!(a.load(loom::sync::atomic::Ordering::Relaxed), 2);
+    })
+}
+
+#[test]
+fn scoped_and_unscoped_threads() {
+    loom::model(|| {
+        let a = loom::sync::Arc::new(loom::sync::atomic::AtomicUsize::new(0));
+
+        let unscoped_handle = thread::scope(|scope| {
+            let _handle = scope.spawn(incrementer(&a));
+            let a = a.clone();
+            loom::thread::spawn(move || incrementer(&a)())
+        });
+
+        let v = a.load(loom::sync::atomic::Ordering::Relaxed);
+        assert!(v == 1 || v == 2, "{}", v);
+
+        unscoped_handle.join().unwrap();
+        let v = a.load(loom::sync::atomic::Ordering::Relaxed);
+        assert_eq!(v, 2);
+    })
+}
