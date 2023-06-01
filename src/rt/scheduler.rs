@@ -1,20 +1,14 @@
 #![allow(deprecated)]
 
-use crate::rt::{thread, Execution};
+use crate::rt::Execution;
 
 use generator::{self, Generator, Gn};
 use scoped_tls::scoped_thread_local;
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::fmt;
 
 pub(crate) struct Scheduler {
-    /// Threads
-    threads: Vec<Thread>,
-
-    next_thread: usize,
-
-    queued_spawn: VecDeque<Box<dyn FnOnce()>>,
+    max_threads: usize,
 }
 
 type Thread = Generator<'static, Option<Box<dyn FnOnce()>>, ()>;
@@ -31,12 +25,8 @@ struct State<'a> {
 impl Scheduler {
     /// Create an execution
     pub(crate) fn new(capacity: usize) -> Scheduler {
-        let threads = spawn_threads(capacity);
-
         Scheduler {
-            threads,
-            next_thread: 0,
-            queued_spawn: VecDeque::new(),
+            max_threads: capacity,
         }
     }
 
@@ -83,9 +73,10 @@ impl Scheduler {
     where
         F: FnOnce() + Send + 'static,
     {
-        self.next_thread = 1;
-        self.threads[0].set_para(Some(Box::new(f)));
-        self.threads[0].resume();
+        let mut next_thread = 1;
+        let mut threads = spawn_threads(self.max_threads);
+        threads[0].set_para(Some(Box::new(f)));
+        threads[0].resume();
 
         loop {
             if !execution.threads.is_active() {
@@ -94,29 +85,29 @@ impl Scheduler {
 
             let active = execution.threads.active_id();
 
-            self.tick(active, execution);
+            let mut queued_spawn = Self::tick(&mut threads[active.as_usize()], execution);
 
-            while let Some(th) = self.queued_spawn.pop_front() {
-                let thread_id = self.next_thread;
-                self.next_thread += 1;
+            while let Some(th) = queued_spawn.pop_front() {
+                let thread_id = next_thread;
+                next_thread += 1;
 
-                self.threads[thread_id].set_para(Some(th));
-                self.threads[thread_id].resume();
+                threads[thread_id].set_para(Some(th));
+                threads[thread_id].resume();
             }
         }
     }
 
-    fn tick(&mut self, thread: thread::Id, execution: &mut Execution) {
+    fn tick(thread: &mut Thread, execution: &mut Execution) -> VecDeque<Box<dyn FnOnce()>> {
+        let mut queued_spawn = VecDeque::new();
         let state = RefCell::new(State {
             execution,
-            queued_spawn: &mut self.queued_spawn,
+            queued_spawn: &mut queued_spawn,
         });
-
-        let threads = &mut self.threads;
 
         STATE.set(unsafe { transmute_lt(&state) }, || {
-            threads[thread.as_usize()].resume();
+            thread.resume();
         });
+        queued_spawn
     }
 
     fn with_state<F, R>(f: F) -> R
@@ -128,14 +119,6 @@ impl Scheduler {
             are you accessing a Loom synchronization primitive from outside a Loom test (a call to `model` or `check`)?")
         }
         STATE.with(|state| f(&mut state.borrow_mut()))
-    }
-}
-
-impl fmt::Debug for Scheduler {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("Schedule")
-            .field("threads", &self.threads)
-            .finish()
     }
 }
 

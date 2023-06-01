@@ -171,7 +171,7 @@ impl RwLock {
 
     fn post_acquire_read_lock(&self) -> bool {
         super::execution(|execution| {
-            let mut state = self.state.get_mut(&mut execution.objects);
+            let state = self.state.get_mut(&mut execution.objects);
             let thread_id = execution.threads.active_id();
 
             // Set the lock to the current thread
