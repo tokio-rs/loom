@@ -127,7 +127,41 @@ impl Scheduler {
             panic!("cannot access Loom execution state from outside a Loom model. \
             are you accessing a Loom synchronization primitive from outside a Loom test (a call to `model` or `check`)?")
         }
-        STATE.with(|state| f(&mut state.borrow_mut()))
+        STATE.with(|state| {
+            // When unwinding after a panic, `STATE` is unset before `Scheduler` is dropped.
+            // However, `Scheduler::queued_spawn` could hold loom objects which would try to use
+            // `STATE` when they are dropped. Because of that, we need to clear `queued_spawn`
+            // while STATE is still set. Since `STATE` has an exclusive reference (&mut) to
+            // `Scheduler::queued_spawn`, we also need to use `STATE` ourselves for accessing them,
+            // but drop our `RefMut` before the dropping of `queued_spawn` happens.
+            //
+            // To implement this, we exploit the fact that the struct fields of `DropGuard`
+            // are dropped in declaration order, and move `queued_spawn`in `DropGuard::drop`
+            // to the second struct field of `DropGuard` (replacing it with an empty `VecDeque`).
+            // Then, the destructor first drops the `RefMut` (thereby allowing `STATE` to be
+            // borrowed again), and then the former `queued_spawn` value (possibly accessing `STATE`).
+            struct DropGuard<'a, 'b>(
+                std::cell::RefMut<'a, State<'b>>,
+                VecDeque<Box<dyn FnOnce()>>,
+            );
+            impl<'a, 'b> Drop for DropGuard<'a, 'b> {
+                fn drop(&mut self) {
+                    if std::thread::panicking() {
+                        self.1 = std::mem::take(self.0.queued_spawn);
+                    }
+                }
+            }
+            impl<'a, 'b> DropGuard<'a, 'b> {
+                fn run<F, R>(&mut self, f: F) -> R
+                where
+                    F: FnOnce(&mut State<'b>) -> R,
+                {
+                    f(&mut self.0)
+                }
+            }
+            let mut guard = DropGuard(state.borrow_mut(), Default::default());
+            guard.run(f)
+        })
     }
 }
 
