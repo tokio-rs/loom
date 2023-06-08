@@ -73,8 +73,27 @@ where
     trace!(thread = ?id, "spawn");
 
     Scheduler::spawn(Box::new(move || {
+        /// the given closure `f` may panic when executed.
+        /// when this happens, we still want to ensure that
+        /// thread locals are destructed. therefore, we set
+        /// up a guard that is dropped as part of the unwind
+        /// logic when `f` panics.
+        struct PanicGuard;
+        impl Drop for PanicGuard {
+            fn drop(&mut self) {
+                thread_done(false);
+            }
+        }
+
+        // set up the panic guard
+        let panic_guard = PanicGuard;
+
+        // execute the closure, note that `f()` may panic!
         f();
-        thread_done();
+
+        // if `f()` didn't panic, then we terminate the
+        // spawned thread by dropping the guard ourselves.
+        drop(panic_guard);
     }));
 
     id
@@ -171,7 +190,22 @@ where
     Scheduler::with_execution(f)
 }
 
-pub fn thread_done() {
+pub fn thread_done(is_main_thread: bool) {
+    let is_active = execution(|execution| execution.threads.is_active());
+    if !is_active {
+        // if the thread is not active and the current thread is panicking,
+        // then this means that loom has detected a problem (e.g. a deadlock).
+        // we don't want to throw a double panic here, because this would cause
+        // the entire test to abort and this hides the error from the end user.
+        // instead we ensure that the current thread is panicking already,
+        // or we cause a panic if it's not yet panicking (which it otherwise
+        // would anyway, on the call to `execution.threads.active_id()` below).
+        let panicking = std::thread::panicking();
+        trace!(?panicking, "thread_done: no active thread");
+        assert!(panicking);
+        return;
+    }
+
     let locals = execution(|execution| {
         let thread = execution.threads.active_id();
 
@@ -180,8 +214,27 @@ pub fn thread_done() {
         execution.threads.active_mut().drop_locals()
     });
 
-    // Drop outside of the execution context
+    // Drop locals outside of the execution context
     drop(locals);
+
+    if is_main_thread {
+        // Note that the statics must be dropped AFTER
+        // dropping the thread local fields. The `Drop`
+        // implementation of a type stored in a thread
+        // local field may still try to access the global
+        // statics on drop, so we need to take extra care
+        // that the global statics outlive the thread locals.
+        let statics = execution(|execution| {
+            let thread = execution.threads.active_id();
+
+            trace!(?thread, "thread_done: drop statics from the main thread");
+
+            execution.lazy_statics.drop()
+        });
+
+        // Drop statics outside of the execution context
+        drop(statics);
+    }
 
     execution(|execution| {
         let thread = execution.threads.active_id();
