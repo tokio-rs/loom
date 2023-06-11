@@ -105,6 +105,26 @@ fn thread_names() {
 }
 
 #[test]
+fn thread_stack_size() {
+    const STACK_SIZE: usize = 1 << 16;
+    loom::model(|| {
+        let body = || {
+            // Allocate a large array on the stack.
+            std::hint::black_box(&mut [0usize; STACK_SIZE]);
+        };
+        thread::Builder::new()
+            .stack_size(
+                // Include space for function calls in addition to the array.
+                2 * STACK_SIZE,
+            )
+            .spawn(body)
+            .unwrap()
+            .join()
+            .unwrap()
+    })
+}
+
+#[test]
 fn park_unpark_loom() {
     loom::model(|| {
         println!("unpark");
