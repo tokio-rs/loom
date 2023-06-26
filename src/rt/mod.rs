@@ -59,7 +59,7 @@ pub(crate) use self::vv::VersionVec;
 use tracing::trace;
 
 /// Maximum number of threads that can be included in a model.
-pub const MAX_THREADS: usize = 4;
+pub const MAX_THREADS: usize = 5;
 
 /// Maximum number of atomic store history to track per-cell.
 pub(crate) const MAX_ATOMIC_HISTORY: usize = 7;
