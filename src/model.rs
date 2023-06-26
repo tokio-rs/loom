@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use tracing::{info, subscriber};
 use tracing_subscriber::{fmt, EnvFilter};
 
-const DEFAULT_MAX_THREADS: usize = 4;
+const DEFAULT_MAX_THREADS: usize = 5;
 const DEFAULT_MAX_BRANCHES: usize = 1_000;
 
 /// Configure a model
