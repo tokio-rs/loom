@@ -1,3 +1,17 @@
+# 0.6.0 (June 17, 2023)
+
+### Changed
+
+- Increase max threads to 5 (#314)
+
+### Added
+
+- Support setting model thread stack size (#311)
+
+### Fixed
+
+- Fix corner case in `RwLock` (#300).
+
 # 0.5.6 (May 19, 2022)
 
 ### Added

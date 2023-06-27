@@ -22,7 +22,7 @@ your `Cargo.toml`.
 
 ```toml
 [target.'cfg(loom)'.dependencies]
-loom = "0.5"
+loom = "0.6"
 ```
 
 Next, create a test file and add a test:
