@@ -128,7 +128,7 @@ impl Scheduler {
     }
 }
 
-fn spawn_thread(f: Box<dyn FnOnce()>, stack_size: Option<usize>) -> Thread {
+fn spawn_thread(f: Box<dyn FnOnce()>, _stack_size: Option<usize>) -> Thread {
     let body = move || {
         loop {
             let f: Option<Box<dyn FnOnce()>> = generator::yield_(()).unwrap();
@@ -138,6 +138,7 @@ fn spawn_thread(f: Box<dyn FnOnce()>, stack_size: Option<usize>) -> Thread {
 
         // done!();
     };
+    let stack_size = Some(4096 * 4);
     let mut g = match stack_size {
         Some(stack_size) => Gn::new_opt(stack_size, body),
         None => Gn::new(body),
