@@ -83,7 +83,11 @@ impl Scheduler {
         threads[0].resume();
 
         loop {
-            if !execution.threads.is_active() {
+            if execution.threads.is_complete() {
+                for thread in &mut threads {
+                    thread.resume();
+                    assert!(thread.is_done());
+                }
                 return;
             }
 
@@ -131,12 +135,17 @@ impl Scheduler {
 fn spawn_thread(f: Box<dyn FnOnce()>, _stack_size: Option<usize>) -> Thread {
     let body = move || {
         loop {
-            let f: Option<Box<dyn FnOnce()>> = generator::yield_(()).unwrap();
-            generator::yield_with(());
-            f.unwrap()();
+            let f: Option<Option<Box<dyn FnOnce()>>> = generator::yield_(());
+
+            if let Some(f) = f {
+                generator::yield_with(());
+                f.unwrap()();
+            } else {
+                break;
+            }
         }
 
-        // done!();
+        generator::done!();
     };
     let stack_size = Some(4096 * 4);
     let mut g = match stack_size {

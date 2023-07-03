@@ -276,7 +276,11 @@ impl Path {
 
         let schedule = object::Ref::from_usize(self.pos)
             .downcast::<Schedule>(&self.branches)
-            .expect("Reached unexpected exploration state. Is the model fully deterministic?")
+            .unwrap_or_else(|| {
+                eprintln!("Reached unexpected exploration state. Is the model fully deterministic?");
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                panic!("Reached unexpected exploration state. Is the model fully deterministic?")
+            })
             .get(&self.branches);
 
         self.pos += 1;
