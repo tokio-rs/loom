@@ -234,6 +234,23 @@ impl Set {
         self.active.is_some()
     }
 
+    pub(crate) fn is_complete(&self) -> bool {
+        if self.active.is_none() {
+            // All threads should be terminated
+            for thread in &self.threads {
+                assert!(
+                    thread.is_terminated(),
+                    "thread not terminated; {:#?}",
+                    thread
+                );
+            }
+
+            true
+        } else {
+            false
+        }
+    }
+
     pub(crate) fn active_id(&self) -> Id {
         Id::new(self.execution_id, self.active.unwrap())
     }
