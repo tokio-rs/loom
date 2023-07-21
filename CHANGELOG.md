@@ -1,3 +1,9 @@
+# 0.6.1 (July 21, 2023)
+
+### Fixed
+
+- Avoid cancelling generators as it is not a thread-safe operation (#318)
+
 # 0.6.0 (June 17, 2023)
 
 ### Changed
