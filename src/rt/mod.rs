@@ -192,9 +192,6 @@ pub fn thread_done() {
         execution.threads.active_mut().operation = None;
         execution.threads.active_mut().set_terminated();
         let switch = execution.schedule();
-
         trace!(?thread, ?switch, "thread_done: terminate");
-
-        switch
     });
 }
