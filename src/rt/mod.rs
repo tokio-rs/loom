@@ -195,3 +195,10 @@ pub fn thread_done() {
         trace!(?thread, ?switch, "thread_done: terminate");
     });
 }
+
+/// TODO: docs
+pub fn explore_state() {
+    execution(|execution| {
+        execution.path.explore_state();
+    })
+}

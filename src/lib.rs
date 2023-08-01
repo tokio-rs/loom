@@ -366,6 +366,7 @@ macro_rules! dbg {
 #[macro_use]
 mod rt;
 
+pub use rt::explore_state;
 // Expose for documentation purposes.
 pub use rt::MAX_THREADS;
 
