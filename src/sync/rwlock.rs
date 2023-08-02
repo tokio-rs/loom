@@ -106,6 +106,11 @@ impl<T> RwLock<T> {
         }
     }
 
+    /// Returns a mutable reference to the underlying data.
+    pub fn get_mut(&mut self) -> LockResult<&mut T> {
+        self.data.get_mut()
+    }
+
     /// Consumes this `RwLock`, returning the underlying data.
     pub fn into_inner(self) -> LockResult<T> {
         Ok(self.data.into_inner().expect("loom::RwLock state corrupt"))
