@@ -1,3 +1,10 @@
+# 0.7.0 (August 4, 2023)
+
+### Added
+
+- `explore()`, `stop_exploring()`, `skip_branch()` enable reducing the
+  concurrent state exploration (#323).
+
 # 0.6.1 (July 21, 2023)
 
 ### Fixed
