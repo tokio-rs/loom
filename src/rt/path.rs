@@ -22,6 +22,16 @@ pub(crate) struct Path {
     ///
     /// A branch is of type `Schedule`, `Load`, or `Spurious`
     branches: object::Store<Entry>,
+
+    /// If true, exploring is enabled at start
+    exploring: bool,
+
+    /// If true, the user decided to skip the current execution branch. We do
+    /// not do any further exploration here.
+    skipping: bool,
+
+    /// How to reset the `exploring` state
+    exploring_on_start: bool,
 }
 
 #[derive(Debug)]
@@ -39,6 +49,8 @@ pub(crate) struct Schedule {
 
     /// The previous schedule branch
     prev: Option<object::Ref<Schedule>>,
+
+    exploring: bool,
 }
 
 #[derive(Debug)]
@@ -52,11 +64,16 @@ pub(crate) struct Load {
 
     /// Number of values in list
     len: u8,
+
+    exploring: bool,
 }
 
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
-pub(crate) struct Spurious(bool);
+pub(crate) struct Spurious {
+    spur: bool,
+    exploring: bool,
+}
 
 objects! {
     #[derive(Debug)]
@@ -108,12 +125,34 @@ macro_rules! assert_path_len {
 impl Path {
     /// Create a new, blank, configured to branch at most `max_branches` times
     /// and at most `preemption_bound` thread preemptions.
-    pub(crate) fn new(max_branches: usize, preemption_bound: Option<u8>) -> Path {
+    pub(crate) fn new(max_branches: usize, preemption_bound: Option<u8>, exploring: bool) -> Path {
         Path {
             preemption_bound,
             pos: 0,
             branches: object::Store::with_capacity(max_branches),
+            exploring,
+            skipping: false,
+            exploring_on_start: exploring,
         }
+    }
+
+    pub(crate) fn explore_state(&mut self) {
+        if !self.skipping {
+            assert!(!self.exploring, "not in critical state");
+            self.exploring = true;
+        }
+    }
+
+    pub(crate) fn critical(&mut self) {
+        if !self.skipping {
+            assert!(self.exploring, "not in exploring state");
+            self.exploring = false;
+        }
+    }
+
+    pub(crate) fn skip_branch(&mut self) {
+        self.exploring = false;
+        self.skipping = true;
     }
 
     pub(crate) fn set_max_branches(&mut self, max_branches: usize) {
@@ -139,6 +178,7 @@ impl Path {
             values: [0; MAX_ATOMIC_HISTORY],
             pos: 0,
             len: 0,
+            exploring: self.exploring,
         });
 
         let load = load_ref.get_mut(&mut self.branches);
@@ -181,14 +221,17 @@ impl Path {
         if self.is_traversed() {
             assert_path_len!(self.branches);
 
-            self.branches.insert(Spurious(false));
+            self.branches.insert(Spurious {
+                spur: false,
+                exploring: self.exploring,
+            });
         }
 
         let spurious = object::Ref::from_usize(self.pos)
             .downcast::<Spurious>(&self.branches)
             .expect("Reached unexpected exploration state. Is the model fully deterministic?")
             .get(&self.branches)
-            .0;
+            .spur;
 
         self.pos += 1;
         spurious
@@ -215,6 +258,7 @@ impl Path {
                 initial_active: None,
                 threads: [Thread::Disabled; MAX_THREADS],
                 prev,
+                exploring: self.exploring,
             });
 
             // Get a reference to the branch in the object store.
@@ -289,14 +333,25 @@ impl Path {
             .map(|(i, _)| thread::Id::new(execution_id, i))
     }
 
-    pub(super) fn backtrack(&mut self, point: usize, thread_id: thread::Id) {
-        let schedule = object::Ref::from_usize(point)
-            .downcast::<Schedule>(&self.branches)
-            .unwrap()
-            .get_mut(&mut self.branches);
+    pub(super) fn backtrack(&mut self, mut point: usize, thread_id: thread::Id) {
+        let schedule = loop {
+            if let Some(schedule_ref) =
+                object::Ref::from_usize(point).downcast::<Schedule>(&self.branches)
+            {
+                let schedule = schedule_ref.get_mut(&mut self.branches);
 
-        // Exhaustive DPOR only requires adding this backtrack point
-        schedule.backtrack(thread_id, self.preemption_bound);
+                if schedule.exploring {
+                    schedule.backtrack(thread_id, self.preemption_bound);
+                    break schedule;
+                }
+            }
+
+            if point == 0 {
+                return;
+            }
+
+            point -= 1;
+        };
 
         let mut curr = if let Some(curr) = schedule.prev {
             curr
@@ -312,7 +367,7 @@ impl Path {
                     let active_a = curr.get(&self.branches).active_thread_index();
                     let active_b = prev.get(&self.branches).active_thread_index();
 
-                    if active_a != active_b {
+                    if active_a != active_b && curr.get_mut(&mut self.branches).exploring {
                         curr.get_mut(&mut self.branches)
                             .backtrack(thread_id, self.preemption_bound);
                         return;
@@ -320,9 +375,11 @@ impl Path {
 
                     curr = prev;
                 } else {
-                    // This is the very first schedule
-                    curr.get_mut(&mut self.branches)
-                        .backtrack(thread_id, self.preemption_bound);
+                    if curr.get(&mut self.branches).exploring {
+                        // This is the very first schedule
+                        curr.get_mut(&mut self.branches)
+                            .backtrack(thread_id, self.preemption_bound);
+                    }
                     return;
                 }
             }
@@ -338,6 +395,10 @@ impl Path {
         // beginning
         self.pos = 0;
 
+        // Reset exploring / critical / skip
+        self.exploring = self.exploring_on_start;
+        self.skipping = false;
+
         // Set the final branch to try the next option. If all options have been
         // traversed, pop the final branch and try again w/ the one under it.
         //
@@ -351,6 +412,10 @@ impl Path {
 
             if let Some(schedule_ref) = last.downcast::<Schedule>(&self.branches) {
                 let schedule = schedule_ref.get_mut(&mut self.branches);
+
+                if !schedule.exploring {
+                    continue;
+                }
 
                 // Transition the active thread to visited.
                 if let Some(thread) = schedule.threads.iter_mut().find(|th| th.is_active()) {
@@ -373,6 +438,10 @@ impl Path {
             } else if let Some(load_ref) = last.downcast::<Load>(&self.branches) {
                 let load = load_ref.get_mut(&mut self.branches);
 
+                if !load.exploring {
+                    continue;
+                }
+
                 load.pos += 1;
 
                 if load.pos < load.len {
@@ -381,8 +450,12 @@ impl Path {
             } else if let Some(spurious_ref) = last.downcast::<Spurious>(&self.branches) {
                 let spurious = spurious_ref.get_mut(&mut self.branches);
 
-                if !spurious.0 {
-                    spurious.0 = true;
+                if !spurious.exploring {
+                    continue;
+                }
+
+                if !spurious.spur {
+                    spurious.spur = true;
                     return true;
                 }
             } else {
@@ -418,6 +491,8 @@ impl Schedule {
     }
 
     fn backtrack(&mut self, thread_id: thread::Id, preemption_bound: Option<u8>) {
+        assert!(self.exploring);
+
         if let Some(bound) = preemption_bound {
             assert!(
                 self.preemptions <= bound,

@@ -195,3 +195,28 @@ pub fn thread_done() {
         trace!(?thread, ?switch, "thread_done: terminate");
     });
 }
+
+/// Tells loom to explore possible concurrent executions starting at this point.
+pub fn explore() {
+    execution(|execution| {
+        execution.path.explore_state();
+    })
+}
+
+/// Tells loom to stop exploring possible concurrent executions starting at this
+/// point.
+///
+/// Exploration can be enabled again with `explore`.
+pub fn stop_exploring() {
+    execution(|execution| {
+        execution.path.critical();
+    })
+}
+
+/// Tells loom to stop exploring possible concurrent execution starting at this
+/// point.
+///
+/// Unlike `stop_exploring`, exploration cannot be restarted by `explore`.
+pub fn skip_branch() {
+    execution(|execution| execution.path.skip_branch())
+}
