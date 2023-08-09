@@ -1,5 +1,6 @@
 use crate::rt;
 
+use std::borrow::Borrow;
 use std::pin::Pin;
 use std::{mem, ops, ptr};
 
@@ -265,5 +266,17 @@ impl<T> From<T> for Arc<T> {
     #[track_caller]
     fn from(t: T) -> Self {
         Arc::new(t)
+    }
+}
+
+impl<T: ?Sized> AsRef<T> for Arc<T> {
+    fn as_ref(&self) -> &T {
+        self
+    }
+}
+
+impl<T: ?Sized> Borrow<T> for Arc<T> {
+    fn borrow(&self) -> &T {
+        self
     }
 }
