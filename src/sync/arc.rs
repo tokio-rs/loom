@@ -270,14 +270,12 @@ impl<T> From<T> for Arc<T> {
 }
 
 impl<T: ?Sized> AsRef<T> for Arc<T> {
-    #[track_caller]
     fn as_ref(&self) -> &T {
         self
     }
 }
 
 impl<T: ?Sized> Borrow<T> for Arc<T> {
-    #[track_caller]
     fn borrow(&self) -> &T {
         self
     }
