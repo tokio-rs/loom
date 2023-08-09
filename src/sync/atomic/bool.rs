@@ -29,6 +29,14 @@ impl AtomicBool {
         self.0.unsync_load()
     }
 
+    /// Consumes the atomic and returns the contained value.
+    #[track_caller]
+    pub fn into_inner(self) -> bool {
+        // SAFETY: ownership guarantees that no other threads are concurrently
+        // accessing the atomic value.
+        unsafe { self.unsync_load() }
+    }
+
     /// Loads a value from the atomic bool.
     #[track_caller]
     pub fn load(&self, order: Ordering) -> bool {
