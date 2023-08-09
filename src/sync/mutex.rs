@@ -60,7 +60,7 @@ impl<T> Mutex<T> {
 
     /// Returns a mutable reference to the underlying data.
     pub fn get_mut(&mut self) -> LockResult<&mut T> {
-        self.data.get_mut()
+        Ok(self.data.get_mut().unwrap())
     }
 
     /// Consumes this mutex, returning the underlying data.
