@@ -39,6 +39,14 @@ impl<T> AtomicPtr<T> {
         self.0.with_mut(f)
     }
 
+    /// Consumes the atomic and returns the contained value.
+    #[track_caller]
+    pub fn into_inner(self) -> *mut T {
+        // SAFETY: ownership guarantees that no other threads are concurrently
+        // accessing the atomic value.
+        unsafe { self.unsync_load() }
+    }
+
     /// Loads a value from the pointer.
     #[track_caller]
     pub fn load(&self, order: Ordering) -> *mut T {
