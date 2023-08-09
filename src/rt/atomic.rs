@@ -927,5 +927,5 @@ fn range(cnt: u16) -> (usize, usize) {
 }
 
 fn index(cnt: u16) -> usize {
-    cnt as usize % MAX_ATOMIC_HISTORY as usize
+    cnt as usize % MAX_ATOMIC_HISTORY
 }

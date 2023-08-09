@@ -197,7 +197,7 @@ impl Path {
                 MAX_ATOMIC_HISTORY
             );
 
-            load.values[i] = store as u8;
+            load.values[i] = store;
             load.len += 1;
         }
     }
