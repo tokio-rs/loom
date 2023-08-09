@@ -3,6 +3,7 @@
 ### Added
 
 - Add `Atomic*::into_inner` (#327)
+- Add `get_mut` to `Mutex` and `RwLock` (#322)
 - Implement `AsRef` and `Borrow` for `Arc` (#325)
 
 # 0.7.0 (August 4, 2023)
