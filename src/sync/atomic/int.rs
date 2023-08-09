@@ -2,35 +2,23 @@ use super::Atomic;
 
 use std::sync::atomic::Ordering;
 
-// TODO: use `#[doc = concat!()]` directly once `extended_key_value_attributes` stable.
-macro_rules! doc_comment {
-    ($doc:expr, $($tt:tt)*) => {
-        #[doc = $doc]
-        $($tt)*
-    };
-}
-
 #[rustfmt::skip] // rustfmt cannot properly format multi-line concat!.
 macro_rules! atomic_int {
     ($name: ident, $int_type: ty) => {
-        doc_comment! {
-            concat!(
-                " Mock implementation of `std::sync::atomic::", stringify!($name), "`.\n\n\
-                 NOTE: Unlike `std::sync::atomic::", stringify!($name), "`, \
-                 this type has a different in-memory representation than `",
-                 stringify!($int_type), "`.",
-            ),
-            #[derive(Debug)]
-            pub struct $name(Atomic<$int_type>);
-        }
+        #[doc = concat!(
+            " Mock implementation of `std::sync::atomic::", stringify!($name), "`.\n\n\
+             NOTE: Unlike `std::sync::atomic::", stringify!($name), "`, \
+             this type has a different in-memory representation than `",
+             stringify!($int_type), "`.",
+        )]
+        #[derive(Debug)]
+        pub struct $name(Atomic<$int_type>);
 
         impl $name {
-            doc_comment! {
-                concat!(" Creates a new instance of `", stringify!($name), "`."),
-                #[track_caller]
-                pub fn new(v: $int_type) -> Self {
-                    Self(Atomic::new(v, location!()))
-                }
+            #[doc = concat!(" Creates a new instance of `", stringify!($name), "`.")]
+            #[track_caller]
+            pub fn new(v: $int_type) -> Self {
+                Self(Atomic::new(v, location!()))
             }
 
             /// Get access to a mutable reference to the inner value.
