@@ -241,3 +241,45 @@ fn scoped_and_unscoped_threads() {
         assert_eq!(v, 2);
     })
 }
+
+struct YieldAndIncrementOnDrop<'a>(&'a std::sync::atomic::AtomicUsize);
+
+impl Drop for YieldAndIncrementOnDrop<'_> {
+    fn drop(&mut self) {
+        thread::yield_now();
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+#[test]
+fn scoped_thread_wait_until_finished() {
+    loom::model(|| {
+        let a = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let r: &std::sync::atomic::AtomicUsize = &a;
+        thread::scope(|s| {
+            s.spawn(move || {
+                r.fetch_add(2, std::sync::atomic::Ordering::SeqCst);
+                YieldAndIncrementOnDrop(r)
+            });
+        });
+        assert_eq!(a.load(std::sync::atomic::Ordering::SeqCst), 3);
+    });
+}
+
+#[test]
+fn scoped_thread_join_handle_forgotten() {
+    loom::model(|| {
+        let a = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let r: &std::sync::atomic::AtomicUsize = &a;
+        thread::scope(|s| {
+            let handle = s.spawn(move || {
+                r.fetch_add(2, std::sync::atomic::Ordering::SeqCst);
+                YieldAndIncrementOnDrop(r)
+            });
+            std::mem::forget(handle)
+        });
+        // Expect only 2 since the spawned thread will complete but its result
+        // will be leaked and so never dropped.
+        assert_eq!(a.load(std::sync::atomic::Ordering::SeqCst), 2);
+    });
+}

@@ -205,7 +205,7 @@ impl Builder {
                     f,
                     self.name,
                     self.stack_size,
-                    Some(scope.data.clone()),
+                    Some(&scope.data),
                     location!(),
                 )
             },
@@ -309,7 +309,7 @@ impl<T: 'static> fmt::Debug for LocalKey<T> {
 /// See [`scope`] for more details.
 #[derive(Debug)]
 pub struct Scope<'scope, 'env: 'scope> {
-    data: Arc<ScopeData>,
+    data: ScopeData,
     scope: PhantomData<&'scope mut &'scope ()>,
     env: PhantomData<&'env mut &'env ()>,
 }
@@ -329,10 +329,10 @@ where
     F: for<'scope> FnOnce(&'scope Scope<'scope, 'env>) -> T,
 {
     let scope = Scope {
-        data: Arc::new(ScopeData {
+        data: ScopeData {
             running_threads: Mutex::default(),
             main_thread: current(),
-        }),
+        },
         env: PhantomData,
         scope: PhantomData,
     };
@@ -394,7 +394,6 @@ impl<'scope, T> ScopedJoinHandle<'scope, T> {
 #[derive(Debug)]
 struct JoinHandleInner<'scope, T> {
     data: Arc<ThreadData<'scope, T>>,
-    notify: rt::Notify,
     thread: Thread,
 }
 
@@ -423,7 +422,7 @@ unsafe fn spawn_internal<'scope, F, T>(
     f: F,
     name: Option<String>,
     stack_size: Option<usize>,
-    scope: Option<Arc<ScopeData>>,
+    scope: Option<&'scope ScopeData>,
     location: Location,
 ) -> JoinHandleInner<'scope, T>
 where
@@ -435,18 +434,28 @@ where
         .clone()
         .map(|scope| (scope.add_running_thread(), scope));
     let thread_data = Arc::new(ThreadData::new());
-    let notify = rt::Notify::new(true, false);
 
     let id = {
         let name = name.clone();
-        let thread_data = thread_data.clone();
+        // Hold a weak reference so that if the thread handle gets dropped, we
+        // don't try to store the result or notify anybody unnecessarily.
+        let weak_data = Arc::downgrade(&thread_data);
+
         let body: Box<dyn FnOnce() + 'scope> = Box::new(move || {
             rt::execution(|execution| {
                 init_current(execution, name);
             });
 
-            *thread_data.result.lock().unwrap() = Some(Ok(f()));
-            notify.notify(location);
+            // Ensure everything from the spawned thread's execution either gets
+            // stored in the thread handle or dropped before notifying that the
+            // thread has completed.
+            {
+                let result = f();
+                if let Some(thread_data) = weak_data.upgrade() {
+                    *thread_data.result.lock().unwrap() = Some(Ok(result));
+                    thread_data.notification.notify(location);
+                }
+            }
 
             if let Some((notifier, scope)) = scope_notify {
                 notifier.notify(location!());
@@ -461,7 +470,6 @@ where
 
     JoinHandleInner {
         data: thread_data,
-        notify,
         thread: Thread {
             id: ThreadId { id },
             name,
@@ -473,6 +481,7 @@ where
 #[derive(Debug)]
 struct ThreadData<'scope, T> {
     result: Mutex<Option<std::thread::Result<T>>>,
+    notification: rt::Notify,
     _marker: PhantomData<Option<&'scope ScopeData>>,
 }
 
@@ -480,6 +489,7 @@ impl<'scope, T> ThreadData<'scope, T> {
     fn new() -> Self {
         Self {
             result: Mutex::new(None),
+            notification: rt::Notify::new(true, false),
             _marker: PhantomData,
         }
     }
@@ -487,7 +497,7 @@ impl<'scope, T> ThreadData<'scope, T> {
 
 impl<'scope, T> JoinHandleInner<'scope, T> {
     fn join(self) -> std::thread::Result<T> {
-        self.notify.wait(location!());
+        self.data.notification.wait(location!());
         self.data.result.lock().unwrap().take().unwrap()
     }
 
