@@ -227,8 +227,7 @@ impl Default for Builder {
 
 /// Run all concurrent permutations of the provided closure.
 ///
-/// Uses a default [`Builder`](crate::model::Builder) which can be affected
-/// by environment variables.
+/// Uses a default [`Builder`] which can be affected by environment variables.
 pub fn model<F>(f: F)
 where
     F: Fn() + Sync + Send + 'static,
