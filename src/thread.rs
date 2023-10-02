@@ -43,7 +43,7 @@ impl Thread {
     /// Atomically makes the handle's token available if it is not already.
     ///
     /// Every thread is equipped with some basic low-level blocking support, via
-    /// the [`park`][park] function and the `unpark()` method. These can be
+    /// the [`park`] function and the `unpark()` method. These can be
     /// used as a more CPU-efficient implementation of a spinlock.
     ///
     /// See the [park documentation][park] for more details.

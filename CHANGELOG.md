@@ -1,3 +1,11 @@
+# 0.7.1 (October 2, 2023)
+
+### Added
+
+- Add `Atomic*::into_inner` (#327)
+- Add `get_mut` to `Mutex` and `RwLock` (#322)
+- Implement `AsRef` and `Borrow` for `Arc` (#325)
+
 # 0.7.0 (August 4, 2023)
 
 ### Added
@@ -30,8 +38,8 @@
 ### Added
 
 - cell: add `UnsafeCell::into_inner` for parity with `std` (#272)
-- sync: re-enable `Arc::strong_count` (#172) 
-- sync: implement `Arc::try_unwrap` (#262) 
+- sync: re-enable `Arc::strong_count` (#172)
+- sync: implement `Arc::try_unwrap` (#262)
 - sync: add `mpsc::Receiver::try_recv` (#262)
 
 ### Documented
@@ -72,7 +80,7 @@
 
 - Improve error message when execution state is unavailable (such as when
   running outside of `loom::model`) (#242)
-  
+
 # 0.5.3 (November 23, 2021)
 
 ### Added
