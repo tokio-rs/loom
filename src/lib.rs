@@ -97,7 +97,7 @@
 //!
 //! # Writing tests
 //!
-//! Test cases using loom must be fully determinstic. All sources of non-determism must be via loom
+//! Test cases using loom must be fully deterministic. All sources of non-determism must be via loom
 //! types so that loom can expose different possible values on each execution of the test closure.
 //! Other sources of non-determinism like random number generation or system calls cannot be
 //! modeled directly by loom, and must be mocked to be testable by loom.
