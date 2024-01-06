@@ -28,7 +28,7 @@ jobs:
     - name: Install Rust
       run: rustup update stable && rustup default stable
     - name: Check formatting
-      run: cargo fmt --all -- --check
+      run: cargo fmt --all --check
 
   # This represents the minimum Rust version supported by
   # Loom. Updating this should be done in a dedicated PR.
