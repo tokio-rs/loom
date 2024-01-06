@@ -40,10 +40,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Rust
-        run: rustup update 1.65.0 && rustup default 1.65.0
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
       - name: Check
-        run: cargo check --all-features
+        run: cargo hack check --all-features --rust-version
 
   # Minimal dependency versions
   minimal-dependency-versions:
