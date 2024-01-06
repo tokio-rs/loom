@@ -7,6 +7,8 @@ on:
   push:
     branches:
       - master
+  schedule:
+    - cron: '0 2 * * 0'
 
 env:
   RUSTFLAGS: -Dwarnings
@@ -22,11 +24,11 @@ jobs:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install Rust
       run: rustup update stable && rustup default stable
     - name: Check formatting
-      run: cargo fmt --all -- --check
+      run: cargo fmt --all --check
 
   # This represents the minimum Rust version supported by
   # Loom. Updating this should be done in a dedicated PR.
@@ -37,18 +39,18 @@ jobs:
     name: minrust
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Install Rust
-        run: rustup update 1.65.0 && rustup default 1.65.0
+      - uses: actions/checkout@v4
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
       - name: Check
-        run: cargo check --all-features
+        run: cargo hack check --all-features --rust-version
 
   # Minimal dependency versions
   minimal-dependency-versions:
     name: minimal dependency versions
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Rust
         run: rustup update stable && rustup default stable
       - name: Install nightly Rust
@@ -67,7 +69,7 @@ jobs:
     name: stable
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Rust
         run: rustup update stable && rustup default stable
       - name: Test
@@ -82,7 +84,7 @@ jobs:
     name: build docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Rust
         run: rustup update nightly && rustup default nightly
       - name: cargo doc
