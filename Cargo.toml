@@ -3,6 +3,7 @@ name = "loom"
 # When releasing to crates.io:
 # - Update version number
 #   - README.md
+#   - src/lib.rs
 # - Update CHANGELOG.md
 # - Create git tag
 version = "0.7.1"
