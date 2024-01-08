@@ -38,6 +38,7 @@ pin-utils = { version = "0.1.0", optional = true }
 
 tracing = "0.1.27"
 tracing-subscriber = { version = "0.3.8", features = ["env-filter"] }
+rand = "0.8.5"
 
 [dev-dependencies]
 futures-util = "0.3.0"

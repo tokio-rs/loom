@@ -47,6 +47,9 @@ pub(crate) use self::rwlock::RwLock;
 mod scheduler;
 pub(crate) use self::scheduler::Scheduler;
 
+mod pos_execution;
+pub(crate) use self::pos_execution::PosExecution;
+
 mod synchronize;
 pub(crate) use self::synchronize::Synchronize;
 

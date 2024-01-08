@@ -233,7 +233,7 @@ where
     F: Fn() + Sync + Send + 'static,
 {
     let subscriber = fmt::Subscriber::builder()
-        .with_env_filter(EnvFilter::from_env("LOOM_LOG"))
+        // .with_env_filter(EnvFilter::from_env("LOOM_LOG"))
         .with_test_writer()
         .without_time()
         .finish();
