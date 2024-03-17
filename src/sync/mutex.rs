@@ -5,14 +5,14 @@ use std::sync::{LockResult, TryLockError, TryLockResult};
 
 /// Mock implementation of `std::sync::Mutex`.
 #[derive(Debug)]
-pub struct Mutex<T> {
+pub struct Mutex<T: ?Sized> {
     object: rt::Mutex,
     data: std::sync::Mutex<T>,
 }
 
 /// Mock implementation of `std::sync::MutexGuard`.
 #[derive(Debug)]
-pub struct MutexGuard<'a, T> {
+pub struct MutexGuard<'a, T: ?Sized> {
     lock: &'a Mutex<T>,
     data: Option<std::sync::MutexGuard<'a, T>>,
 }
@@ -25,9 +25,14 @@ impl<T> Mutex<T> {
             object: rt::Mutex::new(true),
         }
     }
+
+    /// Consumes this mutex, returning the underlying data.
+    pub fn into_inner(self) -> LockResult<T> {
+        Ok(self.data.into_inner().unwrap())
+    }
 }
 
-impl<T> Mutex<T> {
+impl<T: ?Sized> Mutex<T> {
     /// Acquires a mutex, blocking the current thread until it is able to do so.
     #[track_caller]
     pub fn lock(&self) -> LockResult<MutexGuard<'_, T>> {
@@ -62,11 +67,6 @@ impl<T> Mutex<T> {
     pub fn get_mut(&mut self) -> LockResult<&mut T> {
         Ok(self.data.get_mut().unwrap())
     }
-
-    /// Consumes this mutex, returning the underlying data.
-    pub fn into_inner(self) -> LockResult<T> {
-        Ok(self.data.into_inner().unwrap())
-    }
 }
 
 impl<T: ?Sized + Default> Default for Mutex<T> {
@@ -84,7 +84,7 @@ impl<T> From<T> for Mutex<T> {
     }
 }
 
-impl<'a, T: 'a> MutexGuard<'a, T> {
+impl<'a, T: ?Sized + 'a> MutexGuard<'a, T> {
     pub(super) fn unborrow(&mut self) {
         self.data = None;
     }
@@ -98,7 +98,7 @@ impl<'a, T: 'a> MutexGuard<'a, T> {
     }
 }
 
-impl<'a, T> ops::Deref for MutexGuard<'a, T> {
+impl<'a, T: ?Sized> ops::Deref for MutexGuard<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -106,13 +106,13 @@ impl<'a, T> ops::Deref for MutexGuard<'a, T> {
     }
 }
 
-impl<'a, T> ops::DerefMut for MutexGuard<'a, T> {
+impl<'a, T: ?Sized> ops::DerefMut for MutexGuard<'a, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.data.as_mut().unwrap().deref_mut()
     }
 }
 
-impl<'a, T: 'a> Drop for MutexGuard<'a, T> {
+impl<'a, T: ?Sized + 'a> Drop for MutexGuard<'a, T> {
     fn drop(&mut self) {
         self.data = None;
         self.lock.object.release_lock();
