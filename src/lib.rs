@@ -371,6 +371,7 @@ pub use rt::{explore, skip_branch, stop_exploring};
 pub use rt::MAX_THREADS;
 
 pub mod alloc;
+pub mod boxed;
 pub mod cell;
 pub mod hint;
 pub mod lazy_static;
