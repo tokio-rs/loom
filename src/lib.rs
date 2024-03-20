@@ -461,7 +461,7 @@ macro_rules! __lazy_static_internal {
                     static LAZY: $crate::lazy_static::Lazy<$T> =
                         $crate::lazy_static::Lazy {
                             init: __static_ref_initialize,
-                            _p: std::marker::PhantomData,
+                            _p: core::marker::PhantomData,
                         };
                     LAZY.get()
                 }
