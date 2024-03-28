@@ -67,6 +67,12 @@ impl<T> Cell<T> {
     {
         self.replace(T::default())
     }
+
+    /// Unwraps the value, consuming the cell.
+    #[track_caller]
+    pub fn into_inner(self) -> T {
+        self.cell.into_inner()
+    }
 }
 
 impl<T: Default> Default for Cell<T> {
