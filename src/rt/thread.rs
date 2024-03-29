@@ -76,7 +76,7 @@ impl Id {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum State {
     Runnable { unparked: bool },
-    Blocked(Location),
+    Blocked(#[allow(dead_code)] Location),
     Yield,
     Terminated,
 }
