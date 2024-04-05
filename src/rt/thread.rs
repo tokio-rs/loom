@@ -20,7 +20,7 @@ pub(crate) struct Thread {
     /// Tracks observed causality
     pub causality: VersionVec,
 
-    /// Tracks the the view of the lastest release fence
+    /// Tracks the view of the lastest release fence
     pub released: VersionVec,
 
     /// Tracks DPOR relations
