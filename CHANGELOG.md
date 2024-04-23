@@ -1,3 +1,22 @@
+# 0.7.2
+
+This release bumps the MSRV to 1.65. (#332)
+
+### Added
+
+ - Add `Cell::into_inner` (#341)
+
+### Changed
+
+ - Update generator to 0.8.1 (#338)
+
+### Fixed
+
+ - Disable default features of tracing (#343)
+ - Fix typo (#344)
+ - Use `core::` instead of `std::` in `lazy_static!` macro (#340)
+ - Allow Mutex to work with `?Sized` types (#339)
+
 # 0.7.1 (October 2, 2023)
 
 ### Added
