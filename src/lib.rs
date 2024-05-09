@@ -396,6 +396,17 @@ macro_rules! thread_local {
     // empty (base case for the recursion)
     () => {};
 
+    // handle multiple declarations with const block
+    ($(#[$attr:meta])* $vis:vis static $name:ident: $t:ty = const $init:block; $($rest:tt)*) => (
+        $crate::__thread_local_inner!($(#[$attr])* $vis $name, $t, const $init);
+        $crate::thread_local!($($rest)*);
+    );
+
+    // handle a single declaration with const block
+    ($(#[$attr:meta])* $vis:vis static $name:ident: $t:ty = const $init:block) => (
+        $crate::__thread_local_inner!($(#[$attr])* $vis $name, $t, const $init);
+    );
+
     // process multiple declarations
     ($(#[$attr:meta])* $vis:vis static $name:ident: $t:ty = $init:expr; $($rest:tt)*) => (
         $crate::__thread_local_inner!($(#[$attr])* $vis $name, $t, $init);
@@ -427,6 +438,13 @@ macro_rules! lazy_static {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __thread_local_inner {
+    ($(#[$attr:meta])* $vis:vis $name:ident, $t:ty, const $init:block) => {
+        $(#[$attr])* $vis static $name: $crate::thread::LocalKey<$t> =
+            $crate::thread::LocalKey {
+                init: (|| { const $init }) as fn() -> $t,
+                _p: std::marker::PhantomData,
+            };
+    };
     ($(#[$attr:meta])* $vis:vis $name:ident, $t:ty, $init:expr) => {
         $(#[$attr])* $vis static $name: $crate::thread::LocalKey<$t> =
             $crate::thread::LocalKey {
