@@ -69,9 +69,7 @@ impl<T> Arc<T> {
             (obj, value)
         };
 
-        obj.ref_dec(location!());
-
-        if std::sync::Arc::into_inner(obj).is_some() {
+        if obj.ref_dec(location!()) {
             // unregister
             rt::execution(|e| {
                 e.arc_objs
