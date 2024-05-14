@@ -60,9 +60,6 @@ impl<T> Arc<T> {
     pub fn into_inner(this: Arc<T>) -> Option<T> {
         // work around our inability to destruct the object normally,
         // because of the `Drop` presense.
-        this.obj.ref_dec(location!());
-        this.unregister();
-
         let (obj, value) = unsafe {
             let obj = ptr::read(&this.obj);
             let value = ptr::read(&this.value);
@@ -72,8 +69,19 @@ impl<T> Arc<T> {
             (obj, value)
         };
 
-        let _ = std::sync::Arc::into_inner(obj);
-        std::sync::Arc::into_inner(value)
+        obj.ref_dec(location!());
+
+        if std::sync::Arc::into_inner(obj).is_some() {
+            // unregister
+            rt::execution(|e| {
+                e.arc_objs
+                    .remove(&std::sync::Arc::as_ptr(&value).cast())
+                    .expect("Arc object was removed before dropping last Arc");
+            });
+            Some(std::sync::Arc::into_inner(value).unwrap())
+        } else {
+            None
+        }
     }
 }
 
