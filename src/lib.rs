@@ -208,14 +208,14 @@
 //!
 //! ```console
 //! LOOM_CHECKPOINT_FILE=my_test.json [other env vars] \
-//!     cargo test --test loom_my_struct --release [failing test]
+//!     cargo test --test loom_my_struct --features checkpoint --release [failing test]
 //! ```
 //!
 //! Then this to check that the next permutation indeed triggers the fault:
 //!
 //! ```console
 //! LOOM_CHECKPOINT_INTERVAL=1 LOOM_CHECKPOINT_FILE=my_test.json [other env vars] \
-//!     cargo test --test loom_my_struct --release [failing test]
+//!     cargo test --test loom_my_struct --features checkpoint --release [failing test]
 //! ```
 //!
 //! The test should fail on the first permutation, effectively isolating the failure
@@ -242,7 +242,7 @@
 //!     LOOM_CHECKPOINT_FILE=my_test.json \
 //!     RUSTFLAGS="--cfg loom" \
 //!     [other env vars] \
-//!     cargo test --test loom_my_struct --release [failing test]
+//!     cargo test --test loom_my_struct --features checkpoint --release [failing test]
 //! ```
 //!
 //! This should provide you with a trace of all the concurrency events leading up to the failure,
