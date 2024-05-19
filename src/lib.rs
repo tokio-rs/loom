@@ -279,7 +279,7 @@
 //! an exhaustive check, and instead tell loom to prune out interleavings that are unlikely to
 //! reveal additional bugs. You do this by providing loom with a _thread pre-emption bound_. If you
 //! set such a bound, loom will check all possible executions that include **at most** `n` thread
-//! pre-emptions (where one thread is forcibly stopped and another one runs in its place. **In
+//! pre-emptions where one thread is forcibly stopped and another one runs in its place. **In
 //! practice, setting the thread pre-emption bound to 2 or 3 is enough to catch most bugs** while
 //! significantly reducing the number of possible executions.
 //!
