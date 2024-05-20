@@ -153,7 +153,7 @@ where
 /// Using this as a hint might be necessary to reduce the number of branches
 /// being investigated by loom. This might be necessary when testing spin locks,
 /// since each iteration constitutes a branch point which might easily cause a
-/// combinatorical expansion.
+/// combinatorial explosion.
 ///
 /// Note that in loom, [`spin_loop`] and [`spin_loop_hint`] is an alias of this
 /// function.
@@ -228,6 +228,7 @@ where
 ///         });
 ///
 ///         v1.lock();
+///         // critical section.
 ///         v1.unlock();
 ///
 ///         t1.join().unwrap();
