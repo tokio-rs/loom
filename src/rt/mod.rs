@@ -216,6 +216,9 @@ where
 ///     }
 /// }
 ///
+/// # /*
+/// #[test]
+/// # */
 /// fn test_concurrent_logic() {
 ///     loom::model(|| {
 ///         let v1 = Arc::new(Lock::new());
