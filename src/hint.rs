@@ -20,7 +20,7 @@ pub fn spin_loop() {
 /// simulated version of [`std::hint::unreachable_unchecked`], which is unsafe.
 ///
 /// See [the documentation for
-/// `std::hint::unreachable_unchecked`](`std::hint::unreachable_unchecked#Safety)
+/// `std::hint::unreachable_unchecked`](std::hint::unreachable_unchecked#Safety)
 /// for safety details.
 #[track_caller]
 pub unsafe fn unreachable_unchecked() -> ! {
