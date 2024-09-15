@@ -16,7 +16,7 @@ repository = "https://github.com/tokio-rs/loom"
 readme = "README.md"
 keywords = ["atomic", "lock-free"]
 categories = ["concurrency", "data-structures"]
-rust-version = "1.77"
+rust-version = "1.73"
 
 [features]
 default = []
@@ -46,3 +46,6 @@ futures-util = "0.3.0"
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[patch.crates-io]
+generator = { git = "https://github.com/taiki-e/generator-rs.git", branch = "msrv" }
