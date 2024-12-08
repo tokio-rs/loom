@@ -46,6 +46,3 @@ futures-util = "0.3.0"
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
-
-[patch.crates-io]
-generator = { git = "https://github.com/taiki-e/generator-rs.git", branch = "msrv" }
