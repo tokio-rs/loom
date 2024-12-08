@@ -199,7 +199,7 @@ impl<T> Store<T> {
             })
     }
 
-    pub(super) fn iter_mut<'a, O>(&'a mut self) -> impl DoubleEndedIterator<Item = &mut O>
+    pub(super) fn iter_mut<'a, O>(&'a mut self) -> impl DoubleEndedIterator<Item = &'a mut O>
     where
         O: Object<Entry = T> + 'a,
     {

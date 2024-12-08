@@ -280,7 +280,7 @@ impl<T: 'static> LocalKey<T> {
         Ok(f(value))
     }
 
-    unsafe fn get(&'static self) -> Option<Result<&T, AccessError>> {
+    unsafe fn get(&'static self) -> Option<Result<&'static T, AccessError>> {
         unsafe fn transmute_lt<'a, 'b, T>(t: &'a T) -> &'b T {
             std::mem::transmute::<&'a T, &'b T>(t)
         }

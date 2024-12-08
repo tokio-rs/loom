@@ -16,7 +16,7 @@ repository = "https://github.com/tokio-rs/loom"
 readme = "README.md"
 keywords = ["atomic", "lock-free"]
 categories = ["concurrency", "data-structures"]
-rust-version = "1.65"
+rust-version = "1.73"
 
 [features]
 default = []
@@ -31,7 +31,7 @@ scoped-tls = "1.0.0"
 generator = "0.8.1"
 
 # Requires for "checkpoint" feature
-serde = { version = "1.0.92", features = ["derive"], optional = true }
+serde = { version = "1.0.113", features = ["derive"], optional = true }
 serde_json = { version = "1.0.33", optional = true }
 
 # Requires for "futures" feature
