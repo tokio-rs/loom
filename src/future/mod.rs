@@ -7,9 +7,9 @@ pub use self::atomic_waker::AtomicWaker;
 use crate::rt;
 use crate::sync::Arc;
 
-use pin_utils::pin_mut;
 use std::future::Future;
 use std::mem;
+use std::pin::pin;
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
 /// Block the current thread, driving `f` to completion.
@@ -18,7 +18,7 @@ pub fn block_on<F>(f: F) -> F::Output
 where
     F: Future,
 {
-    pin_mut!(f);
+    let mut f = pin!(f);
 
     let notify = Arc::new(rt::Notify::new(false, true));
 
