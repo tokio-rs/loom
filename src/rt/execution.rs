@@ -2,7 +2,6 @@ use crate::rt::alloc::Allocation;
 use crate::rt::{lazy_static, object, thread, Path};
 
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::fmt;
 
 use tracing::info;
