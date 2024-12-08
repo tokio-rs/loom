@@ -89,24 +89,16 @@ impl PanicBuilder {
     pub(super) fn fire(&self) {
         let mut msg = self.msg.clone();
 
-        let width = self
-            .locations
-            .iter()
-            .filter(|(_, _, location)| location.is_captured())
-            .map(|(key, ..)| key.len())
-            .max();
+        let width = self.locations.iter().map(|(key, ..)| key.len()).max();
 
         if let Some(width) = width {
             msg = format!("\n{}", msg);
             for (key, thread, location) in &self.locations {
-                if !location.is_captured() {
-                    continue;
-                }
-                let spaces: String = (0..width - key.len()).map(|_| " ").collect();
+                let spaces: String = (key.len()..width).map(|_| " ").collect();
 
                 let th = thread
                     .map(|th| format!("thread #{} @ ", th))
-                    .unwrap_or_else(String::new);
+                    .unwrap_or_default();
 
                 msg.push_str(&format!("\n    {}{}: {}{}", spaces, key, th, location));
             }
