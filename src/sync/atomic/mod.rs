@@ -11,7 +11,7 @@ mod int;
 pub use self::int::{AtomicI16, AtomicI32, AtomicI8, AtomicIsize};
 pub use self::int::{AtomicU16, AtomicU32, AtomicU8, AtomicUsize};
 
-#[cfg(target_pointer_width = "64")]
+#[cfg(target_has_atomic = "64")]
 pub use self::int::{AtomicI64, AtomicU64};
 
 mod ptr;
