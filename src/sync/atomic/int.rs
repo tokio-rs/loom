@@ -190,8 +190,8 @@ atomic_int!(AtomicI16, i16);
 atomic_int!(AtomicI32, i32);
 atomic_int!(AtomicIsize, isize);
 
-#[cfg(target_pointer_width = "64")]
+#[cfg(target_has_atomic = "64")]
 atomic_int!(AtomicU64, u64);
 
-#[cfg(target_pointer_width = "64")]
+#[cfg(target_has_atomic = "64")]
 atomic_int!(AtomicI64, i64);
