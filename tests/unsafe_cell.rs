@@ -60,8 +60,11 @@ fn atomic_causality_success() {
     });
 }
 
+// This test is ignored because it causes an abort because of a double panic.
+// More discussion at https://github.com/tokio-rs/loom/issues/350 .
 #[test]
 #[should_panic]
+#[ignore]
 fn atomic_causality_fail() {
     struct Chan {
         data: UnsafeCell<usize>,
@@ -331,5 +334,27 @@ fn unsafe_cell_access_after_sync() {
         if 1 == s2.0.load(Acquire) {
             s2.1.with_mut(|ptr| unsafe { *ptr = 2 });
         }
+    });
+}
+
+#[test]
+#[should_panic]
+fn unsafe_cell_access_during_drop() {
+    loom::model(|| {
+        let x = UnsafeCell::new(());
+        let _guard = x.get();
+        drop(x);
+    });
+}
+
+// Unfortunately we cannot repeat the previous test with `into_inner` instead of
+// Drop because it leads to a second panic when UnsafeCell::drop runs and guard
+// is still alive. The second panic leads to an abort.
+
+#[test]
+fn unsafe_cell_into_inner_ok() {
+    loom::model(|| {
+        let x = UnsafeCell::new(0usize);
+        x.into_inner();
     });
 }
