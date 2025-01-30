@@ -104,7 +104,7 @@ pub struct MutPtr<T: ?Sized> {
 impl<T> UnsafeCell<T> {
     /// Constructs a new instance of `UnsafeCell` which will wrap the specified value.
     #[track_caller]
-    pub fn new(data: T) -> UnsafeCell<T> {
+    pub const fn new(data: T) -> UnsafeCell<T> {
         let state = rt::Cell::new(location!());
 
         UnsafeCell {
