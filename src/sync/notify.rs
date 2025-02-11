@@ -7,6 +7,7 @@ use std::sync::atomic::Ordering::SeqCst;
 /// primitives.
 ///
 /// Notification establishes an acquire / release synchronization point.
+/// Only one thread may wait on each `Notify` at a time.
 ///
 /// Using this type is useful to mock out constructs when using loom tests.
 #[derive(Debug)]
@@ -26,13 +27,16 @@ impl Notify {
         }
     }
 
-    /// Notify the waiter
+    /// Notify the waiter.
     #[track_caller]
     pub fn notify(&self) {
         self.object.notify(location!());
     }
 
-    /// Wait for a notification
+    /// Wait for a notification.
+    ///
+    /// # Panics
+    /// Panics if multiple threads try to wait on the same `Notify` simultaneously.
     #[track_caller]
     pub fn wait(&self) {
         self.waiting
