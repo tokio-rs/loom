@@ -96,9 +96,24 @@ pub struct ConstPtr<T: ?Sized> {
 /// [here]: #correct-usage
 #[derive(Debug)]
 pub struct MutPtr<T: ?Sized> {
-    /// Drop guard representing the lifetime of the `ConstPtr`'s access.
+    /// Drop guard representing the lifetime of the `MutPtr`'s access.
     _guard: rt::cell::Writing,
     ptr: *mut T,
+}
+
+/// A checked mutable reference to an [`UnsafeCell`].
+///
+/// This type is essentially a [`&mut T`], but with the added ability to
+/// participate in Loom's [`UnsafeCell`] access tracking. While a `MutRef` to a
+/// given [`UnsafeCell`] exists, Loom will track that the [`UnsafeCell`] is
+/// being accessed mutably.
+///
+/// [`MutRef`]s are produced by [`UnsafeCell::as_mut`].
+#[derive(Debug)]
+pub struct MutRef<'a, T: ?Sized> {
+    /// Drop guard representing the lifetime of the `MutRef`'s access.
+    _guard: rt::cell::Writing,
+    ptr: &'a mut T,
 }
 
 impl<T> UnsafeCell<T> {
@@ -198,6 +213,21 @@ impl<T: ?Sized> UnsafeCell<T> {
         MutPtr {
             _guard: self.state.start_write(location!()),
             ptr: self.data.get(),
+        }
+    }
+
+    /// Get a mutable reference to the wrapped value.
+    ///
+    /// This function returns a [`MutRef`] guard, which is analogous to a
+    /// `&mut T`, but tracked by Loom. As long as the returned `MutRef`
+    /// exists, Loom will consider the cell to be accessed mutably.
+    ///
+    /// This is analogous to [`core::cell::UnsafeCell::get_mut`].
+    #[track_caller]
+    pub fn as_mut(&mut self) -> MutRef<'_, T> {
+        MutRef {
+            _guard: self.state.start_write(location!()),
+            ptr: self.data.get_mut(),
         }
     }
 }
@@ -379,6 +409,20 @@ impl<T: ?Sized> ConstPtr<T> {
         F: FnOnce(*const T) -> R,
     {
         f(self.ptr)
+    }
+}
+
+impl<T: ?Sized> core::ops::Deref for MutRef<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.ptr
+    }
+}
+
+impl<T: ?Sized> core::ops::DerefMut for MutRef<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.ptr
     }
 }
 
