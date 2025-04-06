@@ -8,7 +8,7 @@ techniques][cdschecker] to avoid combinatorial explosion.
 [![Crates.io](https://img.shields.io/crates/v/loom.svg)](https://crates.io/crates/loom)
 [![Documentation](https://docs.rs/loom/badge.svg)][docs]
 [![Build Status](https://github.com/tokio-rs/loom/actions/workflows/ci.yml/badge.svg)](https://github.com/tokio-rs/loom/actions)
-[![Discord chat](https://img.shields.io/discord/500028886025895936.svg?logo=discord&style=flat-square)](https://discord.com/channels/500028886025895936/628283088555737089)
+[![Discord chat](https://img.shields.io/discord/500028886025895936.svg?logo=discord&style=flat-square)](https://discord.com/invite/tokio)
 
 [docs]: https://docs.rs/loom
 [spec]: https://en.cppreference.com/w/cpp/atomic/memory_order
