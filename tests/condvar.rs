@@ -80,3 +80,25 @@ impl Inc {
         self.condvar.notify_all();
     }
 }
+
+#[test]
+fn wait_while() {
+    loom::model(|| {
+        let pair = Arc::new((Mutex::new(true), Condvar::new()));
+        let pair_2 = Arc::clone(&pair);
+
+        thread::spawn(move || {
+            let (lock, cvar) = &*pair_2;
+            let mut pending = lock.lock().unwrap();
+            *pending = false;
+            cvar.notify_one();
+        });
+
+        let (lock, cvar) = &*pair;
+        let guard = cvar
+            .wait_while(lock.lock().unwrap(), |pending| *pending)
+            .unwrap();
+
+        assert_eq!(*guard, false);
+    });
+}
