@@ -79,11 +79,17 @@ impl RwLock {
     }
 
     pub(crate) fn try_acquire_read_lock(&self, location: Location) -> bool {
+        if self.is_write_locked() {
+            return false;
+        }
         self.state.branch_action(Action::Read, location);
         self.post_acquire_read_lock()
     }
 
     pub(crate) fn try_acquire_write_lock(&self, location: Location) -> bool {
+        if self.is_write_locked() || self.is_read_locked() {
+            return false;
+        }
         self.state.branch_action(Action::Write, location);
         self.post_acquire_write_lock()
     }
