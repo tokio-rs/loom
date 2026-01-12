@@ -1,25 +1,24 @@
 use crate::rt;
 
+use core::fmt;
 use std::ops;
 use std::sync::{LockResult, TryLockError, TryLockResult};
 
 /// Mock implementation of `std::sync::RwLock`
 #[derive(Debug)]
-pub struct RwLock<T> {
+pub struct RwLock<T: ?Sized> {
     object: rt::RwLock,
     data: std::sync::RwLock<T>,
 }
 
 /// Mock implementation of `std::sync::RwLockReadGuard`
-#[derive(Debug)]
-pub struct RwLockReadGuard<'a, T> {
+pub struct RwLockReadGuard<'a, T: ?Sized> {
     lock: &'a RwLock<T>,
     data: Option<std::sync::RwLockReadGuard<'a, T>>,
 }
 
 /// Mock implementation of `std::sync::rwLockWriteGuard`
-#[derive(Debug)]
-pub struct RwLockWriteGuard<'a, T> {
+pub struct RwLockWriteGuard<'a, T: ?Sized> {
     lock: &'a RwLock<T>,
     /// `data` is an Option so that the Drop impl can drop the std guard and release the std lock
     /// before releasing the loom mock lock, as that might cause another thread to acquire the lock
@@ -35,6 +34,13 @@ impl<T> RwLock<T> {
         }
     }
 
+    /// Consumes this `RwLock`, returning the underlying data.
+    pub fn into_inner(self) -> LockResult<T> {
+        Ok(self.data.into_inner().expect("loom::RwLock state corrupt"))
+    }
+}
+
+impl<T: ?Sized> RwLock<T> {
     /// Locks this rwlock with shared read access, blocking the current
     /// thread until it can be acquired.
     ///
@@ -110,11 +116,6 @@ impl<T> RwLock<T> {
     pub fn get_mut(&mut self) -> LockResult<&mut T> {
         Ok(self.data.get_mut().expect("loom::RwLock state corrupt"))
     }
-
-    /// Consumes this `RwLock`, returning the underlying data.
-    pub fn into_inner(self) -> LockResult<T> {
-        Ok(self.data.into_inner().expect("loom::RwLock state corrupt"))
-    }
 }
 
 impl<T: Default> Default for RwLock<T> {
@@ -132,7 +133,13 @@ impl<T> From<T> for RwLock<T> {
     }
 }
 
-impl<'a, T> ops::Deref for RwLockReadGuard<'a, T> {
+impl<T: fmt::Debug> fmt::Debug for RwLockReadGuard<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        (**self).fmt(f)
+    }
+}
+
+impl<'a, T: ?Sized> ops::Deref for RwLockReadGuard<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -140,14 +147,20 @@ impl<'a, T> ops::Deref for RwLockReadGuard<'a, T> {
     }
 }
 
-impl<'a, T: 'a> Drop for RwLockReadGuard<'a, T> {
+impl<'a, T: ?Sized + 'a> Drop for RwLockReadGuard<'a, T> {
     fn drop(&mut self) {
         self.data = None;
         self.lock.object.release_read_lock()
     }
 }
 
-impl<'a, T> ops::Deref for RwLockWriteGuard<'a, T> {
+impl<T: fmt::Debug> fmt::Debug for RwLockWriteGuard<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        (**self).fmt(f)
+    }
+}
+
+impl<'a, T: ?Sized> ops::Deref for RwLockWriteGuard<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -155,13 +168,13 @@ impl<'a, T> ops::Deref for RwLockWriteGuard<'a, T> {
     }
 }
 
-impl<'a, T> ops::DerefMut for RwLockWriteGuard<'a, T> {
+impl<'a, T: ?Sized> ops::DerefMut for RwLockWriteGuard<'a, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.data.as_mut().unwrap().deref_mut()
     }
 }
 
-impl<'a, T: 'a> Drop for RwLockWriteGuard<'a, T> {
+impl<'a, T: ?Sized + 'a> Drop for RwLockWriteGuard<'a, T> {
     fn drop(&mut self) {
         self.data = None;
         self.lock.object.release_write_lock()
