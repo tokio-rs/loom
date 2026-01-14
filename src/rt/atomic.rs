@@ -118,6 +118,12 @@ pub(super) struct State {
     /// Last time the atomic was accessed for a store or rmw operation.
     last_non_load_access: Option<Access>,
 
+    /// Last time the atomic was accessed using an RMW access that did not fail.
+    ///
+    /// This is used for applying the RMW atomicity constraint to other stores
+    /// (so they don't squeeze in between the read and write part of the RMW).
+    last_successful_rmw: VersionVec,
+
     /// Currently tracked stored values. This is the `MAX_ATOMIC_HISTORY` most
     /// recent stores to the atomic cell in loom execution order.
     stores: [Store; MAX_ATOMIC_HISTORY],
@@ -413,6 +419,7 @@ impl State {
             is_mutating: false,
             last_access: None,
             last_non_load_access: None,
+            last_successful_rmw: VersionVec::new(),
             stores: Default::default(),
             cnt: 0,
         };
@@ -482,6 +489,9 @@ impl State {
             }
         }
 
+        // RMW Atomicity.
+        modification_order.join(&self.last_successful_rmw);
+
         sync.sync_store(threads, ordering);
 
         let mut first_seen = FirstSeen::new();
@@ -535,6 +545,10 @@ impl State {
                 let sync = self.stores[index].sync;
                 self.store(threads, sync, next, success);
 
+                // RMW Atomicity. Future stores must happen after this, because we
+                // already observed a value.
+                self.last_successful_rmw.join(&threads.active().causality);
+
                 Ok(prev)
             }
             Err(e) => {
@@ -546,7 +560,7 @@ impl State {
 
     fn apply_load_coherence(&mut self, threads: &mut thread::Set, index: usize) {
         for i in 0..self.stores.len() {
-            // Skip if the is current.
+            // Skip if it is the current load.
             if index == i {
                 continue;
             }
@@ -730,18 +744,9 @@ impl State {
         //
         // Add all stores **unless** a newer store has already been seen by the
         // current thread's causality.
-        'outer: for i in 0..self.stores.len() {
-            let store_i = &self.stores[i];
-
-            if i >= cnt {
-                // Not a real store
-                continue;
-            }
-
-            for j in 0..self.stores.len() {
-                let store_j = &self.stores[j];
-
-                if i == j || j >= cnt {
+        'outer: for (i, store_i) in self.stores.iter().take(cnt).enumerate() {
+            for (j, store_j) in self.stores.iter().take(cnt).enumerate() {
+                if i == j {
                     continue;
                 }
 
@@ -784,18 +789,9 @@ impl State {
 
         // Unlike `match_load_to_stores`, rmw operations only load "newest"
         // stores, in terms of modification order.
-        'outer: for i in 0..self.stores.len() {
-            let store_i = &self.stores[i];
-
-            if i >= cnt {
-                // Not a real store
-                continue;
-            }
-
-            for j in 0..self.stores.len() {
-                let store_j = &self.stores[j];
-
-                if i == j || j >= cnt {
+        'outer: for (i, store_i) in self.stores.iter().take(cnt).enumerate() {
+            for (j, store_j) in self.stores.iter().take(cnt).enumerate() {
+                if i == j {
                     continue;
                 }
 
