@@ -9,7 +9,7 @@ use std::rc::Rc;
 use std::sync::atomic::Ordering::SeqCst;
 
 #[test]
-fn mutex_enforces_mutal_exclusion() {
+fn mutex_enforces_mutual_exclusion() {
     loom::model(|| {
         let data = Rc::new((Mutex::new(0), AtomicUsize::new(0)));
 
