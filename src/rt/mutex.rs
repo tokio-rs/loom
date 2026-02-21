@@ -47,6 +47,9 @@ impl Mutex {
     }
 
     pub(crate) fn try_acquire_lock(&self, location: Location) -> bool {
+        if self.is_locked() {
+            return false;
+        }
         self.state.branch_opaque(location);
         self.post_acquire()
     }
