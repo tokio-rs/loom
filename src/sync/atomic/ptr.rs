@@ -122,7 +122,7 @@ impl<T> AtomicPtr<T> {
     /// returning the previous pointer.
     #[track_caller]
     pub fn fetch_ptr_sub(&self, val: usize, order: Ordering) -> *mut T {
-        self.0.rmw(|ptr| ptr.wrapping_add(val), order)
+        self.0.rmw(|ptr| ptr.wrapping_sub(val), order)
     }
 
     /// Offsets the pointer's address by adding `val` *bytes*, returning the
@@ -136,7 +136,7 @@ impl<T> AtomicPtr<T> {
     /// previous pointer.
     #[track_caller]
     pub fn fetch_byte_sub(&self, val: usize, order: Ordering) -> *mut T {
-        self.0.rmw(|ptr| ptr.wrapping_byte_add(val), order)
+        self.0.rmw(|ptr| ptr.wrapping_byte_sub(val), order)
     }
 
     /// Performs a bitwise "and" operation on the address of the current
