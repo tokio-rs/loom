@@ -110,6 +110,58 @@ impl<T> AtomicPtr<T> {
     {
         self.0.fetch_update(set_order, fetch_order, f)
     }
+
+    /// Offsets the pointer's address by adding `val` (in units of `T`),
+    /// returning the previous pointer.
+    #[track_caller]
+    pub fn fetch_ptr_add(&self, val: usize, order: Ordering) -> *mut T {
+        self.0.rmw(|ptr| ptr.wrapping_add(val), order)
+    }
+
+    /// Offsets the pointer's address by subtracting `val` (in units of `T`),
+    /// returning the previous pointer.
+    #[track_caller]
+    pub fn fetch_ptr_sub(&self, val: usize, order: Ordering) -> *mut T {
+        self.0.rmw(|ptr| ptr.wrapping_add(val), order)
+    }
+
+    /// Offsets the pointer's address by adding `val` *bytes*, returning the
+    /// previous pointer.
+    #[track_caller]
+    pub fn fetch_byte_add(&self, val: usize, order: Ordering) -> *mut T {
+        self.0.rmw(|ptr| ptr.wrapping_byte_add(val), order)
+    }
+
+    /// Offsets the pointer's address by subtracting `val` *bytes*, returning the
+    /// previous pointer.
+    #[track_caller]
+    pub fn fetch_byte_sub(&self, val: usize, order: Ordering) -> *mut T {
+        self.0.rmw(|ptr| ptr.wrapping_byte_add(val), order)
+    }
+
+    /// Performs a bitwise "and" operation on the address of the current
+    /// pointer, and the argument `val`, and stores a pointer with provenance of
+    /// the current pointer and the resulting address.
+    #[track_caller]
+    pub fn fetch_and(&self, val: usize, order: Ordering) -> *mut T {
+        self.0.rmw(|ptr| ptr.map_addr(|a| a & val), order)
+    }
+
+    /// Performs a bitwise "or" operation on the address of the current pointer,
+    /// and the argument `val`, and stores a pointer with provenance of the
+    /// current pointer and the resulting address.
+    #[track_caller]
+    pub fn fetch_or(&self, val: usize, order: Ordering) -> *mut T {
+        self.0.rmw(|ptr| ptr.map_addr(|a| a | val), order)
+    }
+
+    /// Performs a bitwise "xor" operation on the address of the current pointer,
+    /// and the argument `val`, and stores a pointer with provenance of the
+    /// current pointer and the resulting address.
+    #[track_caller]
+    pub fn fetch_xor(&self, val: usize, order: Ordering) -> *mut T {
+        self.0.rmw(|ptr| ptr.map_addr(|a| a ^ val), order)
+    }
 }
 
 impl<T> Default for AtomicPtr<T> {
