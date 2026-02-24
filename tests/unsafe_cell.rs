@@ -333,3 +333,12 @@ fn unsafe_cell_access_after_sync() {
         }
     });
 }
+
+#[test]
+fn as_mut_is_ergonomical_and_safe() {
+    loom::model(|| {
+        let mut value = UnsafeCell::new(-3i32);
+        let mut mut_ref = value.as_mut();
+        *mut_ref = mut_ref.abs();
+    });
+}
