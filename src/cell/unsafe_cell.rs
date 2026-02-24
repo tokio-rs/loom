@@ -1,3 +1,5 @@
+use std::mem::ManuallyDrop;
+
 use crate::rt;
 
 /// A checked version of `std::cell::UnsafeCell`.
@@ -115,7 +117,18 @@ impl<T> UnsafeCell<T> {
 
     /// Unwraps the value.
     pub fn into_inner(self) -> T {
-        self.data.into_inner()
+        // Observe that we have mutable access.
+        self.get_mut();
+
+        // We would like to destructure self. This is not possible because of
+        // the Drop implementation. Work around it using unsafe. Note that we
+        // extract `self.state` even though we don't use it. This prevents it
+        // from leaking.
+        let self_ = ManuallyDrop::new(self);
+        let _state = unsafe { std::ptr::read(&self_.state) };
+        let data = unsafe { std::ptr::read(&self_.data) };
+
+        data.into_inner()
     }
 }
 
@@ -211,6 +224,13 @@ impl<T: Default> Default for UnsafeCell<T> {
 impl<T> From<T> for UnsafeCell<T> {
     fn from(src: T) -> UnsafeCell<T> {
         UnsafeCell::new(src)
+    }
+}
+
+impl<T: ?Sized> Drop for UnsafeCell<T> {
+    fn drop(&mut self) {
+        // Observe that we have mutable access.
+        self.get_mut();
     }
 }
 
