@@ -6,6 +6,7 @@ use loom::sync::Mutex;
 use loom::thread;
 
 use std::rc::Rc;
+use std::sync::TryLockError;
 use std::sync::atomic::Ordering::SeqCst;
 
 #[test]
@@ -90,4 +91,18 @@ fn mutex_into_inner() {
         let lock = Rc::try_unwrap(lock).unwrap().into_inner().unwrap();
         assert_eq!(lock, 2);
     })
+}
+
+#[test]
+fn mutex_try_lock_would_block() {
+    loom::model(|| {
+        let lock = Mutex::new(0);
+
+        let _guard = lock.lock().unwrap();
+
+        assert!(matches!(
+            lock.try_lock(),
+            Err(TryLockError::WouldBlock)
+        ));
+    });
 }

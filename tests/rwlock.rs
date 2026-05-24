@@ -94,7 +94,7 @@ fn rwlock_read_then_try_write() {
     loom::model(|| {
         let lock = Arc::new(RwLock::new(1));
 
-        let _l1 = lock.write().unwrap();
+        let _l1 = lock.read().unwrap();
 
         assert!(matches!(
             lock.try_write(),
@@ -135,7 +135,10 @@ fn rwlock_try_write() {
         let n = lock.read().unwrap();
         assert_eq!(*n, 1);
 
-        assert!(lock.try_write().is_err());
+        assert!(matches!(
+            lock.try_write(),
+            TryLockResult::Err(TryLockError::WouldBlock)
+        ));
     });
 }
 
