@@ -36,6 +36,21 @@ pub struct Builder {
     /// Defaults to `LOOM_MAX_DURATION` environment variable.
     pub max_duration: Option<Duration>,
 
+    /// Default stack size.
+    ///
+    /// This applies to the main thread and any spawned threads.
+    /// [`crate::thread::Builder`] can override this.
+    ///
+    /// This should be kept low but may need to be increased if encountering a
+    /// stack overflow error:
+    ///
+    /// > coroutine in thread '[...]' has overflowed its stack
+    ///
+    /// Defaults to `LOOM_STACK_SIZE` environment variable if set. If `None`,
+    /// the stack size is determined by [`generator::DEFAULT_STACK_SIZE`]
+    /// (currently 4096 bytes).
+    pub stack_size: Option<usize>,
+
     /// Maximum number of thread preemptions to explore
     ///
     /// Defaults to `LOOM_MAX_PREEMPTIONS` environment variable.
@@ -105,6 +120,10 @@ impl Builder {
             })
             .ok();
 
+        let stack_size = env::var("LOOM_STACK_SIZE")
+            .map(|v| v.parse().expect("invalid value for `LOOM_STACK_SIZE`"))
+            .ok();
+
         let preemption_bound = env::var("LOOM_MAX_PREEMPTIONS")
             .map(|v| v.parse().expect("invalid value for `LOOM_MAX_PREEMPTIONS`"))
             .ok();
@@ -118,6 +137,7 @@ impl Builder {
             max_branches,
             max_duration,
             max_permutations,
+            stack_size,
             preemption_bound,
             checkpoint_file,
             checkpoint_interval,
@@ -190,7 +210,7 @@ impl Builder {
 
             let f = f.clone();
 
-            scheduler.run(&mut execution, move || {
+            scheduler.run(&mut execution, self.stack_size, move || {
                 f();
 
                 let lazy_statics = rt::execution(|execution| execution.lazy_statics.drop());
