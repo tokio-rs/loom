@@ -41,7 +41,7 @@ impl Condvar {
         self.state.branch_opaque(location);
 
         rt::execution(|execution| {
-            trace!(state = ?self.state, ?mutex, "Condvar::wait");
+            trace!(state = ?self.state, ?mutex, %location, "Condvar::wait");
 
             let state = self.state.get_mut(&mut execution.objects);
 
@@ -69,7 +69,7 @@ impl Condvar {
             // Notify the first waiter
             let thread = state.waiters.pop_front();
 
-            trace!(state = ?self.state, ?thread, "Condvar::notify_one");
+            trace!(state = ?self.state, ?thread, %location, "Condvar::notify_one");
 
             if let Some(thread) = thread {
                 execution.threads.unpark(thread);
@@ -84,7 +84,7 @@ impl Condvar {
         rt::execution(|execution| {
             let state = self.state.get_mut(&mut execution.objects);
 
-            trace!(state = ?self.state, threads = ?state.waiters, "Condvar::notify_all");
+            trace!(state = ?self.state, threads = ?state.waiters, %location, "Condvar::notify_all");
 
             for thread in state.waiters.drain(..) {
                 execution.threads.unpark(thread);

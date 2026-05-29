@@ -90,7 +90,7 @@ pub(crate) fn park(location: Location) {
         let thread = execution.threads.active_id();
         let active = execution.threads.active_mut();
 
-        trace!(?thread, ?active.state, "park");
+        trace!(?thread, ?active.state, %location, "park");
 
         match active.state {
             // The thread was previously unparked while it was active. Instead
