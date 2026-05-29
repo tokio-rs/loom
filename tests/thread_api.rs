@@ -107,7 +107,11 @@ fn thread_names() {
 #[test]
 fn thread_stack_size() {
     const STACK_SIZE: usize = 1 << 16;
-    loom::model(|| {
+    let mut builder = loom::model::Builder::new();
+    // The global stack size is intentionally set too small. The thread's stack
+    // size will override it.
+    builder.stack_size = Some(1024);
+    builder.check(|| {
         let body = || {
             // Allocate a large array on the stack.
             std::hint::black_box(&mut [0usize; STACK_SIZE]);
@@ -121,6 +125,22 @@ fn thread_stack_size() {
             .unwrap()
             .join()
             .unwrap()
+    })
+}
+
+#[test]
+fn global_stack_size() {
+    const STACK_SIZE: usize = 1 << 16;
+    let mut builder = loom::model::Builder::new();
+    // Include space for function calls in addition to the array.
+    builder.stack_size = Some(2 * STACK_SIZE);
+    builder.check(|| {
+        let body = || {
+            // Allocate a large array on the stack.
+            std::hint::black_box(&mut [0usize; STACK_SIZE]);
+        };
+        body(); // The main thread has a large stack size too.
+        thread::spawn(body).join().unwrap();
     })
 }
 
