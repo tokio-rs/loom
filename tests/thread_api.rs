@@ -33,6 +33,35 @@ fn many_joins() {
 }
 
 #[test]
+fn is_finished() {
+    loom::model(|| {
+        let mut handles = vec![];
+        let mutex = loom::sync::Arc::new(loom::sync::Mutex::new(()));
+        let lock = mutex.lock().unwrap();
+
+        for _ in 1..3 {
+            let mutex = mutex.clone();
+            handles.push(thread::spawn(move || {
+                mutex.lock().unwrap();
+            }));
+        }
+
+        for handle in &handles {
+            assert!(!handle.is_finished());
+        }
+
+        std::mem::drop(lock);
+
+        for handle in handles.into_iter() {
+            while !handle.is_finished() {
+                thread::yield_now();
+            }
+            let _ = handle.join();
+        }
+    })
+}
+
+#[test]
 fn alt_join() {
     loom::model(|| {
         use loom::sync::{Arc, Mutex};
