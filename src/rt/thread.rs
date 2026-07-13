@@ -17,6 +17,19 @@ pub(crate) struct Thread {
     /// The operation the thread is about to take
     pub(super) operation: Option<Operation>,
 
+    /// True while the thread is blocked inside `thread::park` itself — the
+    /// only blocked state that [`Set::unpark`] may wake. A thread blocked on
+    /// any *other* operation (a `JoinHandle::join`'s notify, a lock) is not
+    /// parked: an `unpark` aimed at it banks [`Thread::park_token`] instead,
+    /// exactly as `std::thread::Thread::unpark` guarantees.
+    pub(super) blocked_in_park: bool,
+
+    /// A pending `unpark` token (std's park/unpark "token" semantics): made
+    /// available by [`Set::unpark`] while the thread is not blocked in
+    /// `park`; consumed by the thread's next `park` call, which then returns
+    /// immediately instead of blocking.
+    pub(super) park_token: bool,
+
     /// Tracks observed causality
     pub causality: VersionVec,
 
@@ -75,7 +88,7 @@ impl Id {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum State {
-    Runnable { unparked: bool },
+    Runnable,
     Blocked(#[allow(dead_code)] Location),
     Yield,
     Terminated,
@@ -93,9 +106,11 @@ impl Thread {
         Thread {
             id,
             span: tracing::info_span!(parent: parent_span.id(), "thread", id = id.id),
-            state: State::Runnable { unparked: false },
+            state: State::Runnable,
             critical: false,
             operation: None,
+            blocked_in_park: false,
+            park_token: false,
             causality: VersionVec::new(),
             released: VersionVec::new(),
             dpor_vv: VersionVec::new(),
@@ -110,7 +125,7 @@ impl Thread {
     }
 
     pub(crate) fn set_runnable(&mut self) {
-        self.state = State::Runnable { unparked: false };
+        self.state = State::Runnable;
     }
 
     pub(crate) fn set_blocked(&mut self, location: Location) {
@@ -150,18 +165,17 @@ impl Thread {
         Box::new(locals)
     }
 
-    pub(crate) fn unpark(&mut self, unparker: &Thread) {
-        self.causality.join(&unparker.causality);
-        self.set_unparked();
-    }
-
-    /// Unpark a thread's state. If it is already runnable, store the unpark for
-    /// a future call to `park`.
-    fn set_unparked(&mut self) {
+    /// Wake a thread that is blocked (or spuriously yielded) on the caller's
+    /// object operation — a `Notify` wait, which also underlies
+    /// `JoinHandle::join`. Callers must have verified the thread is waiting
+    /// on *their* object. This is an object-directed wake, not
+    /// `Thread::unpark`: park-token semantics for the public unpark API live
+    /// in [`Set::unpark`].
+    pub(crate) fn wake(&mut self, waker: &Thread) {
+        self.causality.join(&waker.causality);
         if self.is_blocked() || self.is_yield() {
+            self.blocked_in_park = false;
             self.set_runnable();
-        } else if self.is_runnable() {
-            self.state = State::Runnable { unparked: true }
         }
     }
 }
@@ -302,18 +316,33 @@ impl Set {
         self.active().causality[id]
     }
 
+    /// `Thread::unpark`, with std's token semantics: only a thread blocked
+    /// inside `thread::park` itself is woken. A thread blocked on any other
+    /// operation — a `JoinHandle::join`, a `Condvar` wait it has not reached
+    /// the internal `park` of yet, a lock — is left waiting and the token is
+    /// banked for its next `park`, which will then return immediately.
+    /// Waking (and asserting on) such threads instead was tokio-rs/loom#249.
     pub(crate) fn unpark(&mut self, id: Id) {
         if id == self.active_id() {
-            // The thread is unparking itself. We don't have to join its
-            // causality with the unparker's causality in this case, since the
-            // thread *is* the unparker. Just unpark its state.
-            self.active_mut().set_unparked();
+            // The thread is unparking itself. It is running, so it cannot be
+            // parked: bank the token. No causality join is needed since the
+            // thread *is* the unparker.
+            self.active_mut().park_token = true;
             return;
         }
 
-        // Synchronize memory
+        // Synchronize memory: the target's next `park` return (or immediate
+        // token consumption) happens-after this unpark.
         let (active, th) = self.active2_mut(id);
-        th.unpark(active);
+        th.causality.join(&active.causality);
+
+        if th.blocked_in_park {
+            // Wake the park; the wakeup consumes the token.
+            th.blocked_in_park = false;
+            th.set_runnable();
+        } else {
+            th.park_token = true;
+        }
     }
 
     /// Insert a point of sequential consistency

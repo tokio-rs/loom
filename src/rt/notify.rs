@@ -78,7 +78,7 @@ impl Notify {
                 if obj == Some(self.state.erase()) {
                     trace!(state = ?self.state, thread = ?thread.id, "Notify::notify");
 
-                    thread.unpark(active);
+                    thread.wake(active);
                 }
             }
         });
@@ -99,7 +99,7 @@ impl Notify {
             }
 
             trace!(state = ?self.state, notified = ?state.notified, ?spurious, "Notify::wait 1");
-            dbg!((state.notified, spurious))
+            (state.notified, spurious)
         });
 
         if spurious {
