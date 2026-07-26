@@ -180,11 +180,11 @@ impl Builder {
                         return;
                     }
                 }
+            }
 
-                if let Some(max_duration) = self.max_duration {
-                    if start.elapsed() >= max_duration {
-                        return;
-                    }
+            if let Some(max_duration) = self.max_duration {
+                if start.elapsed() >= max_duration {
+                    return;
                 }
             }
 
