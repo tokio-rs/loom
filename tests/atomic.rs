@@ -123,3 +123,19 @@ fn fetch_add_atomic() {
         assert_ne!(v1, v2);
     });
 }
+
+#[test]
+fn update_atomic() {
+    loom::model(|| {
+        let a1 = Arc::new(AtomicUsize::new(0));
+        let a2 = a1.clone();
+
+        let th = thread::spawn(move || a2.update(Relaxed, Relaxed, |v| v + 1));
+
+        let v1 = a1.update(Relaxed, Relaxed, |v| v + 1);
+        let v2 = th.join().unwrap();
+
+        assert_ne!(v1, v2);
+        assert_eq!(2, a1.load(Relaxed));
+    });
+}

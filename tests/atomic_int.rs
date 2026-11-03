@@ -81,6 +81,32 @@ macro_rules! test_int {
             }
 
             #[test]
+            fn try_update() {
+                loom::model(|| {
+                    let a: $int = NUM_A as $int;
+                    let b: $int = NUM_B as $int;
+
+                    let atomic = <$atomic>::new(a);
+                    assert_eq!(Ok(a), atomic.try_update(SeqCst, SeqCst, |_| Some(b)));
+                    assert_eq!(Err(b), atomic.try_update(SeqCst, SeqCst, |_| None));
+                    assert_eq!(b, atomic.load(SeqCst));
+                });
+            }
+
+            #[test]
+            fn update() {
+                loom::model(|| {
+                    let a: $int = NUM_A as $int;
+                    let b: $int = NUM_B as $int;
+
+                    let atomic = <$atomic>::new(a);
+                    assert_eq!(a, atomic.update(SeqCst, SeqCst, |_| b));
+                    assert_eq!(b, atomic.update(SeqCst, SeqCst, |v| v));
+                    assert_eq!(b, atomic.load(SeqCst));
+                });
+            }
+
+            #[test]
             fn fetch_update() {
                 loom::model(|| {
                     let a: $int = NUM_A as $int;

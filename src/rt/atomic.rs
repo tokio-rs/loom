@@ -64,7 +64,6 @@ use crate::rt::{
 use std::cmp;
 use std::marker::PhantomData;
 use std::sync::atomic::Ordering;
-use std::u16;
 
 use tracing::trace;
 
@@ -867,11 +866,11 @@ impl Default for Store {
 
 impl FirstSeen {
     fn new() -> FirstSeen {
-        FirstSeen([u16::max_value(); MAX_THREADS])
+        FirstSeen([u16::MAX; MAX_THREADS])
     }
 
     fn touch(&mut self, threads: &thread::Set) {
-        if self.0[threads.active_id().as_usize()] == u16::max_value() {
+        if self.0[threads.active_id().as_usize()] == u16::MAX {
             self.0[threads.active_id().as_usize()] = threads.active_atomic_version();
         }
     }

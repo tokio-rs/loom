@@ -96,7 +96,7 @@ where
     }
 
     #[track_caller]
-    pub(crate) fn fetch_update<F>(
+    pub(crate) fn try_update<F>(
         &self,
         set_order: Ordering,
         fetch_order: Ordering,
@@ -113,5 +113,19 @@ where
             }
         }
         Err(prev)
+    }
+
+    #[track_caller]
+    pub(crate) fn update<F>(&self, set_order: Ordering, fetch_order: Ordering, mut f: F) -> T
+    where
+        F: FnMut(T) -> T,
+    {
+        let mut prev = self.load(fetch_order);
+        loop {
+            match self.compare_exchange(prev, f(prev), set_order, fetch_order) {
+                Ok(x) => return x,
+                Err(next_prev) => prev = next_prev,
+            }
+        }
     }
 }
