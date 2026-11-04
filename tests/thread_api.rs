@@ -135,6 +135,33 @@ fn park_unpark_loom() {
     });
 }
 
+// Regression test for #249: unparking a thread that is (or may be) blocked
+// inside `JoinHandle::join` must not abort the model. On std this pattern is
+// legal and harmless — `join` is not `park`, so the unpark just makes the
+// token available.
+#[test]
+fn unpark_during_join() {
+    loom::model(|| {
+        let main = thread::current();
+        let handle = thread::spawn(move || main.unpark());
+        handle.join().unwrap();
+    });
+}
+
+// The token deposited while the target was joining must survive the join,
+// exactly as std guarantees: the `park` after the join consumes it and
+// returns immediately in every schedule, instead of blocking a thread no
+// one is left to wake.
+#[test]
+fn park_token_survives_join() {
+    loom::model(|| {
+        let main = thread::current();
+        let handle = thread::spawn(move || main.unpark());
+        handle.join().unwrap();
+        thread::park();
+    });
+}
+
 #[test]
 fn park_unpark_std() {
     println!("unpark");

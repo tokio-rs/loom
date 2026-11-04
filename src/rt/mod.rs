@@ -86,25 +86,21 @@ where
 /// Marks the current thread as blocked
 pub(crate) fn park(location: Location) {
     let switch = execution(|execution| {
-        use thread::State;
         let thread = execution.threads.active_id();
         let active = execution.threads.active_mut();
 
         trace!(?thread, ?active.state, "park");
 
-        match active.state {
-            // The thread was previously unparked while it was active. Instead
-            // of parking, consume the unpark.
-            State::Runnable { unparked: true } => {
-                active.set_runnable();
-                return false;
-            }
-            // The thread doesn't have a saved unpark; set its state to blocked.
-            _ => active.set_blocked(location),
-        };
+        // A banked unpark token: consume it and return without blocking
+        // (std: `park` "will return immediately" if the token is available).
+        if active.park_token {
+            active.park_token = false;
+            return false;
+        }
 
-        execution.threads.active_mut().set_blocked(location);
-        execution.threads.active_mut().operation = None;
+        active.set_blocked(location);
+        active.blocked_in_park = true;
+        active.operation = None;
         execution.schedule()
     });
 
