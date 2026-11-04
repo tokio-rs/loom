@@ -132,8 +132,8 @@ test_int!(atomic_i16, i16, AtomicI16);
 test_int!(atomic_i32, i32, AtomicI32);
 test_int!(atomic_isize, isize, AtomicIsize);
 
-#[cfg(target_pointer_width = "64")]
+#[cfg(target_has_atomic = "64")]
 test_int!(atomic_u64, u64, AtomicU64);
 
-#[cfg(target_pointer_width = "64")]
+#[cfg(target_has_atomic = "64")]
 test_int!(atomic_i64, i64, AtomicI64);
