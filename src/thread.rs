@@ -1,5 +1,6 @@
 //! Mock implementation of `std::thread`.
 
+use crate::cell::Cell;
 pub use crate::rt::thread::AccessError;
 pub use crate::rt::yield_now;
 use crate::rt::{self, Execution, Location};
@@ -262,7 +263,7 @@ impl<T: 'static> LocalKey<T> {
     where
         F: FnOnce(&T) -> R,
     {
-        let value = match unsafe { self.get() } {
+        let value = match unsafe { self.get_inner() } {
             Some(v) => v?,
             None => {
                 // Init the value out of the `rt::execution`
@@ -274,19 +275,19 @@ impl<T: 'static> LocalKey<T> {
                     execution.threads.local_init(self, value);
                 });
 
-                unsafe { self.get() }.expect("bug")?
+                unsafe { self.get_inner() }.expect("bug")?
             }
         };
         Ok(f(value))
     }
 
-    unsafe fn get(&'static self) -> Option<Result<&'static T, AccessError>> {
+    unsafe fn get_inner(&'static self) -> Option<Result<&'static T, AccessError>> {
         unsafe fn transmute_lt<'a, 'b, T>(t: &'a T) -> &'b T {
             std::mem::transmute::<&'a T, &'b T>(t)
         }
 
         rt::execution(|execution| {
-            trace!("LocalKey::get");
+            trace!("LocalKey::get_inner");
 
             let res = execution.threads.local(self)?;
 
@@ -304,6 +305,46 @@ impl<T: 'static> LocalKey<T> {
             // it's executing, by construction --- it's just kind of unfortunate.
             Some(Ok(transmute_lt(local)))
         })
+    }
+}
+
+impl<T: 'static> LocalKey<Cell<T>> {
+    /// Mock implementation of [`std::thread::LocalKey::set`]
+    pub fn set(&'static self, value: T) {
+        match unsafe { self.get_inner() } {
+            Some(cell) => {
+                cell.expect("cannot access a (mock) TLS value during or after it is destroyed")
+                    .set(value);
+            }
+            None => {
+                rt::execution(|execution| {
+                    trace!("LocalKey::<Cell>::set");
+
+                    execution.threads.local_init(self, Cell::new(value));
+                });
+            }
+        }
+    }
+
+    /// Mock implementation of [`std::thread::LocalKey::get`]
+    pub fn get(&'static self) -> T
+    where
+        T: Copy,
+    {
+        self.with(Cell::get)
+    }
+
+    /// Mock implementation of [`std::thread::LocalKey::take`]
+    pub fn take(&'static self) -> T
+    where
+        T: Default,
+    {
+        self.with(Cell::take)
+    }
+
+    /// Mock implementation of [`std::thread::LocalKey::replace`]
+    pub fn replace(&'static self, value: T) -> T {
+        self.with(|cell| cell.replace(value))
     }
 }
 
