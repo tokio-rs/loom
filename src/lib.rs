@@ -109,6 +109,10 @@
 //! tests, the `std` should be used, since the loom runtime won't be active. This means that
 //! library code will need to use conditional compilation to decide which types to use.
 //!
+//! Loom's mock `lazy_static` support is only valid while a modeled execution is
+//! active. References obtained from it must not escape the current
+//! [`model`](mod@model) execution.
+//!
 //! It is recommended to use a `loom` cfg flag to signal using the loom types. You can do this by
 //! passing `RUSTFLAGS="--cfg loom"` as part of the command when you want to run the loom tests.
 //! Then modify your `Cargo.toml` to include loom like this:
