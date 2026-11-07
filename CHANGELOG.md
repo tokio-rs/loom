@@ -1,3 +1,27 @@
+# 0.7.3 (November 7, 2026)
+
+This release bumps the MSRV to 1.73. (#364)
+
+### Added
+
+ - Add `try_update` and `update` to atomic types (#429)
+
+### Changed
+
+ - Remove `pin-utils` dependency (#366)
+ - Migrate to Rust 2021 edition (#365)
+
+### Fixed
+
+ - Allow `RwLock` to work with `?Sized` types (#401)
+ - Fix build error on 32-bit architectures (#370, #434)
+
+### Documented
+
+ - Document `Notify` limitation (#373)
+ - Document what effect hints have on loom (#358)
+ - Add `checkpoint` feature flag in docs example (#355)
+
 # 0.7.2
 
 This release bumps the MSRV to 1.65. (#332)
