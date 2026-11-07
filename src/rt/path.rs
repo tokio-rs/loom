@@ -7,6 +7,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug)]
 #[cfg_attr(feature = "checkpoint", derive(Serialize, Deserialize))]
 pub(crate) struct Path {
+    /// Present only when bytes select a single execution instead of exploration.
+    #[cfg_attr(feature = "checkpoint", serde(skip))]
+    input: Option<std::vec::IntoIter<u8>>,
+
     preemption_bound: Option<u8>,
 
     /// Current execution's position in the branches vec.
@@ -127,6 +131,7 @@ impl Path {
     /// and at most `preemption_bound` thread preemptions.
     pub(crate) fn new(max_branches: usize, preemption_bound: Option<u8>, exploring: bool) -> Path {
         Path {
+            input: None,
             preemption_bound,
             pos: 0,
             branches: object::Store::with_capacity(max_branches),
@@ -134,6 +139,17 @@ impl Path {
             skipping: false,
             exploring_on_start: exploring,
         }
+    }
+
+    pub(crate) fn set_input(&mut self, input: &[u8]) {
+        self.input = Some(Vec::from(input).into_iter());
+    }
+
+    fn input_choice(&mut self, count: usize) -> usize {
+        if count <= 1 || !self.exploring {
+            return 0;
+        }
+        self.input.as_mut().unwrap().next().unwrap_or(0) as usize % count
     }
 
     pub(crate) fn explore_state(&mut self) {
@@ -174,9 +190,15 @@ impl Path {
     pub(super) fn push_load(&mut self, seed: &[u8]) {
         assert_path_len!(self.branches);
 
+        let pos = if self.input.is_some() {
+            self.input_choice(seed.len()) as u8
+        } else {
+            0
+        };
+
         let load_ref = self.branches.insert(Load {
             values: [0; MAX_ATOMIC_HISTORY],
-            pos: 0,
+            pos,
             len: 0,
             exploring: self.exploring,
         });
@@ -221,8 +243,10 @@ impl Path {
         if self.is_traversed() {
             assert_path_len!(self.branches);
 
+            let spur = self.input.is_some() && self.input_choice(2) != 0;
+
             self.branches.insert(Spurious {
-                spur: false,
+                spur,
                 exploring: self.exploring,
             });
         }
@@ -302,9 +326,13 @@ impl Path {
                 }
             }
 
-            let preemptions = prev
-                .map(|prev| prev.get(&self.branches).preemptions())
-                .unwrap_or(0);
+            let preemptions = if self.input.is_some() && self.preemption_bound.is_none() {
+                // An unbounded input can force more preemptions than fit in u8.
+                0
+            } else {
+                prev.map(|prev| prev.get(&self.branches).preemptions())
+                    .unwrap_or(0)
+            };
 
             debug_assert!(
                 self.preemption_bound.is_none() || Some(preemptions) <= self.preemption_bound,
@@ -316,6 +344,10 @@ impl Path {
             let schedule = schedule_ref.get_mut(&mut self.branches);
             schedule.initial_active = initial_active;
             schedule.preemptions = preemptions;
+
+            if self.input.is_some() && self.exploring {
+                self.select_thread_from_input(schedule_ref);
+            }
         }
 
         let schedule = object::Ref::from_usize(self.pos)
@@ -333,7 +365,39 @@ impl Path {
             .map(|(i, _)| thread::Id::new(execution_id, i))
     }
 
+    fn select_thread_from_input(&mut self, schedule_ref: object::Ref<Schedule>) {
+        let schedule = schedule_ref.get(&self.branches);
+        let at_bound = self.preemption_bound == Some(schedule.preemptions)
+            && schedule.initial_active.is_some();
+        let mut choices = [0; MAX_THREADS];
+        let mut count = 0;
+        for (i, th) in schedule.threads.iter().enumerate() {
+            if matches!(th, Thread::Active | Thread::Skip)
+                && (!at_bound || schedule.initial_active == Some(i as u8))
+            {
+                choices[count] = i;
+                count += 1;
+            }
+        }
+
+        if count == 0 {
+            return;
+        }
+
+        let selected = choices[self.input_choice(count)];
+        let schedule = schedule_ref.get_mut(&mut self.branches);
+        for th in &mut schedule.threads {
+            if th.is_active() {
+                *th = Thread::Skip;
+            }
+        }
+        schedule.threads[selected] = Thread::Active;
+    }
+
     pub(super) fn backtrack(&mut self, mut point: usize, thread_id: thread::Id) {
+        if self.input.is_some() {
+            return;
+        }
         let schedule = loop {
             if let Some(schedule_ref) =
                 object::Ref::from_usize(point).downcast::<Schedule>(&self.branches)
@@ -543,5 +607,85 @@ impl Thread {
 
     fn is_disabled(&self) -> bool {
         *self == Thread::Disabled
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Path, Thread};
+    use crate::rt::execution;
+
+    #[test]
+    fn choices_share_input_and_skip_single_outcomes() {
+        let mut path = Path::new(16, None, true);
+        path.set_input(&[5, 3]);
+        let id = execution::Id::new();
+        assert_eq!(
+            path.branch_thread(id, [Thread::Active].into_iter())
+                .unwrap()
+                .as_usize(),
+            0
+        );
+        assert_eq!(
+            path.branch_thread(id, [Thread::Active, Thread::Skip, Thread::Skip].into_iter())
+                .unwrap()
+                .as_usize(),
+            2
+        );
+        path.push_load(&[4]);
+        assert_eq!(path.branch_load(), 4);
+        path.push_load(&[2, 5]);
+        assert_eq!(path.branch_load(), 5);
+        assert!(!path.branch_spurious());
+    }
+
+    #[test]
+    fn input_selects_spurious_outcome() {
+        let mut path = Path::new(8, None, true);
+        path.set_input(&[255, 2]);
+        assert!(path.branch_spurious());
+        assert!(!path.branch_spurious());
+        assert!(!path.branch_spurious());
+    }
+
+    #[test]
+    fn critical_section_preserves_input() {
+        let mut path = Path::new(8, None, false);
+        path.set_input(&[1]);
+        assert!(!path.branch_spurious());
+        path.explore_state();
+        assert!(path.branch_spurious());
+    }
+
+    #[test]
+    fn preemption_bound_keeps_active_thread_without_consuming_input() {
+        let mut path = Path::new(16, Some(1), true);
+        path.set_input(&[1, 0, 1]);
+        let id = execution::Id::new();
+        let next = |path: &mut Path, threads: [Thread; 2]| {
+            path.branch_thread(id, threads.into_iter())
+                .unwrap()
+                .as_usize()
+        };
+
+        assert_eq!(next(&mut path, [Thread::Active, Thread::Skip]), 1);
+        assert_eq!(next(&mut path, [Thread::Skip, Thread::Active]), 1);
+        assert_eq!(next(&mut path, [Thread::Active, Thread::Disabled]), 0);
+        assert!(!path.branch_spurious());
+        assert!(path.branch_spurious());
+    }
+
+    #[test]
+    fn yielded_threads_wait_for_a_runnable_thread() {
+        let mut path = Path::new(8, None, true);
+        path.set_input(&[1]);
+        let id = execution::Id::new();
+        assert_eq!(
+            path.branch_thread(id, [Thread::Yield, Thread::Active].into_iter())
+                .unwrap()
+                .as_usize(),
+            1
+        );
+        assert!(path.branch_spurious());
     }
 }
