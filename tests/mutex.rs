@@ -91,3 +91,21 @@ fn mutex_into_inner() {
         assert_eq!(lock, 2);
     })
 }
+
+#[test]
+fn try_lock_no_block() {
+    loom::model(|| {
+        let lock = Rc::new(Mutex::new(0));
+        let lock2 = lock.clone();
+
+        let th = thread::spawn(move || {
+            let _ = lock.try_lock();
+        });
+
+        let guard = lock2.try_lock();
+
+        th.join().unwrap();
+
+        drop(guard)
+    })
+}

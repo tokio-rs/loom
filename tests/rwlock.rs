@@ -162,3 +162,21 @@ fn rwlock_into_inner() {
         assert_eq!(lock, 2);
     })
 }
+
+#[test]
+fn rwlock_try_write_no_block() {
+    loom::model(|| {
+        let lock = Rc::new(RwLock::new(0));
+        let lock2 = lock.clone();
+
+        let th = thread::spawn(move || {
+            let _ = lock.try_read();
+        });
+
+        let guard = lock2.try_write();
+
+        th.join().unwrap();
+
+        drop(guard)
+    })
+}
