@@ -35,7 +35,7 @@ serde = { version = "1.0.113", features = ["derive"], optional = true }
 serde_json = { version = "1.0.33", optional = true }
 
 tracing = { version = "0.1.27", default-features = false, features = ["std"] }
-tracing-subscriber = { version = "0.3.8", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 
 [dev-dependencies]
 futures-util = "0.3.0"
