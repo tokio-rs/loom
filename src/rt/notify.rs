@@ -84,6 +84,42 @@ impl Notify {
         });
     }
 
+    pub(crate) fn notify_waiters(self, location: Location) {
+        self.state.branch_opaque(location);
+
+        rt::execution(|execution| {
+            let state = self.state.get_mut(&mut execution.objects);
+
+            state
+                .synchronize
+                .sync_store(&mut execution.threads, Release);
+
+            if state.seq_cst {
+                execution.threads.seq_cst();
+            }
+
+            let (active, inactive) = execution.threads.split_active();
+
+            let mut has_waiters = false;
+            for thread in inactive {
+                let obj = thread
+                    .operation
+                    .as_ref()
+                    .map(|operation| operation.object());
+
+                if obj == Some(self.state.erase()) {
+                    trace!(state = ?self.state, thread = ?thread.id, "Notify::notify_waiters");
+                    has_waiters = true;
+                    thread.unpark(active);
+                }
+            }
+
+            if has_waiters {
+                state.notified = true;
+            }
+        });
+    }
+
     pub(crate) fn wait(self, location: Location) {
         let (notified, spurious) = rt::execution(|execution| {
             let spurious = if self.state.get(&execution.objects).might_spur() {

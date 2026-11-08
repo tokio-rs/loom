@@ -13,7 +13,7 @@ pub use self::arc::Arc;
 pub use self::barrier::Barrier;
 pub use self::condvar::{Condvar, WaitTimeoutResult};
 pub use self::mutex::{Mutex, MutexGuard};
-pub use self::notify::Notify;
+pub use self::notify::{Notified, Notify};
 pub use self::rwlock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 #[doc(no_inline)]
