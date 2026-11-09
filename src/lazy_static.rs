@@ -26,6 +26,13 @@ pub struct Lazy<T> {
 
 impl<T: 'static> Lazy<T> {
     /// Mock implementation of `lazy_static::Lazy::get`.
+    ///
+    /// # Safety
+    /// The returned reference is typed as `&'static T`, but the underlying value
+    /// only lives for the duration of the current loom execution. Callers must
+    /// ensure that the reference does not escape the current execution, such as
+    /// by storing it in state that is later accessed after [`crate::model()`]
+    /// returns.
     pub fn get(&'static self) -> &'static T {
         // This is not great. Specifically, we're returning a 'static reference to a value that
         // only lives for the duration of the execution. Unfortunately, the semantics of lazy
