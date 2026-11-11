@@ -74,12 +74,12 @@ impl Scheduler {
         Self::with_state(|state| state.queued_spawn.push_back(QueuedSpawn { stack_size, f }));
     }
 
-    pub(crate) fn run<F>(&mut self, execution: &mut Execution, f: F)
+    pub(crate) fn run<F>(&mut self, execution: &mut Execution, stack_size: Option<usize>, f: F)
     where
         F: FnOnce() + Send + 'static,
     {
         let mut threads = Vec::new();
-        threads.push(spawn_thread(Box::new(f), None));
+        threads.push(spawn_thread(Box::new(f), stack_size));
         threads[0].resume();
 
         loop {
@@ -99,9 +99,12 @@ impl Scheduler {
                 assert!(threads.len() < self.max_threads);
 
                 let thread_id = threads.len();
-                let QueuedSpawn { f, stack_size } = th;
+                let QueuedSpawn {
+                    f,
+                    stack_size: thread_stack_size,
+                } = th;
 
-                threads.push(spawn_thread(f, stack_size));
+                threads.push(spawn_thread(f, thread_stack_size.or(stack_size)));
                 threads[thread_id].resume();
             }
         }
