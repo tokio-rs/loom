@@ -162,3 +162,45 @@ fn rwlock_into_inner() {
         assert_eq!(lock, 2);
     })
 }
+
+// https://github.com/tokio-rs/loom/issues/423
+#[test]
+fn rwlock_read_twice_same_thread() {
+    loom::model(|| {
+        let lock = RwLock::new(1);
+
+        let r1 = lock.read().unwrap();
+        let r2 = lock.read().unwrap();
+        assert_eq!(*r1, 1);
+        assert_eq!(*r2, 1);
+
+        drop(r1);
+        assert!(lock.try_write().is_err());
+
+        drop(r2);
+        assert!(lock.try_write().is_ok());
+    });
+}
+
+#[test]
+fn rwlock_read_twice_same_thread_blocks_writer() {
+    loom::model(|| {
+        let lock = Arc::new(RwLock::new(1));
+
+        let r1 = lock.read().unwrap();
+        let r2 = lock.read().unwrap();
+
+        let c_lock = lock.clone();
+        let th = thread::spawn(move || {
+            *c_lock.write().unwrap() = 2;
+        });
+
+        drop(r1);
+        thread::yield_now();
+        assert_eq!(*r2, 1);
+
+        drop(r2);
+        th.join().unwrap();
+        assert_eq!(*lock.read().unwrap(), 2);
+    });
+}

@@ -1,7 +1,7 @@
 use crate::rt::object;
 use crate::rt::{thread, Access, Execution, Location, Synchronize, VersionVec};
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::atomic::Ordering::{Acquire, Release};
 
 #[derive(Debug, Copy, Clone)]
@@ -11,7 +11,8 @@ pub(crate) struct RwLock {
 
 #[derive(Debug, PartialEq)]
 enum Locked {
-    Read(HashSet<thread::Id>),
+    /// Number of read locks held by each reader thread.
+    Read(HashMap<thread::Id, usize>),
     Write(thread::Id),
 }
 
@@ -27,7 +28,7 @@ pub(super) enum Action {
 #[derive(Debug)]
 pub(super) struct State {
     /// A single `thread::Id` when Write locked.
-    /// A set of `thread::Id` when Read locked.
+    /// A map of `thread::Id` to read lock count when Read locked.
     lock: Option<Locked>,
 
     /// Tracks write access to the rwlock.
@@ -105,7 +106,12 @@ impl RwLock {
                 _ => panic!("invalid internal loom state"),
             };
 
-            readers.remove(&thread_id);
+            if let Some(count) = readers.get_mut(&thread_id) {
+                *count -= 1;
+                if *count == 0 {
+                    readers.remove(&thread_id);
+                }
+            }
 
             if readers.is_empty() {
                 state.lock = None;
@@ -178,12 +184,12 @@ impl RwLock {
             let mut already_locked = false;
             state.lock = match state.lock.take() {
                 None => {
-                    let mut threads: HashSet<thread::Id> = HashSet::new();
-                    threads.insert(thread_id);
+                    let mut threads: HashMap<thread::Id, usize> = HashMap::new();
+                    threads.insert(thread_id, 1);
                     Some(Locked::Read(threads))
                 }
                 Some(Locked::Read(mut threads)) => {
-                    threads.insert(thread_id);
+                    *threads.entry(thread_id).or_insert(0) += 1;
                     Some(Locked::Read(threads))
                 }
                 Some(Locked::Write(writer)) => {
