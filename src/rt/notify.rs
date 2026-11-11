@@ -76,7 +76,7 @@ impl Notify {
                     .map(|operation| operation.object());
 
                 if obj == Some(self.state.erase()) {
-                    trace!(state = ?self.state, thread = ?thread.id, "Notify::notify");
+                    trace!(state = ?self.state, thread = ?thread.id, %location, "Notify::notify");
 
                     thread.unpark(active);
                 }
@@ -98,7 +98,7 @@ impl Notify {
                 state.did_spur = true;
             }
 
-            trace!(state = ?self.state, notified = ?state.notified, ?spurious, "Notify::wait 1");
+            trace!(state = ?self.state, notified = ?state.notified, ?spurious, %location, "Notify::wait 1");
             dbg!((state.notified, spurious))
         });
 
@@ -116,7 +116,7 @@ impl Notify {
 
         // Thread was notified
         super::execution(|execution| {
-            trace!(state = ?self.state, "Notify::wait 2");
+            trace!(state = ?self.state, %location, "Notify::wait 2");
             let state = self.state.get_mut(&mut execution.objects);
 
             assert!(state.notified);

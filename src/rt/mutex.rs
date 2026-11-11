@@ -121,7 +121,7 @@ impl Mutex {
                 if let Some(operation) = thread.operation.as_ref() {
                     if operation.object() == self.state.erase() {
                         let location = operation.location();
-                        trace!(state = ?self.state, thread = ?id,
+                        trace!(state = ?self.state, thread = ?id, %location,
                             "Mutex::post_acquire");
                         thread.set_blocked(location);
                     }

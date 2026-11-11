@@ -332,7 +332,7 @@ impl<T: Object<Entry = Entry>> Ref<T> {
     // TODO: rename `branch_disable`
     pub(super) fn branch_acquire(self, is_locked: bool, location: Location) {
         super::branch(|execution| {
-            trace!(obj = ?self, ?is_locked, "Object::branch_acquire");
+            trace!(obj = ?self, ?is_locked, %location, "Object::branch_acquire");
 
             self.set_action(execution, Action::Opaque, location);
 
@@ -349,7 +349,7 @@ impl<T: Object<Entry = Entry>> Ref<T> {
         location: Location,
     ) {
         super::branch(|execution| {
-            trace!(obj = ?self, ?action, "Object::branch_action");
+            trace!(obj = ?self, ?action, %location, "Object::branch_action");
 
             self.set_action(execution, action.into(), location);
         })
@@ -362,7 +362,7 @@ impl<T: Object<Entry = Entry>> Ref<T> {
         location: Location,
     ) {
         super::branch(|execution| {
-            trace!(obj = ?self, ?action, ?disable, "Object::branch_disable");
+            trace!(obj = ?self, ?action, ?disable, %location, "Object::branch_disable");
 
             self.set_action(execution, action.into(), location);
 
