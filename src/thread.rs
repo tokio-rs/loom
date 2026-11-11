@@ -229,6 +229,11 @@ impl<T> JoinHandle<T> {
         self.result.lock().unwrap().take().unwrap()
     }
 
+    /// Checks if the associated thread has finished running its main function.
+    pub fn is_finished(&self) -> bool {
+        self.result.lock().unwrap().is_some()
+    }
+
     /// Gets a handle to the underlying [`Thread`]
     pub fn thread(&self) -> &Thread {
         &self.thread
