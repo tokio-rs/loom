@@ -10,6 +10,7 @@ techniques][cdschecker] to avoid combinatorial explosion.
 [![License](https://img.shields.io/github/license/tokio-rs/loom)](https://github.com/tokio-rs/loom/blob/master/LICENSE)
 [![Build Status](https://github.com/tokio-rs/loom/actions/workflows/ci.yml/badge.svg)](https://github.com/tokio-rs/loom/actions)
 [![Discord chat](https://img.shields.io/discord/500028886025895936.svg?logo=discord&style=flat-square)](https://discord.com/invite/tokio)
+[![Twitter](https://img.shields.io/twitter/follow/tokio_rs)](https://x.com/tokio_rs)
 
 [docs]: https://docs.rs/loom
 [spec]: https://en.cppreference.com/w/cpp/atomic/memory_order
