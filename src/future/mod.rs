@@ -41,13 +41,15 @@ where
     }
 }
 
+static VTABLE: RawWakerVTable = RawWakerVTable::new(
+    clone_arc_raw,
+    wake_arc_raw,
+    wake_by_ref_arc_raw,
+    drop_arc_raw,
+);
+
 pub(super) fn waker_vtable() -> &'static RawWakerVTable {
-    &RawWakerVTable::new(
-        clone_arc_raw,
-        wake_arc_raw,
-        wake_by_ref_arc_raw,
-        drop_arc_raw,
-    )
+    &VTABLE
 }
 
 unsafe fn increase_refcount(data: *const ()) {
