@@ -54,6 +54,33 @@ impl<T> Arc<T> {
             Err(_) => unreachable!(),
         }
     }
+
+    /// Returns the inner value, if the `Arc` has exactly one strong reference.
+    #[track_caller]
+    pub fn into_inner(this: Arc<T>) -> Option<T> {
+        // work around our inability to destruct the object normally,
+        // because of the `Drop` presense.
+        let (obj, value) = unsafe {
+            let obj = ptr::read(&this.obj);
+            let value = ptr::read(&this.value);
+
+            mem::forget(this);
+
+            (obj, value)
+        };
+
+        if obj.ref_dec(location!()) {
+            // unregister
+            rt::execution(|e| {
+                e.arc_objs
+                    .remove(&std::sync::Arc::as_ptr(&value).cast())
+                    .expect("Arc object was removed before dropping last Arc");
+            });
+            Some(std::sync::Arc::into_inner(value).unwrap())
+        } else {
+            None
+        }
+    }
 }
 
 impl<T: ?Sized> Arc<T> {
