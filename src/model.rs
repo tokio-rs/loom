@@ -138,6 +138,21 @@ impl Builder {
     where
         F: Fn() + Sync + Send + 'static,
     {
+        let subscriber = fmt::Subscriber::builder()
+            .with_env_filter(EnvFilter::from_env("LOOM_LOG"))
+            .with_test_writer()
+            .without_time()
+            .finish();
+
+        subscriber::with_default(subscriber, || {
+            self.check_inner(f);
+        });
+    }
+
+    fn check_inner<F>(&self, f: F)
+    where
+        F: Fn() + Sync + Send + 'static,
+    {
         let mut i = 1;
         let mut _span = tracing::info_span!("iter", message = i).entered();
 
@@ -232,15 +247,7 @@ pub fn model<F>(f: F)
 where
     F: Fn() + Sync + Send + 'static,
 {
-    let subscriber = fmt::Subscriber::builder()
-        .with_env_filter(EnvFilter::from_env("LOOM_LOG"))
-        .with_test_writer()
-        .without_time()
-        .finish();
-
-    subscriber::with_default(subscriber, || {
-        Builder::new().check(f);
-    });
+    Builder::new().check(f)
 }
 
 #[cfg(feature = "checkpoint")]
