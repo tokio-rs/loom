@@ -202,6 +202,12 @@ impl Execution {
                 }
             })
         });
+        if let Some(next) = next {
+            assert!(
+                self.threads[next].is_runnable() || self.threads[next].is_yield(),
+                "Picked a thread for execution that is not actually runnable",
+            );
+        }
 
         let switched = Some(self.threads.active_id()) != next;
 
