@@ -1,6 +1,6 @@
 #![deny(warnings, rust_2018_idioms)]
 
-use loom::sync::atomic::AtomicUsize;
+use loom::sync::atomic::{AtomicBool, AtomicUsize};
 use loom::thread;
 
 use std::sync::atomic::Ordering::{AcqRel, Acquire, Relaxed, Release};
@@ -74,6 +74,68 @@ fn invalid_unsync_load_relaxed() {
         });
 
         b.store(1, Relaxed);
+
+        thread.join().unwrap();
+    });
+}
+
+#[test]
+fn unsync_load_ordered_before_release_and_acquiring_cas() {
+    loom::model(|| {
+        let owned = Arc::new(AtomicBool::new(false));
+
+        let threads: Vec<_> = (0..2)
+            .map(|_| {
+                let owned = owned.clone();
+                thread::spawn(move || {
+                    // Only the thread that wins the compare_exchange owns the
+                    // value, so it can read it without synchronization.
+                    if owned
+                        .compare_exchange(false, true, Acquire, Relaxed)
+                        .is_ok()
+                    {
+                        unsafe { owned.unsync_load() };
+                        owned.store(false, Release);
+                    }
+                })
+            })
+            .collect();
+
+        for th in threads {
+            th.join().unwrap();
+        }
+    });
+}
+
+#[test]
+#[should_panic]
+fn invalid_unsync_load_relaxed_cas() {
+    loom::model(|| {
+        let a = Arc::new(AtomicUsize::new(0));
+        let b = a.clone();
+
+        let thread = thread::spawn(move || {
+            unsafe { a.unsync_load() };
+        });
+
+        let _ = b.compare_exchange(0, 1, Relaxed, Relaxed);
+
+        thread.join().unwrap();
+    });
+}
+
+#[test]
+#[should_panic]
+fn invalid_unsync_load_acquire_cas() {
+    loom::model(|| {
+        let a = Arc::new(AtomicUsize::new(0));
+        let b = a.clone();
+
+        let thread = thread::spawn(move || {
+            unsafe { a.unsync_load() };
+        });
+
+        let _ = b.compare_exchange(0, 1, Acquire, Relaxed);
 
         thread.join().unwrap();
     });

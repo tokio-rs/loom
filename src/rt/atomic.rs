@@ -521,12 +521,15 @@ impl State {
 
         match f(prev) {
             Ok(next) => {
+                // Perform load synchronization using the `success` ordering.
+                // This has to happen before the store is tracked, so that an
+                // `unsync_load` ordered before the release being read from is
+                // not reported as concurrent with this store.
+                self.stores[index].sync.sync_load(threads, success);
+
                 self.stored_locations.track(location, threads);
                 // Track a store operation happened
                 self.track_store(threads);
-
-                // Perform load synchronization using the `success` ordering.
-                self.stores[index].sync.sync_load(threads, success);
 
                 // Store the new value, initializing with the `sync` value from
                 // the load. This is our (hacky) way to establish a release
